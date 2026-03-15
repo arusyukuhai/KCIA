@@ -619,7 +619,7 @@ def main():
         use_muon_inner = not args.no_muon_inner,
         device         = device,
         save_dir       = args.save_dir,
-        log_every      = 50,
+        log_every      = 250,
     )
 
     plot_losses(start_losses + losses)
