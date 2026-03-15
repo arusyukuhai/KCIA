@@ -314,7 +314,7 @@ def meta_train(
     use_muon_inner: bool = True,
     device:        str   = 'cpu',
     save_dir:      str   = 'checkpoints',
-    log_every:     int   = 50,
+    log_every:     int   = 250,
 ) -> List[float]:
     """
     Reptile 外部ループ。
