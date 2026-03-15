@@ -314,7 +314,7 @@ def meta_train(
     use_muon_inner: bool = True,
     device:        str   = 'cpu',
     save_dir:      str   = 'checkpoints',
-    log_every:     int   = 250,
+    log_every:     int   = 50,
 ) -> List[float]:
     """
     Reptile 外部ループ。
@@ -619,7 +619,7 @@ def main():
         use_muon_inner = not args.no_muon_inner,
         device         = device,
         save_dir       = args.save_dir,
-        log_every      = 250,
+        log_every      = 50,
     )
 
     plot_losses(start_losses + losses)
