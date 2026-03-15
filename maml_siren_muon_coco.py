@@ -578,9 +578,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument('--img_size',    type=int, nargs=2, default=[64, 64],
                    metavar=('H', 'W'),
                    help='Resize images to this resolution')
-    p.add_argument('--n_support',   type=int, default=512,
+    p.add_argument('--n_support',   type=int, default=32768,
                    help='Support set pixels per task')
-    p.add_argument('--n_query',     type=int, default=2048,
+    p.add_argument('--n_query',     type=int, default=32768,
                    help='Query set pixels per task')
     p.add_argument('--max_train',   type=int, default=None,
                    help='Max training images (None = all)')
