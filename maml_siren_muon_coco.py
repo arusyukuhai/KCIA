@@ -604,7 +604,7 @@ def parse_args() -> argparse.Namespace:
                    help='Use FOMAML (faster, less memory)')
     p.add_argument('--no_muon_inner', action='store_true',
                    help='Use SGD instead of Muon for inner loop')
-    p.add_argument('--grad_clip',     type=float, default=1.0)
+    p.add_argument('--grad_clip',     type=float, default=0)
     p.add_argument('--num_workers',   type=int,   default=4)
     p.add_argument('--seed',          type=int,   default=42)
 
