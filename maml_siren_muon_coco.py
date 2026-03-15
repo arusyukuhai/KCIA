@@ -69,7 +69,8 @@ class SineLayer(nn.Module):
         nn.init.zeros_(self.linear.bias)"""
 
     def forward(self, x: Tensor) -> Tensor:
-        return torch.concatenate((torch.sin(self.omega_0 * x[..., ::2]) * torch.nn.functional.softplus(self.omega_0 * y[..., 1::2]) / self.omega_0, torch.cos(self.omega_0 * x[..., ::2]) * torch.nn.functional.softplus(self.omega_0 * y[..., 1::2]) / self.omega_0), dim=-1)
+        y = self.linear(x)
+        return torch.concatenate((torch.sin(self.omega_0 * y[..., ::2]) * torch.nn.functional.softplus(self.omega_0 * y[..., 1::2]) / self.omega_0, torch.cos(self.omega_0 * y[..., ::2]) * torch.nn.functional.softplus(self.omega_0 * y[..., 1::2]) / self.omega_0), dim=-1)
 
 
 class SIREN(nn.Module):
