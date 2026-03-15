@@ -541,7 +541,7 @@ def parse_args():
     p.add_argument('--seed',          type=int,   default=42)
 
     # 出力
-    p.add_argument('--save_dir',         default='/kaggle/output')
+    p.add_argument('--save_dir',         default='./')
     p.add_argument('--eval_dir',         default='eval_outputs')
     p.add_argument('--resume',           default=None)
     p.add_argument('--eval_only',        action='store_true')
