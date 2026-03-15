@@ -571,7 +571,7 @@ def parse_args() -> argparse.Namespace:
         description='MAML + SIREN + Muon on COCO INR tasks'
     )
     # ── データ ──
-    p.add_argument('--train_dir',   default='coco/images/train2017',
+    p.add_argument('--train_dir',   default='coco/images/val2017',
                    help='COCO train images directory')
     p.add_argument('--val_dir',     default='coco/images/val2017',
                    help='COCO val images directory')
