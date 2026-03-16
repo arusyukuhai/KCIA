@@ -364,7 +364,7 @@ def meta_train(
             # ── outer update: Reptile 補間 ──
             reptile_meta_update(meta_model, adapted_list, meta_lr=meta_lr)
 
-            avg_loss = sum(support_losses) / len(support_losses)
+            avg_loss = np.mean(-np.log10(support_losses) * 10)
             epoch_losses.append(avg_loss)
             all_losses.append(avg_loss)
             global_step += 1
