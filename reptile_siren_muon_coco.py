@@ -314,7 +314,7 @@ def meta_train(
     use_muon_inner: bool = True,
     device:        str   = 'cpu',
     save_dir:      str   = 'checkpoints',
-    log_every:     int   = 250,
+    log_every:     int   = 50,
 ) -> List[float]:
     """
     Reptile 外部ループ。
@@ -532,7 +532,7 @@ def parse_args():
                    help='Tasks per Reptile update')
     p.add_argument('--meta_lr',       type=float, default=0.1,
                    help='Reptile interpolation coefficient ε')
-    p.add_argument('--inner_lr',      type=float, default=1e-2)
+    p.add_argument('--inner_lr',      type=float, default=5e-3)
     p.add_argument('--n_inner_steps', type=int,   default=8,
                    help='Inner steps k for Reptile')
     p.add_argument('--no_muon_inner', action='store_true',
@@ -619,7 +619,7 @@ def main():
         use_muon_inner = not args.no_muon_inner,
         device         = device,
         save_dir       = args.save_dir,
-        log_every      = 250,
+        log_every      = 50,
     )
 
     plot_losses(start_losses + losses)
