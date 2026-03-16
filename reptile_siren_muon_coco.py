@@ -532,7 +532,7 @@ def parse_args():
                    help='Tasks per Reptile update')
     p.add_argument('--meta_lr',       type=float, default=0.1,
                    help='Reptile interpolation coefficient ε')
-    p.add_argument('--inner_lr',      type=float, default=0.001)
+    p.add_argument('--inner_lr',      type=float, default=5e-2)
     p.add_argument('--n_inner_steps', type=int,   default=8,
                    help='Inner steps k for Reptile')
     p.add_argument('--no_muon_inner', action='store_true',
