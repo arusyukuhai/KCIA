@@ -653,7 +653,7 @@ def train(
             epoch_losses.append(loss)
 
             if step % 50 == 0:
-                print(f"Epoch {epoch:3d} | Step {step:4d} | Loss: {loss:.6f}")
+                print(f"Epoch {epoch:3d} | Step {step:4d} | Loss: {loss}")
 
         avg_loss = np.mean(epoch_losses)
         print(f"── Epoch {epoch:3d} avg loss: {avg_loss:.6f} ──")
