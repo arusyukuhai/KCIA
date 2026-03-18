@@ -655,24 +655,23 @@ def train(
             if step % 50 == 0:
                 print(f"Epoch {epoch:3d} | Step {step:4d} | Loss: {loss} | PSNR: {-np.log10(loss) * 10}")
 
+            if step % save_every == 0:
+                ckpt_path = Path(checkpoint_dir) / f"siren_maml_muon_epoch{epoch:04d}.pt"
+                torch.save({
+                    "epoch":       epoch,
+                    "model_state": model.state_dict(),
+                    "optimizer":   trainer.outer_optimizer.state_dict(),
+                    "avg_loss":    avg_loss,
+                    "config": {
+                        "hidden_dim": hidden_dim, "num_layers": num_layers,
+                        "omega_0": omega_0, "lora_rank": lora_rank,
+                        "inner_lr": inner_lr, "inner_steps": inner_steps,
+                        "outer_lr": outer_lr,
+                    },
+                }, ckpt_path)
+
         avg_loss = np.mean(epoch_losses)
         print(f"── Epoch {epoch:3d} avg loss: {avg_loss} | PSNR: {-np.log10(avg_loss) * 10} ──")
-
-        if epoch % save_every == 0:
-            ckpt_path = Path(checkpoint_dir) / f"siren_maml_muon_epoch{epoch:04d}.pt"
-            torch.save({
-                "epoch":       epoch,
-                "model_state": model.state_dict(),
-                "optimizer":   trainer.outer_optimizer.state_dict(),
-                "avg_loss":    avg_loss,
-                "config": {
-                    "hidden_dim": hidden_dim, "num_layers": num_layers,
-                    "omega_0": omega_0, "lora_rank": lora_rank,
-                    "inner_lr": inner_lr, "inner_steps": inner_steps,
-                    "outer_lr": outer_lr,
-                },
-            }, ckpt_path)
-            print(f"Saved checkpoint: {ckpt_path}")
 
     return model
 
@@ -752,8 +751,8 @@ if __name__ == "__main__":
     parser.add_argument("--img_size",      type=int,   default=512)
     parser.add_argument("--support",       type=int,   default=32768)
     parser.add_argument("--query",         type=int,   default=32768)
-    parser.add_argument("--save_every",    type=int,   default=10)
-    parser.add_argument("--checkpoint_dir", default="./")
+    parser.add_argument("--save_every",    type=int,   default=50)
+    parser.add_argument("--checkpoint_dir", default="")
     parser.add_argument("--device",        default="cuda" if torch.cuda.is_available() else "cpu")
 
     args = parser.parse_args()
