@@ -1,15 +1,15 @@
 """
-SIREN + LoRA風内側ループ (W*B@A + C@D) + Hyperball外側最適化によるMAML on COCO
+SIREN + LoRA風内側ループ (W*B@A + C@D) + Muon外側最適化によるMAML on COCO
 
 アーキテクチャ概要:
   - SIREN: 各線形層にsin活性化とω₀スケーリング
   - LoRA風内側ループ:
       通常LoRA: W_eff = W + B@A
       本実装:   W_eff = W * (B@A) + C@D
-        W : ベース重み (外側ループで学習, Hyperball)
+        W : ベース重み (外側ループで学習, Muon)
         B, A: 乗算LoRA分解 (rank r, 内側ループで適応)
         C, D: 加算LoRA分解 (rank r, 内側ループで適応)
-  - 外側ループ: Hyperball Optimization (Adam + 重み/更新ノルム正規化)
+  - 外側ループ: Muon (Newton-Schulz直交化 + Nesterov momentum)
   - タスク: COCO画像を座標→RGB INR (Implicit Neural Representation) としてfew-shot適応
 """
 
@@ -28,7 +28,7 @@ from PIL import Image
 import numpy as np
 
 # ─────────────────────────────────────────────
-# 1. Hyperball Optimizer (Adam base + Norm Projection)
+# 1. Muon Optimizer
 # ─────────────────────────────────────────────
 
 def newton_schulz(G: Tensor, steps: int = 5, eps: float = 1e-7) -> Tensor:
@@ -49,39 +49,28 @@ def newton_schulz(G: Tensor, steps: int = 5, eps: float = 1e-7) -> Tensor:
     return X
 
 
-def _normalize_to_sphere(x: Tensor, radius: float, eps: float = 1e-8) -> Tensor:
-    """テンソルをフラット化してL2ノルムでradius球面上に射影する。"""
-    norm = x.norm() + eps
-    return x * (radius / norm)
-
-
-class Hyperball(torch.optim.Optimizer):
+class Muon(torch.optim.Optimizer):
     """
-    Hyperball Optimization (Wen et al.)
-    W_{t+1} = Normalize_R( W_t - η · Normalize_R(u_t) )
-
-    - Adamで更新量 u_t を計算
-    - u_t を初期重みノルム R の球面上に射影して正規化
-    - 更新後の重みも R の球面上に再射影
-    - 2D以上のパラメータにはNewton-Schulz直交化も適用可能
-    - 1Dパラメータ (bias等): 通常のAdamにfallback
+    Muon: MomentUm Orthogonalized by Newton-Schulz
+    - 2D以上のパラメータ: Newton-Schulz直交化した勾配で更新
+    - 1Dパラメータ (bias等): 通常のSGD+momentumにfallback
     """
 
     def __init__(
         self,
         params,
         lr: float = 1e-3,
-        betas: tuple = (0.9, 0.999),
-        eps: float = 1e-8,
+        momentum: float = 0.95,
+        nesterov: bool = True,
         ns_steps: int = 5,
-        use_ns: bool = True,
+        weight_decay: float = 0.0,
     ):
         defaults = dict(
             lr=lr,
-            betas=betas,
-            eps=eps,
+            momentum=momentum,
+            nesterov=nesterov,
             ns_steps=ns_steps,
-            use_ns=use_ns,
+            weight_decay=weight_decay,
         )
         super().__init__(params, defaults)
 
@@ -93,65 +82,40 @@ class Hyperball(torch.optim.Optimizer):
                 loss = closure()
 
         for group in self.param_groups:
-            lr       = group["lr"]
-            beta1, beta2 = group["betas"]
-            eps      = group["eps"]
-            ns_steps = group["ns_steps"]
-            use_ns   = group["use_ns"]
+            lr         = group["lr"]
+            momentum   = group["momentum"]
+            nesterov   = group["nesterov"]
+            ns_steps   = group["ns_steps"]
+            wd         = group["weight_decay"]
 
             for p in group["params"]:
                 if p.grad is None:
                     continue
 
                 grad = p.grad
+                if wd != 0.0:
+                    grad = grad.add(p, alpha=wd)
+
                 state = self.state[p]
+                if "momentum_buffer" not in state:
+                    state["momentum_buffer"] = torch.zeros_like(grad)
 
-                # ── 状態初期化 ──
-                if len(state) == 0:
-                    state["step"] = 0
-                    state["exp_avg"]     = torch.zeros_like(p)
-                    state["exp_avg_sq"]  = torch.zeros_like(p)
-                    # 初期重みノルム R を記録
-                    state["init_norm"] = p.norm().item()
+                buf = state["momentum_buffer"]
+                buf.mul_(momentum).add_(grad)
 
-                state["step"] += 1
-                t = state["step"]
-                R = state["init_norm"]
+                update = buf if not nesterov else grad.add(buf, alpha=momentum)
 
-                exp_avg    = state["exp_avg"]
-                exp_avg_sq = state["exp_avg_sq"]
+                if update.ndim >= 2:
+                    # 2D以上 → Newton-Schulz直交化
+                    orig_shape = update.shape
+                    g2d = update.view(orig_shape[0], -1)
+                    g2d = newton_schulz(g2d, steps=ns_steps)
+                    # スケール保存: 元のFrobenius normを掛ける
+                    scale = orig_shape[0] ** 0.5
+                    update = g2d.view(orig_shape).mul_(scale)
+                # 1D → そのまま使用
 
-                # ── Adam更新量の計算 ──
-                exp_avg.mul_(beta1).add_(grad, alpha=1 - beta1)
-                exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=1 - beta2)
-
-                bias_correction1 = 1 - beta1 ** t
-                bias_correction2 = 1 - beta2 ** t
-
-                corrected_avg    = exp_avg / bias_correction1
-                corrected_avg_sq = exp_avg_sq / bias_correction2
-
-                update = corrected_avg / (corrected_avg_sq.sqrt() + eps)
-
-                if p.ndim >= 2:
-                    # 2D以上 → Newton-Schulz直交化 (オプション)
-                    if use_ns:
-                        orig_shape = update.shape
-                        g2d = update.view(orig_shape[0], -1)
-                        g2d = newton_schulz(g2d, steps=ns_steps)
-                        scale = orig_shape[0] ** 0.5
-                        update = g2d.view(orig_shape).mul_(scale)
-
-                    # Hyperball: 更新ノルム正規化 + 重みノルム正規化
-                    if R > 0:
-                        update = _normalize_to_sphere(update, R)
-                        p.add_(update, alpha=-lr)
-                        p.data.copy_(_normalize_to_sphere(p.data, R))
-                    else:
-                        p.add_(update, alpha=-lr)
-                else:
-                    # 1Dパラメータ → 通常のAdam更新
-                    p.add_(update, alpha=-lr)
+                p.add_(update, alpha=-lr)
 
         return loss
 
@@ -166,7 +130,7 @@ class LoRAStyleAdapter(nn.Module):
 
     有効重み計算:
         W_eff = W_base * (I + B @ A) + C @ D
-        ただし W_base は外から渡す (Hyperball管理下)
+        ただし W_base は外から渡す (Muon管理下)
 
     注: ここでは「W * (B@A)」をハダマード積ではなく
         「W_base @ (B @ A)」（行列積の合成）として実装する。
@@ -223,7 +187,7 @@ class LoRAStyleAdapter(nn.Module):
 class SIRENLoRALayer(nn.Module):
     """
     SIREN層 + LoRA風アダプタ。
-    ベース重みWはHyperballで管理、アダプタは内側ループで適応。
+    ベース重みWはMuonで管理、アダプタは内側ループで適応。
     """
 
     def __init__(
@@ -239,7 +203,7 @@ class SIRENLoRALayer(nn.Module):
         self.is_first   = is_first
         self.in_features = in_features
 
-        # ベース重み (Hyperballが更新)
+        # ベース重み (Muonが更新)
         self.weight = nn.Parameter(torch.empty(out_features, in_features))
         self.bias   = nn.Parameter(torch.zeros(out_features))
 
@@ -261,7 +225,7 @@ class SIRENLoRALayer(nn.Module):
         return torch.sin(self.omega_0 * out)
 
     def base_params(self):
-        """Hyperball管理対象: ベース重みとbias"""
+        """Muon管理対象: ベース重みとbias"""
         return [self.weight, self.bias]
 
     def adapter_params(self):
@@ -310,7 +274,7 @@ class SIRENLoRANet(nn.Module):
         return torch.sigmoid(self.output_layer(x))  # RGB in [0,1]
 
     def base_params(self):
-        """外側ループ (Hyperball) が更新するパラメータ"""
+        """外側ループ (Muon) が更新するパラメータ"""
         params = []
         for layer in self.siren_layers:
             params.extend(layer.base_params())
@@ -333,7 +297,7 @@ class MAMLTrainer:
     """
     MAML (Model-Agnostic Meta-Learning) トレーナー。
     - 内側ループ: LoRAアダプタパラメータのみをSGDで適応
-    - 外側ループ: ベース重みをHyperball (Adam + ノルム射影) で更新
+    - 外側ループ: ベース重みをMuonで更新
     """
 
     def __init__(
@@ -351,12 +315,12 @@ class MAMLTrainer:
         self.first_order = first_order
         self.device      = device
 
-        # 外側ループ: Hyperball (ベース重みのみ, Adam + ノルム射影)
-        self.outer_optimizer = Hyperball(
+        # 外側ループ: Muon (ベース重みのみ)
+        self.outer_optimizer = Muon(
             [{"params": model.base_params()}],
             lr=outer_lr,
-            betas=(0.9, 0.999),
-            use_ns=True,
+            momentum=0.95,
+            nesterov=True,
         )
 
     # ── 内側ループ ──────────────────────────────
@@ -677,7 +641,7 @@ def train(
     )
 
     print(f"Model params: {sum(p.numel() for p in model.parameters()):,}")
-    print(f"  Base params (Hyperball): {sum(p.numel() for p in model.base_params()):,}")
+    print(f"  Base params (Muon): {sum(p.numel() for p in model.base_params()):,}")
     print(f"  Adapter params (inner): {sum(p.numel() for p in model.adapter_params()):,}")
 
     # ── 学習ループ ──
@@ -770,7 +734,7 @@ def adapt_and_reconstruct(
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description="SIREN+LoRA MAML with Hyperball on COCO val2017")
+    parser = argparse.ArgumentParser(description="SIREN+LoRA MAML with Muon on COCO val2017")
     parser.add_argument("--img_dir",       default="./data/coco/val2017",
                         help="画像ファイルが入ったディレクトリ (アノテーション不要)")
     parser.add_argument("--hidden_dim",    type=int,   default=96)
