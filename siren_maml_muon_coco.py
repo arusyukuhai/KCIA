@@ -23,8 +23,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
 from torch.utils.data import Dataset, DataLoader
-from torchvision.datasets import CocoDetection
 from torchvision import transforms
+from PIL import Image
 import numpy as np
 
 # ─────────────────────────────────────────────
@@ -506,14 +506,18 @@ class MAMLTrainer:
 
 class COCOINRTaskDataset(Dataset):
     """
-    COCO画像をINRタスクとして提供するDataset。
+    アノテーション不要の画像ディレクトリからINRタスクを提供するDataset。
+    val2017 のような「画像ファイルだけ入ったフォルダ」をそのまま指定できる。
+
     各タスク = 1枚の画像のサポート/クエリ座標サンプリング。
     """
 
+    # PIL が読める代表的な拡張子
+    IMG_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".webp", ".tiff"}
+
     def __init__(
         self,
-        coco_root: str,
-        ann_file: str,
+        img_dir: str,
         img_size: int = 64,
         support_samples: int = 256,
         query_samples: int = 256,
@@ -522,36 +526,42 @@ class COCOINRTaskDataset(Dataset):
         self.support_samples = support_samples
         self.query_samples   = query_samples
 
-        transform = transforms.Compose([
+        img_dir = Path(img_dir)
+        if not img_dir.exists():
+            raise FileNotFoundError(f"画像ディレクトリが見つかりません: {img_dir}")
+
+        self.paths = sorted(
+            p for p in img_dir.iterdir()
+            if p.suffix.lower() in self.IMG_EXTS
+        )
+        if len(self.paths) == 0:
+            raise RuntimeError(f"{img_dir} に対応画像ファイルがありません")
+
+        print(f"[Dataset] {len(self.paths)} 枚の画像を読み込みました: {img_dir}")
+
+        self.transform = transforms.Compose([
             transforms.Resize((img_size, img_size)),
-            transforms.ToTensor(),       # [0,1], (C,H,W)
+            transforms.ToTensor(),   # → (C, H, W) float [0, 1]
         ])
 
-        self.dataset = CocoDetection(
-            root=coco_root,
-            annFile=ann_file,
-            transform=transform,
-        )
-
-        # 座標グリッド生成 [-1, 1]
+        # 座標グリッド生成 [-1, 1]  (H*W, 2)  ← 全タスク共通なのでキャッシュ
         xs = torch.linspace(-1, 1, img_size)
         ys = torch.linspace(-1, 1, img_size)
         grid_y, grid_x = torch.meshgrid(ys, xs, indexing="ij")
-        # (H*W, 2)
         self.all_coords = torch.stack([grid_x.flatten(), grid_y.flatten()], dim=-1)
 
-    def __len__(self):
-        return len(self.dataset)
+    def __len__(self) -> int:
+        return len(self.paths)
 
     def __getitem__(self, idx: int) -> dict:
-        img_tensor, _ = self.dataset[idx]  # (3, H, W) in [0,1]
+        img = Image.open(self.paths[idx]).convert("RGB")
+        img_tensor = self.transform(img)          # (3, H, W)
 
         # RGBフラット化: (H*W, 3)
         rgb = img_tensor.permute(1, 2, 0).reshape(-1, 3)
 
-        # サポート/クエリをランダムサンプリング
-        n_total = self.all_coords.shape[0]
-        perm = torch.randperm(n_total)
+        # サポート/クエリをランダムサンプリング (重複なし)
+        perm  = torch.randperm(self.all_coords.shape[0])
         s_idx = perm[:self.support_samples]
         q_idx = perm[self.support_samples:self.support_samples + self.query_samples]
 
@@ -573,8 +583,7 @@ def collate_tasks(batch: list[dict]) -> list[dict]:
 # ─────────────────────────────────────────────
 
 def train(
-    coco_root: str = "./data/coco/train2017",
-    ann_file: str  = "./data/coco/annotations/instances_train2017.json",
+    img_dir: str          = "./data/coco/val2017",
     # モデル設定
     hidden_dim: int   = 256,
     num_layers: int   = 5,
@@ -600,8 +609,7 @@ def train(
 
     # ── データセット ──
     dataset = COCOINRTaskDataset(
-        coco_root=coco_root,
-        ann_file=ann_file,
+        img_dir=img_dir,
         img_size=img_size,
         support_samples=support_samples,
         query_samples=query_samples,
@@ -728,9 +736,9 @@ def adapt_and_reconstruct(
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description="SIREN+LoRA MAML with Muon on COCO")
-    parser.add_argument("--coco_root",     default="./data/coco/train2017")
-    parser.add_argument("--ann_file",      default="./data/coco/annotations/instances_train2017.json")
+    parser = argparse.ArgumentParser(description="SIREN+LoRA MAML with Muon on COCO val2017")
+    parser.add_argument("--img_dir",       default="./data/coco/val2017",
+                        help="画像ファイルが入ったディレクトリ (アノテーション不要)")
     parser.add_argument("--hidden_dim",    type=int,   default=256)
     parser.add_argument("--num_layers",    type=int,   default=5)
     parser.add_argument("--omega_0",       type=float, default=30.0)
@@ -741,9 +749,9 @@ if __name__ == "__main__":
     parser.add_argument("--first_order",   action="store_true", help="FOMAML")
     parser.add_argument("--meta_batch",    type=int,   default=4)
     parser.add_argument("--epochs",        type=int,   default=50)
-    parser.add_argument("--img_size",      type=int,   default=256)
-    parser.add_argument("--support",       type=int,   default=16384)
-    parser.add_argument("--query",         type=int,   default=16384)
+    parser.add_argument("--img_size",      type=int,   default=64)
+    parser.add_argument("--support",       type=int,   default=256)
+    parser.add_argument("--query",         type=int,   default=256)
     parser.add_argument("--save_every",    type=int,   default=10)
     parser.add_argument("--checkpoint_dir", default="./checkpoints")
     parser.add_argument("--device",        default="cuda" if torch.cuda.is_available() else "cpu")
@@ -751,8 +759,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     trained_model = train(
-        coco_root=args.coco_root,
-        ann_file=args.ann_file,
+        img_dir=args.img_dir,
         hidden_dim=args.hidden_dim,
         num_layers=args.num_layers,
         omega_0=args.omega_0,
