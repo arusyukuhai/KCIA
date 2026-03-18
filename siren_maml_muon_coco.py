@@ -298,6 +298,7 @@ class MAMLTrainer:
     MAML (Model-Agnostic Meta-Learning) トレーナー。
     - 内側ループ: LoRAアダプタパラメータのみをSGDで適応
     - 外側ループ: ベース重みをMuonで更新
+    - ロス安定化: 勾配クリッピング + スパイク検知 + ベストモデル復元
     """
 
     def __init__(
@@ -308,12 +309,24 @@ class MAMLTrainer:
         outer_lr: float = 1e-3,
         first_order: bool = False,
         device: str = "cuda",
+        max_grad_norm: float = 1.0,
+        spike_factor: float = 4.0,
+        ema_decay: float = 0.99,
     ):
         self.model       = model.to(device)
         self.inner_lr    = inner_lr
         self.inner_steps = inner_steps
         self.first_order = first_order
         self.device      = device
+
+        # ── ロス安定化パラメータ ──
+        self.max_grad_norm = max_grad_norm
+        self.spike_factor  = spike_factor
+        self.ema_decay     = ema_decay
+        self._loss_ema: Optional[float]  = None   # ロスの指数移動平均
+        self._best_loss: Optional[float] = None   # ベストロス
+        self._best_state: Optional[dict] = None   # ベストモデル状態
+        self._spike_count = 0
 
         # 外側ループ: Muon (ベース重みのみ)
         self.outer_optimizer = Muon(
@@ -430,11 +443,44 @@ class MAMLTrainer:
 
     # ── 外側ループ (メタ更新) ───────────────────
 
+    def _is_spike(self, loss_val: float) -> bool:
+        """ロスが EMA の spike_factor 倍を超えたら True"""
+        if self._loss_ema is None:
+            return False
+        return loss_val > self._loss_ema * self.spike_factor
+
+    def _update_ema(self, loss_val: float):
+        """ロスの指数移動平均を更新"""
+        if self._loss_ema is None:
+            self._loss_ema = loss_val
+        else:
+            self._loss_ema = self.ema_decay * self._loss_ema + (1 - self.ema_decay) * loss_val
+
+    def _save_best(self, loss_val: float):
+        """ベストロスを更新し、モデル状態を保存"""
+        if self._best_loss is None or loss_val < self._best_loss:
+            self._best_loss  = loss_val
+            self._best_state = copy.deepcopy(self.model.state_dict())
+
+    def _rollback_to_best(self):
+        """ベストモデル状態に復元"""
+        if self._best_state is not None:
+            self.model.load_state_dict(self._best_state)
+            print(f"  [Rollback] ベストモデル (loss={self._best_loss:.6f}) に復元")
+
     def meta_step(self, tasks: list[dict]) -> float:
         """
         tasks: [{"support_coords", "support_rgb", "query_coords", "query_rgb"}, ...]
         Returns: meta loss (float)
+
+        安定化機能:
+          1. 勾配クリッピング (max_grad_norm)
+          2. スパイク検知: EMA の spike_factor 倍を超えたら更新スキップ
+          3. EMA がベストの 2 倍以上に悪化 → ベストモデルに復元
         """
+        # ── ステップ前のスナップショット (スパイク時復元用) ──
+        pre_step_state = copy.deepcopy(self.model.state_dict())
+
         self.outer_optimizer.zero_grad()
 
         meta_loss = torch.tensor(0.0, device=self.device)
@@ -455,10 +501,41 @@ class MAMLTrainer:
             meta_loss = meta_loss + task_loss
 
         meta_loss = meta_loss / len(tasks)
+        loss_val  = meta_loss.item()
+
+        # ── スパイク検知 ──
+        if self._is_spike(loss_val):
+            self._spike_count += 1
+            print(f"  [Spike #{self._spike_count}] loss={loss_val:.6f} >> "
+                  f"EMA={self._loss_ema:.6f} — 更新スキップ")
+            # 重みをステップ前に戻す (逆伝播で汚れた in-place 変更があればリセット)
+            self.model.load_state_dict(pre_step_state)
+            self.outer_optimizer.zero_grad()
+            return self._loss_ema  # EMA を返して学習カーブを滑らかに保つ
+
+        # ── 通常更新 ──
         meta_loss.backward()
+
+        # 勾配クリッピング
+        torch.nn.utils.clip_grad_norm_(
+            self.model.base_params(), self.max_grad_norm
+        )
+
         self.outer_optimizer.step()
 
-        return meta_loss.item()
+        # ── EMA & ベスト更新 ──
+        self._update_ema(loss_val)
+        self._save_best(loss_val)
+
+        # ── ドリフト検知: EMA がベストの 2 倍以上 → ベストに復元 ──
+        if (self._best_loss is not None and self._loss_ema is not None
+                and self._loss_ema > self._best_loss * 2.0):
+            print(f"  [Drift] EMA={self._loss_ema:.6f} >> "
+                  f"best={self._best_loss:.6f} — ベストモデルに復元")
+            self._rollback_to_best()
+            self._loss_ema = self._best_loss  # EMA もリセット
+
+        return loss_val
 
     def _get_flat_adapter_weights(self) -> dict:
         """全アダプタパラメータをflat dictとして返す (functional_call用のキー形式)"""
@@ -745,7 +822,7 @@ if __name__ == "__main__":
     parser.add_argument("--inner_steps",   type=int,   default=12)
     parser.add_argument("--outer_lr",      type=float, default=2e-5)
     parser.add_argument("--first_order",   action="store_true", help="FOMAML")
-    parser.add_argument("--meta_batch",    type=int,   default=8)
+    parser.add_argument("--meta_batch",    type=int,   default=4)
     parser.add_argument("--epochs",        type=int,   default=50)
     parser.add_argument("--img_size",      type=int,   default=512)
     parser.add_argument("--support",       type=int,   default=16384)
