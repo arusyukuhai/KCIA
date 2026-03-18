@@ -458,8 +458,8 @@ class MAMLTrainer:
 
     def _save_best(self, loss_val: float):
         """ベストロスを更新し、モデル状態を保存"""
-        if self._best_loss is None or loss_val < self._best_loss:
-            self._best_loss  = loss_val
+        if self._best_loss is None or self._loss_ema < self._best_loss:
+            self._best_loss  = self._loss_ema
             self._best_state = copy.deepcopy(self.model.state_dict())
 
     def _rollback_to_best(self):
