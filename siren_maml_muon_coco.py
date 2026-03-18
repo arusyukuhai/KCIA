@@ -113,8 +113,6 @@ class Hyperball(torch.optim.Optimizer):
                     state["exp_avg_sq"]  = torch.zeros_like(p)
                     # 初期重みノルム R を記録
                     state["init_norm"] = p.norm().item()
-                    # scratch buffer (一時テンソル再利用でメモリ節約)
-                    state["scratch"] = torch.empty_like(p)
 
                 state["step"] += 1
                 t = state["step"]
@@ -122,46 +120,38 @@ class Hyperball(torch.optim.Optimizer):
 
                 exp_avg    = state["exp_avg"]
                 exp_avg_sq = state["exp_avg_sq"]
-                scratch    = state["scratch"]
 
-                # ── Adam更新量の計算 (インプレース) ──
+                # ── Adam更新量の計算 ──
                 exp_avg.mul_(beta1).add_(grad, alpha=1 - beta1)
                 exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=1 - beta2)
-
-                # gradの参照を早期解放
-                p.grad = None
 
                 bias_correction1 = 1 - beta1 ** t
                 bias_correction2 = 1 - beta2 ** t
 
-                # scratch = exp_avg_sq / bc2  (インプレース再利用)
-                torch.div(exp_avg_sq, bias_correction2, out=scratch)
-                scratch.sqrt_().add_(eps)
-                # scratch = (exp_avg / bc1) / scratch = Adam update
-                scratch.reciprocal_().mul_(exp_avg).div_(bias_correction1)
-                # scratch が update を保持
+                corrected_avg    = exp_avg / bias_correction1
+                corrected_avg_sq = exp_avg_sq / bias_correction2
+
+                update = corrected_avg / (corrected_avg_sq.sqrt() + eps)
 
                 if p.ndim >= 2:
                     # 2D以上 → Newton-Schulz直交化 (オプション)
                     if use_ns:
-                        orig_shape = scratch.shape
-                        g2d = scratch.view(orig_shape[0], -1)
+                        orig_shape = update.shape
+                        g2d = update.view(orig_shape[0], -1)
                         g2d = newton_schulz(g2d, steps=ns_steps)
                         scale = orig_shape[0] ** 0.5
-                        scratch = g2d.view(orig_shape).mul_(scale)
+                        update = g2d.view(orig_shape).mul_(scale)
 
                     # Hyperball: 更新ノルム正規化 + 重みノルム正規化
                     if R > 0:
-                        norm = scratch.norm().clamp(min=1e-8)
-                        scratch.mul_(R / norm)
-                        p.add_(scratch, alpha=-lr)
-                        norm = p.data.norm().clamp(min=1e-8)
-                        p.data.mul_(R / norm)
+                        update = _normalize_to_sphere(update, R)
+                        p.add_(update, alpha=-lr)
+                        p.data.copy_(_normalize_to_sphere(p.data, R))
                     else:
-                        p.add_(scratch, alpha=-lr)
+                        p.add_(update, alpha=-lr)
                 else:
                     # 1Dパラメータ → 通常のAdam更新
-                    p.add_(scratch, alpha=-lr)
+                    p.add_(update, alpha=-lr)
 
         return loss
 
