@@ -742,7 +742,7 @@ if __name__ == "__main__":
     parser.add_argument("--omega_0",       type=float, default=30.0)
     parser.add_argument("--lora_rank",     type=int,   default=6)
     parser.add_argument("--inner_lr",      type=float, default=1e-2)
-    parser.add_argument("--inner_steps",   type=int,   default=10)
+    parser.add_argument("--inner_steps",   type=int,   default=12)
     parser.add_argument("--outer_lr",      type=float, default=1e-4)
     parser.add_argument("--first_order",   action="store_true", help="FOMAML")
     parser.add_argument("--meta_batch",    type=int,   default=4)
