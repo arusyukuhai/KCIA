@@ -723,43 +723,16 @@ def train(
     print(f"  Base params (Muon): {sum(p.numel() for p in model.base_params()):,}")
     print(f"  Adapter params (inner): {sum(p.numel() for p in model.adapter_params()):,}")
 
-    # ── チェックポイント復元 ──
-    start_epoch = 1
-    ckpt_dir = Path(checkpoint_dir)
-    existing_ckpts = sorted(ckpt_dir.glob("siren_maml_muon_epoch*.pt"))
-    if existing_ckpts:
-        latest_ckpt = existing_ckpts[-1]
-        print(f"[Resume] チェックポイント検出: {latest_ckpt}")
-        ckpt = torch.load(latest_ckpt, map_location=device, weights_only=False)
-        model.load_state_dict(ckpt["model_state"])
-        trainer.outer_optimizer.load_state_dict(ckpt["optimizer"])
-        start_epoch = ckpt["epoch"] + 1
-        # 安定化状態の復元
-        stab = ckpt.get("stability", {})
-        if stab:
-            trainer._loss_ema    = stab.get("loss_ema")
-            trainer._best_loss   = stab.get("best_loss")
-            trainer._spike_count = stab.get("spike_count", 0)
-            best_state = stab.get("best_state")
-            if best_state is not None:
-                trainer._best_state = best_state
-            print(f"[Resume] epoch={ckpt['epoch']}, loss_ema={trainer._loss_ema}, "
-                  f"best_loss={trainer._best_loss}, spikes={trainer._spike_count}")
-        else:
-            print(f"[Resume] epoch={ckpt['epoch']} (安定化状態なし)")
-
-    # ── CSV ログ初期化 (既存ファイルがあれば追記モード) ──
+    # ── CSV ログ初期化 ──
     csv_file_path = Path(checkpoint_dir) / csv_path if checkpoint_dir else Path(csv_path)
     csv_file_path.parent.mkdir(parents=True, exist_ok=True)
-    resume_csv = csv_file_path.exists() and start_epoch > 1
-    csv_fp   = open(csv_file_path, "a" if resume_csv else "w", newline="")
+    csv_fp   = open(csv_file_path, "w", newline="")
     csv_wr   = csv.writer(csv_fp)
-    if not resume_csv:
-        csv_wr.writerow(["epoch", "step", "loss", "psnr", "loss_ema", "best_loss", "spikes"])
-    print(f"CSV log: {csv_file_path} ({'追記' if resume_csv else '新規'})")
+    csv_wr.writerow(["epoch", "step", "loss", "psnr", "loss_ema", "best_loss", "spikes"])
+    print(f"CSV log: {csv_file_path}")
 
     # ── 学習ループ ──
-    for epoch in range(start_epoch, num_epochs + 1):
+    for epoch in range(1, num_epochs + 1):
         epoch_losses = []
 
         for step, tasks in enumerate(loader):
@@ -793,12 +766,6 @@ def train(
                         "omega_0": omega_0, "lora_rank": lora_rank,
                         "inner_lr": inner_lr, "inner_steps": inner_steps,
                         "outer_lr": outer_lr,
-                    },
-                    "stability": {
-                        "loss_ema":    trainer._loss_ema,
-                        "best_loss":   trainer._best_loss,
-                        "best_state":  trainer._best_state,
-                        "spike_count": trainer._spike_count,
                     },
                 }, ckpt_path)
 
