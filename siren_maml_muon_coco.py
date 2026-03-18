@@ -653,7 +653,7 @@ def train(
             epoch_losses.append(loss)
 
             if step % 50 == 0:
-                print(f"Epoch {epoch:3d} | Step {step:4d} | Loss: {loss} | PSNR: {-np.log10(loss) * 10}")
+                print(f"Epoch {epoch:3d} | Step {step:4d} | Loss: {np.mean(epoch_losses[-50:])} | PSNR: {-np.log10(np.mean(epoch_losses[-50:])) * 10}")
 
             if step % save_every == 0:
                 ckpt_path = Path(checkpoint_dir) / f"siren_maml_muon_epoch{epoch:04d}.pt"
@@ -741,9 +741,9 @@ if __name__ == "__main__":
     parser.add_argument("--num_layers",    type=int,   default=5)
     parser.add_argument("--omega_0",       type=float, default=30.0)
     parser.add_argument("--lora_rank",     type=int,   default=6)
-    parser.add_argument("--inner_lr",      type=float, default=1e-2)
-    parser.add_argument("--inner_steps",   type=int,   default=10)
-    parser.add_argument("--outer_lr",      type=float, default=3e-4)
+    parser.add_argument("--inner_lr",      type=float, default=3e-3)
+    parser.add_argument("--inner_steps",   type=int,   default=5)
+    parser.add_argument("--outer_lr",      type=float, default=3e-5)
     parser.add_argument("--first_order",   action="store_true", help="FOMAML")
     parser.add_argument("--meta_batch",    type=int,   default=4)
     parser.add_argument("--epochs",        type=int,   default=50)
