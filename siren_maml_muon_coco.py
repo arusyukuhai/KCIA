@@ -791,7 +791,7 @@ if __name__ == "__main__":
     parser.add_argument("--inner_steps",   type=int,   default=12)
     parser.add_argument("--outer_lr",      type=float, default=2e-5)
     parser.add_argument("--first_order",   action="store_true", help="FOMAML")
-    parser.add_argument("--meta_batch",    type=int,   default=4)
+    parser.add_argument("--meta_batch",    type=int,   default=8)
     parser.add_argument("--epochs",        type=int,   default=50)
     parser.add_argument("--img_size",      type=int,   default=512)
     parser.add_argument("--support",       type=int,   default=16384)
