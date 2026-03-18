@@ -653,10 +653,10 @@ def train(
             epoch_losses.append(loss)
 
             if step % 50 == 0:
-                print(f"Epoch {epoch:3d} | Step {step:4d} | Loss: {loss}")
+                print(f"Epoch {epoch:3d} | Step {step:4d} | Loss: {loss} | PSNR: {-np.log10(loss) * 10}")
 
         avg_loss = np.mean(epoch_losses)
-        print(f"── Epoch {epoch:3d} avg loss: {avg_loss:.6f} ──")
+        print(f"── Epoch {epoch:3d} avg loss: {avg_loss} | PSNR: {-np.log10(avg_loss) * 10} ──")
 
         if epoch % save_every == 0:
             ckpt_path = Path(checkpoint_dir) / f"siren_maml_muon_epoch{epoch:04d}.pt"
@@ -742,18 +742,18 @@ if __name__ == "__main__":
     parser.add_argument("--hidden_dim",    type=int,   default=128)
     parser.add_argument("--num_layers",    type=int,   default=5)
     parser.add_argument("--omega_0",       type=float, default=30.0)
-    parser.add_argument("--lora_rank",     type=int,   default=8)
+    parser.add_argument("--lora_rank",     type=int,   default=6)
     parser.add_argument("--inner_lr",      type=float, default=1e-2)
-    parser.add_argument("--inner_steps",   type=int,   default=8)
+    parser.add_argument("--inner_steps",   type=int,   default=10)
     parser.add_argument("--outer_lr",      type=float, default=3e-4)
     parser.add_argument("--first_order",   action="store_true", help="FOMAML")
     parser.add_argument("--meta_batch",    type=int,   default=4)
     parser.add_argument("--epochs",        type=int,   default=50)
-    parser.add_argument("--img_size",      type=int,   default=256)
-    parser.add_argument("--support",       type=int,   default=16384)
-    parser.add_argument("--query",         type=int,   default=16384)
+    parser.add_argument("--img_size",      type=int,   default=512)
+    parser.add_argument("--support",       type=int,   default=32768)
+    parser.add_argument("--query",         type=int,   default=32768)
     parser.add_argument("--save_every",    type=int,   default=10)
-    parser.add_argument("--checkpoint_dir", default="./checkpoints")
+    parser.add_argument("--checkpoint_dir", default="./")
     parser.add_argument("--device",        default="cuda" if torch.cuda.is_available() else "cpu")
 
     args = parser.parse_args()
