@@ -661,7 +661,6 @@ def train(
                     "epoch":       epoch,
                     "model_state": model.state_dict(),
                     "optimizer":   trainer.outer_optimizer.state_dict(),
-                    "avg_loss":    avg_loss,
                     "config": {
                         "hidden_dim": hidden_dim, "num_layers": num_layers,
                         "omega_0": omega_0, "lora_rank": lora_rank,
