@@ -146,17 +146,17 @@ class LoRAStyleAdapter(nn.Module):
         self.out_features = out_features
         self.rank = rank
 
-        # 乗算LoRA (W * (I + B@A))
+        # 乗算LoRA (W @ (I + B@A))
         # B: (in, r), A: (r, in)  → B@A: (in, in)
-        self.B_mul = nn.Parameter(torch.ones(out_features, rank) / rank)
-        self.A_mul = nn.Parameter(torch.ones(rank, in_features) / rank)
-        #nn.init.kaiming_uniform_(self.B_mul, a=math.sqrt(5))
-        #nn.init.zeros_(self.A_mul)   # 初期状態: I + 0 = I (恒等変換)
+        self.B_mul = nn.Parameter(torch.zeros(in_features, rank))
+        self.A_mul = nn.Parameter(torch.zeros(rank, in_features))
+        nn.init.kaiming_uniform_(self.B_mul, a=math.sqrt(5))
+        nn.init.zeros_(self.A_mul)   # 初期状態: I + 0 = I (恒等変換)
 
         # 加算LoRA (C@D)
         # C: (out, r), D: (r, in)
-        self.D_add = nn.Parameter(torch.zeros(out_features, rank))
-        self.C_add = nn.Parameter(torch.zeros(rank, in_features))
+        self.C_add = nn.Parameter(torch.zeros(out_features, rank))
+        self.D_add = nn.Parameter(torch.zeros(rank, in_features))
         nn.init.kaiming_uniform_(self.C_add, a=math.sqrt(5))
         nn.init.zeros_(self.D_add)   # 初期状態: 0 (何も加算しない)
 
@@ -166,8 +166,15 @@ class LoRAStyleAdapter(nn.Module):
         W_base : (out_features, in_features)  ← SIRENのベース重み
         bias   : (out_features,) or None
         """
-        out = F.linear(x, W_base * (self.B_mul @ self.A_mul), bias)      # (batch, out_features)
-        add_delta = x @ ((self.D_add @ self.C_add) * (self.B_mul @ self.A_mul)).T  # (batch, out_features)
+        # 乗算項: x → x @ (I + B@A)^T = x @ (I + A^T @ B^T)
+        # 効率化: まず x @ B_mul で (batch, rank), 次に @ A_mul で (batch, in)
+        mul_delta = x @ self.B_mul @ self.A_mul  # (batch, in_features)
+        x_mul = x + mul_delta                    # x @ (I + B@A)
+
+        # 加算項: x → (C @ D)^T @ x = D^T @ C^T
+        # linear: out = x_mul @ W_base^T + x @ D^T @ C^T + bias
+        out = F.linear(x_mul, W_base, bias)      # (batch, out_features)
+        add_delta = x @ self.D_add.T @ self.C_add.T  # (batch, out_features)
         out = out + add_delta
 
         return out
