@@ -739,10 +739,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="SIREN+LoRA MAML with Muon on COCO val2017")
     parser.add_argument("--img_dir",       default="./data/coco/val2017",
                         help="画像ファイルが入ったディレクトリ (アノテーション不要)")
-    parser.add_argument("--hidden_dim",    type=int,   default=256)
+    parser.add_argument("--hidden_dim",    type=int,   default=128)
     parser.add_argument("--num_layers",    type=int,   default=5)
     parser.add_argument("--omega_0",       type=float, default=30.0)
-    parser.add_argument("--lora_rank",     type=int,   default=12)
+    parser.add_argument("--lora_rank",     type=int,   default=8)
     parser.add_argument("--inner_lr",      type=float, default=1e-2)
     parser.add_argument("--inner_steps",   type=int,   default=8)
     parser.add_argument("--outer_lr",      type=float, default=3e-4)
