@@ -15,6 +15,7 @@ SIREN + LoRA風内側ループ (W*B@A + C@D) + Muon外側最適化によるMAML 
 
 import math
 import copy
+import csv
 from pathlib import Path
 from typing import Optional
 
@@ -445,9 +446,9 @@ class MAMLTrainer:
 
     def _is_spike(self, loss_val: float) -> bool:
         """ロスが EMA の spike_factor 倍を超えたら True"""
-        if self._loss_ema is None:
+        if self._loss_ema is None or self._best_loss is None:
             return False
-        return loss_val > self._loss_ema * self.spike_factor
+        return self._best_loss > self._loss_ema * self.spike_factor
 
     def _update_ema(self, loss_val: float):
         """ロスの指数移動平均を更新"""
@@ -679,6 +680,7 @@ def train(
     query_samples: int   = 256,
     save_every: int      = 10,
     checkpoint_dir: str  = "./checkpoints",
+    csv_path: str        = "train_log.csv",
     device: str          = "cuda" if torch.cuda.is_available() else "cpu",
 ):
     print(f"Device: {device}")
@@ -721,6 +723,14 @@ def train(
     print(f"  Base params (Muon): {sum(p.numel() for p in model.base_params()):,}")
     print(f"  Adapter params (inner): {sum(p.numel() for p in model.adapter_params()):,}")
 
+    # ── CSV ログ初期化 ──
+    csv_file_path = Path(checkpoint_dir) / csv_path if checkpoint_dir else Path(csv_path)
+    csv_file_path.parent.mkdir(parents=True, exist_ok=True)
+    csv_fp   = open(csv_file_path, "w", newline="")
+    csv_wr   = csv.writer(csv_fp)
+    csv_wr.writerow(["epoch", "step", "loss", "psnr", "loss_ema", "best_loss", "spikes"])
+    print(f"CSV log: {csv_file_path}")
+
     # ── 学習ループ ──
     for epoch in range(1, num_epochs + 1):
         epoch_losses = []
@@ -728,6 +738,19 @@ def train(
         for step, tasks in enumerate(loader):
             loss = trainer.meta_step(tasks)
             epoch_losses.append(loss)
+
+            psnr = -10.0 * math.log10(loss) if loss > 0 else float("inf")
+
+            # CSV に毎ステップ書き出し
+            csv_wr.writerow([
+                epoch, step,
+                f"{loss:.8f}",
+                f"{psnr:.4f}",
+                f"{trainer._loss_ema:.8f}" if trainer._loss_ema is not None else "",
+                f"{trainer._best_loss:.8f}" if trainer._best_loss is not None else "",
+                trainer._spike_count,
+            ])
+            csv_fp.flush()
 
             if step % 50 == 0:
                 print(f"Epoch {epoch:3d} | Step {step:4d} | Loss: {np.mean(epoch_losses[-50:])} | PSNR: {-np.mean(np.log10(epoch_losses[-50:]) * 10)}")
@@ -748,6 +771,9 @@ def train(
 
         avg_loss = np.mean(epoch_losses)
         print(f"── Epoch {epoch:3d} avg loss: {avg_loss} | PSNR: {-np.mean(np.log10(epoch_losses)) * 10} ──")
+
+    csv_fp.close()
+    print(f"CSV log saved: {csv_file_path}")
 
     return model
 
