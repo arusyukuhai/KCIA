@@ -169,7 +169,7 @@ class LoRAStyleAdapter(nn.Module):
         """
         # 加算項: x → (C @ D)^T @ x = D^T @ C^T
         # linear: out = x_mul @ W_base^T + x @ D^T @ C^T + bias
-        out = F.linear(x, W_base * (self.B_mul @ self.A_mul), bias)      # (batch, out_features)
+        out = F.linear(x, W_base * (self.B_mul @ self.A_mul).T, bias)      # (batch, out_features)
         add_delta = x @ self.D_add.T @ self.C_add.T  # (batch, out_features)
         out = out + add_delta
 
