@@ -149,10 +149,8 @@ class LoRAStyleAdapter(nn.Module):
 
         # 乗算LoRA (W @ (I + B@A))
         # B: (in, r), A: (r, in)  → B@A: (in, in)
-        self.B_mul = nn.Parameter(torch.zeros(in_features, rank))
-        self.A_mul = nn.Parameter(torch.zeros(rank, in_features))
-        nn.init.kaiming_uniform_(self.B_mul, a=math.sqrt(5))
-        nn.init.zeros_(self.A_mul)   # 初期状態: I + 0 = I (恒等変換)
+        self.B_mul = nn.Parameter(torch.ones(in_features, rank) / rank)
+        self.A_mul = nn.Parameter(torch.ones(rank, in_features) / rank)
 
         # 加算LoRA (C@D)
         # C: (out, r), D: (r, in)
