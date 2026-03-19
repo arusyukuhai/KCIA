@@ -167,14 +167,9 @@ class LoRAStyleAdapter(nn.Module):
         W_base : (out_features, in_features)  ← SIRENのベース重み
         bias   : (out_features,) or None
         """
-        # 乗算項: x → x @ (I + B@A)^T = x @ (I + A^T @ B^T)
-        # 効率化: まず x @ B_mul で (batch, rank), 次に @ A_mul で (batch, in)
-        mul_delta = x @ self.B_mul @ self.A_mul  # (batch, in_features)
-        x_mul = x + mul_delta                    # x @ (I + B@A)
-
         # 加算項: x → (C @ D)^T @ x = D^T @ C^T
         # linear: out = x_mul @ W_base^T + x @ D^T @ C^T + bias
-        out = F.linear(x_mul, W_base, bias)      # (batch, out_features)
+        out = F.linear(x, W_base * (self.B_mul @ self.A_mul), bias)      # (batch, out_features)
         add_delta = x @ self.D_add.T @ self.C_add.T  # (batch, out_features)
         out = out + add_delta
 
