@@ -1,0 +1,11 @@
+/Users/al/Documents/GitHub/KCIA/target/debug/deps/arrow_ord-49d160172ace8554.d: /Users/al/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/arrow-ord-57.3.0/src/lib.rs /Users/al/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/arrow-ord-57.3.0/src/cmp.rs /Users/al/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/arrow-ord-57.3.0/src/comparison.rs /Users/al/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/arrow-ord-57.3.0/src/ord.rs /Users/al/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/arrow-ord-57.3.0/src/partition.rs /Users/al/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/arrow-ord-57.3.0/src/rank.rs /Users/al/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/arrow-ord-57.3.0/src/sort.rs
+
+/Users/al/Documents/GitHub/KCIA/target/debug/deps/libarrow_ord-49d160172ace8554.rmeta: /Users/al/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/arrow-ord-57.3.0/src/lib.rs /Users/al/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/arrow-ord-57.3.0/src/cmp.rs /Users/al/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/arrow-ord-57.3.0/src/comparison.rs /Users/al/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/arrow-ord-57.3.0/src/ord.rs /Users/al/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/arrow-ord-57.3.0/src/partition.rs /Users/al/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/arrow-ord-57.3.0/src/rank.rs /Users/al/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/arrow-ord-57.3.0/src/sort.rs
+
+/Users/al/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/arrow-ord-57.3.0/src/lib.rs:
+/Users/al/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/arrow-ord-57.3.0/src/cmp.rs:
+/Users/al/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/arrow-ord-57.3.0/src/comparison.rs:
+/Users/al/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/arrow-ord-57.3.0/src/ord.rs:
+/Users/al/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/arrow-ord-57.3.0/src/partition.rs:
+/Users/al/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/arrow-ord-57.3.0/src/rank.rs:
+/Users/al/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/arrow-ord-57.3.0/src/sort.rs:
