@@ -1,4 +1,3 @@
-    Blocking waiting for file lock on package cache
-    Blocking waiting for file lock on package cache
-    Blocking waiting for file lock on package cache
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.63s
+   0.165289542s  INFO prepare_target{force=false package_id=cgp_lcm v0.1.0 (/Users/al/Documents/GitHub/KCIA) target="cgp_lcm"}: cargo::core::compiler::fingerprint: stale: changed "/Users/al/Documents/GitHub/KCIA/src/main.rs"
+   0.165309833s  INFO prepare_target{force=false package_id=cgp_lcm v0.1.0 (/Users/al/Documents/GitHub/KCIA) target="cgp_lcm"}: cargo::core::compiler::fingerprint:           (vs) "/Users/al/Documents/GitHub/KCIA/target/debug/.fingerprint/cgp_lcm-0bd5178134625690/dep-bin-cgp_lcm"
+   0.165313375s  INFO prepare_target{force=false package_id=cgp_lcm v0.1.0 (/Users/al/Documents/GitHub/KCIA) target="cgp_lcm"}: cargo::core::compiler::fingerprint:                FileTime { seconds: 1776422210, nanos: 978727763 } < FileTime { seconds: 1776425067, nanos: 650493661 }

@@ -13,7 +13,7 @@ const N_INPUTS: usize = 2;
 const MODEL_LEN: usize = 1024;
 const POP_SIZE: usize = 4096;
 const ELITE: usize = 64;
-const N_GEN: usize = 100000;
+const N_GEN: usize = 200;
 const VEC_LEN: usize = 2048;
 
 // ─────────────────────────────────────────
