@@ -158,7 +158,7 @@ impl Dataset {
                 one.push(Complex::new(1.0, 0.0));
             }
 
-            let target: Vec<_> = x.iter().map(|z| (-(z * z)).exp()).collect();
+            let target: Vec<_> = x.iter().map(|z| (z * z).sin()).collect();
 
             inputs.push([x, one]);
             targets.push(target);
