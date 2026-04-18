@@ -8,14 +8,14 @@ use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
 const N_INPUTS_MAIN: usize = 2;
-const N_ADF: usize = 3;
-const LEN_LAYER0: usize = 16;
-const LEN_LAYER1: usize = 16;
-const LEN_LAYER2: usize = 128;
+const N_ADF: usize = 1;
+const LEN_LAYER0: usize = 8;
+const LEN_LAYER1: usize = 8;
+const LEN_LAYER2: usize = 256;
 const N_INPUTS_ADF: usize = 3; // スロット 0=x, 1=y, 2=one(定数1ベクタ)
 /// ADF の第3入力 (定数1) に割り当てる固定シグネチャ
 const ONE_SIG: Sig = 0xFFFF_FFFF_FFFF_FFFFu64;
-const VEC_LEN: usize = 4096;
+const VEC_LEN: usize = 1024;
 const POP_SIZE: usize = 512;
 const ELITE: usize = 16;
 const N_GEN: usize = 2000;
@@ -87,6 +87,13 @@ struct Chromosome {
     func: Box<[u8]>,
 }
 
+fn selectfunc(max: u8, rng: &mut SmallRng) -> u8 {
+    if rng.gen::<f64>() < 0.5 {
+        return 0;
+    }
+    rng.gen_range(0..max)
+}
+
 impl Chromosome {
     fn random(layer: Layer, rng: &mut SmallRng) -> Self {
         let n = layer.len();
@@ -100,7 +107,7 @@ impl Chromosome {
             .collect::<Vec<_>>()
             .into_boxed_slice();
         let func = (0..n)
-            .map(|_| rng.gen_range(0..n_f))
+            .map(|_| selectfunc(n_f, rng))
             .collect::<Vec<_>>()
             .into_boxed_slice();
         Self { layer, conn, func }
@@ -144,7 +151,7 @@ impl Chromosome {
         let n_ext = self.layer.n_ext();
         let n_f = self.layer.n_funcs() as u8;
         let mut n_mut = 1usize;
-        while rng.gen::<f64>() > 0.25 && n_mut < n {
+        while rng.gen::<f64>() > 0.15 && n_mut < n {
             n_mut += 1;
         }
         for _ in 0..n_mut {
@@ -153,7 +160,7 @@ impl Chromosome {
             match rng.gen_range(0..3u8) {
                 0 => conn[i][0] = rng.gen_range(0..max),
                 1 => conn[i][1] = rng.gen_range(0..max),
-                _ => func[i] = rng.gen_range(0..n_f),
+                _ => func[i] = selectfunc(n_f, rng),
             }
             if rng.gen::<f64>() < 0.05 {
                 conn[i][rng.gen_range(0..2)] = rng.gen_range(0..n_ext as u16);
@@ -337,7 +344,7 @@ struct Dataset {
 impl Dataset {
     fn build() -> Self {
         let x: Vec<_> = (0..VEC_LEN)
-            .map(|i| Complex::new(-15.0 + 30.0 * i as f64 / VEC_LEN as f64, 0.0))
+            .map(|i| Complex::new(-6.0 + 12.0 * i as f64 / VEC_LEN as f64, 0.0))
             .collect();
         let one = vec![Complex::new(1.0, 0.0); VEC_LEN];
         let target: Vec<_> = x.iter().map(|z| (z * z).sin()).collect();
@@ -753,7 +760,7 @@ fn eval(g: &Genome, ds: &Dataset, ev: &Evaluator) -> (f64, f64) {
         // 以下の式では、中間表現の寄与率を 10% (0.1) としています
         //let combined_score = final_s * 0.9 + avg_inter_score * 0.1;
 
-        total_loss += (1.0 - avg_inter_score) * (1.0 - final_a);
+        total_loss += (1.0 - (avg_inter_score + final_s) / 2.0) * (1.0 - final_a);
         total_acc += final_a;
     }
 
