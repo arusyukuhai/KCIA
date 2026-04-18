@@ -1,0 +1,31 @@
+
+
+fn argsort(v: &[f64]) -> Vec<usize> {
+    let mut idx: Vec<_> = (0..v.len()).collect();
+    idx.sort_by(|&a, &b| v[a].partial_cmp(&v[b]).unwrap());
+    idx
+}
+fn chatterjee(x: &[f64], y: &[f64]) -> f64 {
+    let idx = argsort(x);
+    let mut ranks = vec![0i64; y.len()];
+    for (r, &i) in argsort(y).iter().enumerate() {
+        ranks[i] = r as i64;
+    }
+    let s: i64 = idx
+        .windows(2)
+        .map(|w| (ranks[w[0]] - ranks[w[1]]).abs())
+        .sum();
+    let n = x.len() as f64;
+    1.0 - 3.0 * s as f64 / (n * n - 1.0)
+}
+fn score(pred: &[Complex<f64>], target: &[Complex<f64>]) -> f64 {
+    let p = decompose(pred);
+    let t = decompose(target);
+    let mut total = 0.0;
+    for i in 0..4 {
+        total +=
+            (chatterjee(&p[i], &t[i]) + chatterjee(&t[i], &p[i]) + pearson(&p[i], &t[i]).abs())
+                / 3.0;
+    }
+    total / 4.0
+}
