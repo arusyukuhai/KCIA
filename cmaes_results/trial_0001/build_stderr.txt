@@ -1,0 +1,37 @@
+   Compiling cgp_lcm v0.1.0 (/Users/al/Documents/GitHub/KCIA)
+error[E0277]: cannot subtract `{integer}` from `Complex<f64>`
+   --> src/main.rs:263:53
+    |
+263 | fn target_fn(x: Complex<f64>) -> Complex<f64> { (-(x-1) * (x-1)).exp() }
+    |                                                     ^ no implementation for `Complex<f64> - {integer}`
+    |
+    = help: the trait `Sub<{integer}>` is not implemented for `Complex<f64>`
+    = help: the following other types implement trait `Sub<Rhs>`:
+              `&Complex<T>` implements `Sub<&T>`
+              `&Complex<T>` implements `Sub<Complex<T>>`
+              `&Complex<T>` implements `Sub<T>`
+              `&Complex<T>` implements `Sub`
+              `Complex<T>` implements `Sub<&Complex<T>>`
+              `Complex<T>` implements `Sub<&T>`
+              `Complex<T>` implements `Sub<T>`
+              `Complex<T>` implements `Sub`
+
+error[E0277]: cannot subtract `{integer}` from `Complex<f64>`
+   --> src/main.rs:263:61
+    |
+263 | fn target_fn(x: Complex<f64>) -> Complex<f64> { (-(x-1) * (x-1)).exp() }
+    |                                                             ^ no implementation for `Complex<f64> - {integer}`
+    |
+    = help: the trait `Sub<{integer}>` is not implemented for `Complex<f64>`
+    = help: the following other types implement trait `Sub<Rhs>`:
+              `&Complex<T>` implements `Sub<&T>`
+              `&Complex<T>` implements `Sub<Complex<T>>`
+              `&Complex<T>` implements `Sub<T>`
+              `&Complex<T>` implements `Sub`
+              `Complex<T>` implements `Sub<&Complex<T>>`
+              `Complex<T>` implements `Sub<&T>`
+              `Complex<T>` implements `Sub<T>`
+              `Complex<T>` implements `Sub`
+
+For more information about this error, try `rustc --explain E0277`.
+error: could not compile `cgp_lcm` (bin "cgp_lcm") due to 2 previous errors

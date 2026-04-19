@@ -1,0 +1,18 @@
+
+const N_INPUTS_MAIN: usize = 2;
+const N_ADF: usize = 12;
+const LEN_LAYER0: usize = 32;
+const LEN_LAYER1: usize = 32;
+const LEN_LAYER2: usize = 64;
+const N_INPUTS_ADF: usize = 3;
+const ONE_SIG: Sig = 0xFFFF_FFFF_FFFF_FFFFu64;
+const VEC_LEN: usize = 2048;
+const POP_SIZE: usize = 1024;
+const ELITE: usize = 32;
+const N_GEN: usize = 2000;
+
+// ─── カリキュラム学習用定数 ────────────────────────────────────────────────────
+/// 中間スコアのウェイトが 0 → INTER_WEIGHT_MAX に達するまでの世代数
+const CURRICULUM_RAMP_GENS: usize = 20;
+/// 中間スコアの最大ウェイト
+const INTER_WEIGHT_MAX: f64 = 1.0;
