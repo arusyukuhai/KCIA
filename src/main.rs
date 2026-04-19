@@ -9,18 +9,21 @@ use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
 // ─── アーキテクチャ ハイパーパラメータ ───────────────────────────────────────
-const N_LAYERS: usize = 3;
-const LAYER_LEN: [usize; N_LAYERS] = [21, 21, 21];
+const N_LAYERS: usize = 2;
+const LAYER_LEN: [usize; N_LAYERS] = [122, 61];
 const N_INPUTS_MAIN: usize = 2;
 const N_INPUTS_ADF: usize = 3;
-const N_ADF_PER_LAYER: [usize; N_LAYERS - 1] = [4, 4];
+const N_ADF_PER_LAYER: [usize; N_LAYERS - 1] = [16];
 
 const ONE_SIG: Sig = 0xFFFF_FFFF_FFFF_FFFFu64;
-const VEC_LEN: usize = 1250;
-const POP_SIZE: usize = 2772;
-const ELITE: usize = 17;
+const VEC_LEN: usize = 212;
+const POP_SIZE: usize = 5119;
+const ELITE: usize = 214;
 const N_GEN: usize = 99999999;  // 時間制限で止める
-const PROB_EML: f64 = 0.766220;
+const PROB_EML: f64 = 0.88189263;
+const A: f64 = -0.05927185;
+const B: f64 = 0.07533474;
+const HILO: f64 = 4.17404179;
 
 // ─── カリキュラム学習 ────────────────────────────────────────────────────────
 const CURRICULUM_RAMP_GENS: usize = 1;
@@ -260,7 +263,7 @@ fn node_get_or_compute(sig: Sig, v0: &[Complex<f64>], v1: &[Complex<f64>], ev: &
 
 // ─── Dataset ──────────────────────────────────────────────────────────────────
 
-fn target_fn(x: Complex<f64>) -> Complex<f64> { (-(x-1.) * (x-1.)).exp() }
+fn target_fn(x: Complex<f64>) -> Complex<f64> { 1.0 / (1.0 + x * x)  }
 
 fn make_batch(rng: &mut SmallRng, x_range: (f64, f64))
     -> ([Vec<Complex<f64>>; N_INPUTS_MAIN], Vec<Complex<f64>>)
@@ -280,12 +283,12 @@ struct Dataset {
 
 impl Dataset {
     fn new_random(rng: &mut SmallRng) -> Self {
-        let batches: Vec<_> = (0..N_BATCHES).map(|_| make_batch(rng, (-6.0, 6.0))).collect();
+        let batches: Vec<_> = (0..N_BATCHES).map(|_| make_batch(rng, (-HILO, HILO))).collect();
         let batch_sig = Self::compute_sig(&batches);
         Self { batches, batch_sig }
     }
     fn refresh(&mut self, rng: &mut SmallRng) {
-        self.batches = (0..N_BATCHES).map(|_| make_batch(rng, (-6.0, 6.0))).collect();
+        self.batches = (0..N_BATCHES).map(|_| make_batch(rng, (-HILO, HILO))).collect();
         self.batch_sig = Self::compute_sig(&self.batches);
     }
     fn compute_sig(batches: &[([Vec<Complex<f64>>; N_INPUTS_MAIN], Vec<Complex<f64>>)]) -> Sig {
@@ -487,7 +490,7 @@ fn eval(g: &Genome, ds: &Dataset, ev: &Evaluator, inter_weight: f64) -> (f64, f6
             &mut p_buf, &mut t_buf, &mut order_buf, &mut rank_buf);
         let avg_inter = if count > 0 { sum_score / count as f64 } else { 0.0 };
         let combined = final_s * (1.0 - inter_weight) + avg_inter * inter_weight;
-        total_loss += (1.0 - combined) * (1.0 - final_a);
+        total_loss += ((1.0 - combined).powf(A) * B + (1.0 - final_a).powf(A) * (1.0 - B)).powf(1.0 / A);
         total_acc += final_a;
     }
     let _ = top_sig;
@@ -527,7 +530,7 @@ fn main() {
         scored.sort_unstable_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
         // CMAES_OUTPUT フォーマット: 最終行に acc を出力
         println!(
-            "CMAES_ACC gen={} loss={:.6} acc={:.6}",
+            "CMAES_ACC gen={} loss={:.10} acc={:.10}",
             gen, scored[0].0, scored[0].1
         );
         let elites: Vec<Genome> = scored[..ELITE].iter().map(|x| x.2.clone()).collect();

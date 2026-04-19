@@ -1,18 +1,59 @@
 
-const N_INPUTS_MAIN: usize = 2;
-const N_ADF: usize = 12;
-const LEN_LAYER0: usize = 32;
-const LEN_LAYER1: usize = 32;
-const LEN_LAYER2: usize = 64;
-const N_INPUTS_ADF: usize = 3;
-const ONE_SIG: Sig = 0xFFFF_FFFF_FFFF_FFFFu64;
-const VEC_LEN: usize = 2048;
-const POP_SIZE: usize = 1024;
-const ELITE: usize = 32;
-const N_GEN: usize = 2000;
+DEFAULT_SRC     = "src/main.rs"   # Rustソースの相対パス (プロジェクトルートから)
+DEFAULT_OUT     = "cmaes_results" # 結果ディレクトリ
+DEFAULT_BUDGET  = 800             # CMA-ES の最大評価回数
+DEFAULT_TIME    = 30              # 各評価の実行秒数
 
-// ─── カリキュラム学習用定数 ────────────────────────────────────────────────────
-/// 中間スコアのウェイトが 0 → INTER_WEIGHT_MAX に達するまでの世代数
-const CURRICULUM_RAMP_GENS: usize = 20;
-/// 中間スコアの最大ウェイト
-const INTER_WEIGHT_MAX: f64 = 1.0;
+# ─── ハイパーパラメータ定義 ──────────────────────────────────────────────────
+
+# CMA-ES は実数ベクトルを操作する。
+# 各パラメータを以下のスケーリングで扱う:
+#   整数パラメータ → round(clip(x, lo, hi))
+#   実数パラメータ → clip(x, lo, hi)
+
+PARAM_DEFS = [
+    # (name,          lo,    hi,   init,  is_int, log_scale)
+    ("N_LAYERS",       2,     8,    5,    True,   True),
+    ("LAYER_LEN",      4,    64,   16,    True,   True ),
+    ("N_ADF_PER_LAYER",1,    12,    4,    True,   True),
+    ("ELITE",          8,   256,   32,    True,   True ),
+    ("POP_SIZE",      64,  8192, 4096,    True,   True ),
+    ("VEC_LEN",       64,  2048, 1024,    True,   True ),
+    ("PROB_EML",     0.0,   1.0,  0.5,   False,  False),
+]
+
+
+fn target_fn(x: Complex<f64>) -> Complex<f64> { (x * x - x * 0.5).sin() + (x * 0.5).sin() }
+
+fn make_batch(rng: &mut SmallRng, x_range: (f64, f64))
+    -> ([Vec<Complex<f64>>; N_INPUTS_MAIN], Vec<Complex<f64>>)
+{
+    let (lo, hi) = x_range;
+    let xs: Vec<Complex<f64>> = (0..VEC_LEN)
+        .map(|_| Complex::new(lo + rng.gen::<f64>() * (hi - lo), 0.0)).collect();
+    let one = vec![Complex::new(1.0, 0.0); VEC_LEN];
+    let ys = xs.iter().map(|&x| target_fn(x)).collect();
+    ([xs, one], ys)
+}
+
+struct Dataset {
+    batches: Vec<([Vec<Complex<f64>>; N_INPUTS_MAIN], Vec<Complex<f64>>)>,
+    batch_sig: Sig,
+}
+
+impl Dataset {
+    fn new_random(rng: &mut SmallRng) -> Self {
+        let batches: Vec<_> = (0..N_BATCHES).map(|_| make_batch(rng, (-10.0, 10.0))).collect();
+        let batch_sig = Self::compute_sig(&batches);
+        Self { batches, batch_sig }
+    }
+    fn refresh(&mut self, rng: &mut SmallRng) {
+        self.batches = (0..N_BATCHES).map(|_| make_batch(rng, (-10.0, 10.0))).collect();
+        self.batch_sig = Self::compute_sig(&self.batches);
+    }
+    fn compute_sig(batches: &[([Vec<Complex<f64>>; N_INPUTS_MAIN], Vec<Complex<f64>>)]) -> Sig {
+        let mut h = AHasher::default();
+        for (inputs, _) in batches { for z in inputs[0].iter().take(8) { z.re.to_bits().hash(&mut h); } }
+        h.finish()
+    }
+}

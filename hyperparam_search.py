@@ -45,8 +45,8 @@ import cma
 
 DEFAULT_SRC     = "src/main.rs"   # Rustソースの相対パス (プロジェクトルートから)
 DEFAULT_OUT     = "cmaes_results" # 結果ディレクトリ
-DEFAULT_BUDGET  = 50              # CMA-ES の最大評価回数
-DEFAULT_TIME    = 30              # 各評価の実行秒数
+DEFAULT_BUDGET  = 2000             # CMA-ES の最大評価回数
+DEFAULT_TIME    = 20              # 各評価の実行秒数
 
 # ─── ハイパーパラメータ定義 ──────────────────────────────────────────────────
 
@@ -57,14 +57,19 @@ DEFAULT_TIME    = 30              # 各評価の実行秒数
 
 PARAM_DEFS = [
     # (name,          lo,    hi,   init,  is_int, log_scale)
-    ("N_LAYERS",       2,     5,    3,    True,   False),
-    ("LAYER_LEN",      4,    64,   16,    True,   True ),
-    ("N_ADF_PER_LAYER",1,     8,    4,    True,   False),
-    ("ELITE",          8,   256,   32,    True,   True ),
-    ("POP_SIZE",      64,  8192, 4096,    True,   True ),
-    ("VEC_LEN",       64,  2048, 1024,    True,   True ),
-    ("PROB_EML",     0.0,   1.0,  0.2,   False,  False),
+    ("N_LAYERS",       2,     7,    4,    True,   True),
+    ("LAYER_LEN",      4,    128,   16,    True,   True ),
+    ("LAYER_LEN_LAST",      4,    1024,   128,    True,   True ),
+    ("N_ADF_PER_LAYER",1,    32,    8,    True,   True),
+    ("ELITE",          8,   256,   24,    True,   True ),
+    ("POP_SIZE",      48,  16384, 4096,    True,   True ),
+    ("VEC_LEN",       64,  8192, 1024,    True,   True ),
+    ("PROB_EML",     0.0,   1.0,  0.5,   False,  False),
+    ("A",            -1.5,   2.0,  0.01,   False,  False),
+    ("B",            0.0,   1.0,  0.5,   False,  False),
+    ("HILO",            4.0,   20.0,  5.0,   False,  True),
 ]
+
 
 # ─── ユーティリティ ──────────────────────────────────────────────────────────
 
@@ -104,7 +109,7 @@ def initial_x() -> list[float]:
 
 def initial_sigma() -> float:
     # 各次元のスケールが揃うよう、正規化後の標準偏差を 0.3 に
-    return 0.3
+    return 1.5
 
 
 # ─── Rustソース生成 ──────────────────────────────────────────────────────────
@@ -133,6 +138,9 @@ const POP_SIZE: usize = {POP_SIZE};
 const ELITE: usize = {ELITE};
 const N_GEN: usize = 99999999;  // 時間制限で止める
 const PROB_EML: f64 = {PROB_EML};
+const A: f64 = {A};
+const B: f64 = {B};
+const HILO: f64 = {HILO};
 
 // ─── カリキュラム学習 ────────────────────────────────────────────────────────
 const CURRICULUM_RAMP_GENS: usize = 1;
@@ -377,7 +385,7 @@ fn node_get_or_compute(sig: Sig, v0: &[Complex<f64>], v1: &[Complex<f64>], ev: &
 
 // ─── Dataset ──────────────────────────────────────────────────────────────────
 
-fn target_fn(x: Complex<f64>) -> Complex<f64> { (-x * x).exp() }
+fn target_fn(x: Complex<f64>) -> Complex<f64> { 1.0 / (1.0 + x * x)  }
 
 fn make_batch(rng: &mut SmallRng, x_range: (f64, f64))
     -> ([Vec<Complex<f64>>; N_INPUTS_MAIN], Vec<Complex<f64>>)
@@ -397,12 +405,12 @@ struct Dataset {
 
 impl Dataset {
     fn new_random(rng: &mut SmallRng) -> Self {
-        let batches: Vec<_> = (0..N_BATCHES).map(|_| make_batch(rng, (-6.0, 6.0))).collect();
+        let batches: Vec<_> = (0..N_BATCHES).map(|_| make_batch(rng, (-HILO, HILO))).collect();
         let batch_sig = Self::compute_sig(&batches);
         Self { batches, batch_sig }
     }
     fn refresh(&mut self, rng: &mut SmallRng) {
-        self.batches = (0..N_BATCHES).map(|_| make_batch(rng, (-6.0, 6.0))).collect();
+        self.batches = (0..N_BATCHES).map(|_| make_batch(rng, (-HILO, HILO))).collect();
         self.batch_sig = Self::compute_sig(&self.batches);
     }
     fn compute_sig(batches: &[([Vec<Complex<f64>>; N_INPUTS_MAIN], Vec<Complex<f64>>)]) -> Sig {
@@ -604,7 +612,7 @@ fn eval(g: &Genome, ds: &Dataset, ev: &Evaluator, inter_weight: f64) -> (f64, f6
             &mut p_buf, &mut t_buf, &mut order_buf, &mut rank_buf);
         let avg_inter = if count > 0 { sum_score / count as f64 } else { 0.0 };
         let combined = final_s * (1.0 - inter_weight) + avg_inter * inter_weight;
-        total_loss += (1.0 - combined) * (1.0 - final_a);
+        total_loss += ((1.0 - combined).powf(A) * B + (1.0 - final_a).powf(A) * (1.0 - B)).powf(1.0 / A);
         total_acc += final_a;
     }
     let _ = top_sig;
@@ -644,7 +652,7 @@ fn main() {
         scored.sort_unstable_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
         // CMAES_OUTPUT フォーマット: 最終行に acc を出力
         println!(
-            "CMAES_ACC gen={} loss={:.6} acc={:.6}",
+            "CMAES_ACC gen={} loss={:.10} acc={:.10}",
             gen, scored[0].0, scored[0].1
         );
         let elites: Vec<Genome> = scored[..ELITE].iter().map(|x| x.2.clone()).collect();
@@ -669,11 +677,12 @@ def generate_rust_source(params: dict) -> str:
     """パラメータ辞書から Rust ソースを生成する"""
     n = params["N_LAYERS"]
     llen = params["LAYER_LEN"]
+    llen2 = params["LAYER_LEN_LAST"]
     nadf = params["N_ADF_PER_LAYER"]
 
     # LAYER_LEN 配列: 最終層だけ少し大きくする (min 4)
     # 最終層は top layer なので他より少し大きい方が良い場合が多い
-    layer_len_arr = ", ".join([str(llen)] * (n - 1) + [str(max(llen, llen))])
+    layer_len_arr = ", ".join([str(llen)] * (n - 1) + [str(llen2)])
 
     # N_ADF_PER_LAYER: N_LAYERS-1 個
     if n == 1:
@@ -694,7 +703,10 @@ def generate_rust_source(params: dict) -> str:
         VEC_LEN=params["VEC_LEN"],
         POP_SIZE=pop_size,
         ELITE=elite,
-        PROB_EML=f"{params['PROB_EML']:.6f}",
+        PROB_EML=f"{params['PROB_EML']:.8f}",
+        A=f"{params['A']:.8f}",
+        B=f"{params['B']:.8f}",
+        HILO=f"{params['HILO']:.8f}",
         BODY=RUST_BODY,
     )
     return src
@@ -789,7 +801,7 @@ def build_and_run(
     lines = []
     deadline = time.time() + eval_time
     last_output_time = time.time()
-    SILENCE_TIMEOUT = 10.0  # 10秒無出力で無効判定
+    SILENCE_TIMEOUT = 5.0  # 5秒無出力で無効判定
     timed_out_by_silence = False
 
     try:
@@ -832,16 +844,20 @@ def build_and_run(
             json.dump({"acc": None, "invalid": "silence_timeout", **params}, f, indent=2)
         return None  # 呼び出し側で None を大きなペナルティに変換する
 
-    # 最後の CMAES_ACC 行から acc を取得
+    # 全 CMAES_ACC 行の acc の最大値を取得
+    i = 0.0
     best_acc = 0.0
-    for line in reversed(lines):
+    for line in lines:
         m = re.search(r"CMAES_ACC.*acc=([0-9.]+)", line)
         if m:
             try:
-                best_acc = float(m.group(1))
+                best_acc += math.log(max(1 - float(m.group(1)), 1e-24))
+                i += 1
+                #best_acc = max(best_acc, float(m.group(1)))
             except ValueError:
                 pass
-            break
+    best_acc /= max(i, 1)
+    best_acc = 1.0 - math.exp(best_acc)
 
     print(f"  [trial {trial_idx}] acc = {best_acc:.6f}")
     with open(os.path.join(log_dir, "result.json"), "w") as f:
@@ -898,14 +914,14 @@ class CMAESSearcher:
         if acc is None:
             # 無出力タイムアウト → 無効。CMA-ES には大きなペナルティを返す
             fitness = 0.0  # log(1-0) = 0 が最悪なのでそれより悪い値
-            fitness = 1.0  # log(1-acc) は acc→1 で -∞、acc=0 で 0。無効は 0 より大きい正値で最悪扱い
+            #fitness = 1.0  # log(1-acc) は acc→1 で -∞、acc=0 で 0。無効は 0 より大きい正値で最悪扱い
             self.history.append({"trial": self.trial_idx - 1, "acc": None, "invalid": True, **params})
             self._save_history()
             return fitness  # 正値 = log(1-acc) の最大値より大きい → 最悪扱い
 
         # log(1 - acc) : acc が大きいほど負に大きくなる → 最小化で acc 最大化
         # acc=1.0 の場合 log(0) = -inf になるため EPS でクランプ
-        EPS = 1e-9
+        EPS = 1e-24
         fitness = math.log(max(1.0 - acc, EPS))
         self.history.append({"trial": self.trial_idx - 1, "acc": acc, **params})
         self._save_history()
@@ -916,17 +932,30 @@ class CMAESSearcher:
         print("Starting CMA-ES hyperparameter search")
         print("="*60)
 
+        global_best_fitness = float("inf")
+        global_best_params = None
+
         while not self.es.stop() and self.trial_idx < self.budget:
             solutions = self.es.ask()
             fitnesses = [self.objective(x) for x in solutions]
             self.es.tell(solutions, fitnesses)
 
-            best_idx = int(min(range(len(fitnesses)), key=lambda i: fitnesses[i]))
-            best_params = decode(solutions[best_idx])
-            # fitness = log(1-acc) なので acc = 1 - exp(fitness)
-            best_fitness = fitnesses[best_idx]
-            best_acc_disp = 1.0 - math.exp(min(best_fitness, 0.0))
-            print(f"\n>>> CMA-ES iteration best: acc≈{best_acc_disp:.6f} (fitness={best_fitness:.4f}) params={best_params}")
+            # 今回世代のbest
+            iter_best_idx = int(min(range(len(fitnesses)), key=lambda i: fitnesses[i]))
+            iter_best_fitness = fitnesses[iter_best_idx]
+            iter_best_params = decode(solutions[iter_best_idx])
+
+            # 累積best更新
+            if iter_best_fitness < global_best_fitness:
+                global_best_fitness = iter_best_fitness
+                global_best_params = iter_best_params
+
+            global_best_acc = 1.0 - math.exp(min(global_best_fitness, 0.0))
+            iter_best_acc = 1.0 - math.exp(min(iter_best_fitness, 0.0))
+            print(
+                f"\n>>> iter best: acc≈{iter_best_acc:.6f} | "
+                f"global best: acc≈{global_best_acc:.6f} params={global_best_params}"
+            )
 
         # 最終結果
         print("\n" + "="*60)
