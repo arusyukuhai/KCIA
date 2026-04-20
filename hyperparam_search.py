@@ -11,6 +11,8 @@ CMA-ES によるADF-CGP ハイパーパラメータ探索
   - POP_SIZE       : 128〜8192 (整数)
   - VEC_LEN        : 64〜2048 (整数)
   - PROB_EML       : 0.0〜1.0 (実数)
+  - MUT_STOP_PROB  : 0.05〜0.6 (実数) ← 追加: Chromosome突然変異の幾何分布停止確率
+  - MUT_MAX_TARGETS: 1〜8 (整数)      ← 追加: Genome突然変異の最大対象Chromosome数
 
 評価方法:
   各候補パラメータでRustソースを生成 → cargo build --release →
@@ -45,8 +47,8 @@ import cma
 
 DEFAULT_SRC     = "src/main.rs"   # Rustソースの相対パス (プロジェクトルートから)
 DEFAULT_OUT     = "cmaes_results" # 結果ディレクトリ
-DEFAULT_BUDGET  = 2000             # CMA-ES の最大評価回数
-DEFAULT_TIME    = 20              # 各評価の実行秒数
+DEFAULT_BUDGET  = 1000             # CMA-ES の最大評価回数
+DEFAULT_TIME    = 30              # 各評価の実行秒数
 
 # ─── ハイパーパラメータ定義 ──────────────────────────────────────────────────
 
@@ -56,18 +58,27 @@ DEFAULT_TIME    = 20              # 各評価の実行秒数
 #   実数パラメータ → clip(x, lo, hi)
 
 PARAM_DEFS = [
-    # (name,          lo,    hi,   init,  is_int, log_scale)
-    ("N_LAYERS",       2,     7,    4,    True,   True),
-    ("LAYER_LEN",      4,    128,   16,    True,   True ),
-    ("LAYER_LEN_LAST",      4,    1024,   128,    True,   True ),
-    ("N_ADF_PER_LAYER",1,    32,    8,    True,   True),
-    ("ELITE",          8,   256,   24,    True,   True ),
-    ("POP_SIZE",      48,  16384, 4096,    True,   True ),
-    ("VEC_LEN",       64,  8192, 1024,    True,   True ),
-    ("PROB_EML",     0.0,   1.0,  0.5,   False,  False),
-    ("A",            -1.5,   2.0,  0.01,   False,  False),
-    ("B",            0.0,   1.0,  0.5,   False,  False),
-    ("HILO",            4.0,   20.0,  5.0,   False,  True),
+    # (name,             lo,    hi,   init,  is_int, log_scale)
+    ("N_LAYERS",          2,     9,    4,    True,   True),
+    ("LAYER_LEN",         4,    128,   32,   True,   True),
+    ("LAYER_LEN_LAST",    4,   1024,   64,  True,   True),
+    ("N_ADF_PER_LAYER",   1,    32,    12,    True,   True),
+    ("ELITE",             8,   256,   24,    True,   True),
+    ("POP_SIZE",         48,  16384, 1024,   True,   True),
+    ("VEC_LEN",          64,  8192,  1024,   True,   True),
+    ("PROB_EML",        0.0,   1.0,   0.3,  False,  False),
+    ("A",              -1.5,   2.0,   0.01, False,  False),
+    ("B",               0.0,   1.0,   0.5,  False,  False),
+    ("C",              -1.5,   2.0,   0.01, False,  False),
+    ("D",               0.0,   1.0,   0.5,  False,  False),
+    ("HILO",             5.0,  5.000001,  5.0,  False,  True),
+    ("P",               0.5,   3,   1.5,  False,  True),
+    # ── 突然変異率パラメータ (追加) ──────────────────────────────────────────
+    # Chromosome::mutate における幾何分布の停止確率。
+    # 小さいほど多くのノードが変異する（探索的）、大きいほど少数変異（局所的）。
+    ("MUT_STOP_PROB",   0.001,  12,  6, False,  False),
+    # Genome::mutate で一度に変異させる Chromosome の最大数。
+    ("MUT_MAX_TARGETS",  1,     8,    3,    True,   True),
 ]
 
 
@@ -79,8 +90,6 @@ def encode(params: dict) -> list[float]:
     for name, lo, hi, init, is_int, log_scale in PARAM_DEFS:
         v = params[name]
         if log_scale:
-            lo_l = math.log(lo)
-            hi_l = math.log(hi)
             vec.append(math.log(max(v, 1e-6)))
         else:
             vec.append(float(v))
@@ -108,8 +117,7 @@ def initial_x() -> list[float]:
 
 
 def initial_sigma() -> float:
-    # 各次元のスケールが揃うよう、正規化後の標準偏差を 0.3 に
-    return 1.5
+    return 5.0
 
 
 # ─── Rustソース生成 ──────────────────────────────────────────────────────────
@@ -140,7 +148,19 @@ const N_GEN: usize = 99999999;  // 時間制限で止める
 const PROB_EML: f64 = {PROB_EML};
 const A: f64 = {A};
 const B: f64 = {B};
+const C: f64 = {C};
+const D: f64 = {D};
 const HILO: f64 = {HILO};
+const P: f64 = {P};
+
+// ─── 突然変異率パラメータ ────────────────────────────────────────────────────
+/// Chromosome::mutate の幾何分布停止確率。
+/// while rng.gen::<f64>() > MUT_STOP_PROB で使用。
+/// 小さいほど多ノード変異、大きいほど少数変異。
+const MUT_STOP_PROB: f64 = {MUT_STOP_PROB};
+
+/// Genome::mutate で一度に変異させる Chromosome の最大数。
+const MUT_MAX_TARGETS: usize = {MUT_MAX_TARGETS};
 
 // ─── カリキュラム学習 ────────────────────────────────────────────────────────
 const CURRICULUM_RAMP_GENS: usize = 1;
@@ -221,7 +241,7 @@ impl Chromosome {
         let n_ext = layer_n_ext(layer_idx);
         let n_f = layer_n_funcs(layer_idx) as u8;
         let conn = (0..n)
-            .map(|i| { let m = (n_ext + i) as u16; [rng.gen_range(0..m), rng.gen_range(0..m)] })
+            .map(|i| { let m = (n_ext + i) as u16; [((1.0 - rng.gen::<f64>().powf(P)) * m as f64).floor() as u16, ((1.0 - rng.gen::<f64>().powf(P)) * m as f64).floor() as u16] })
             .collect::<Vec<_>>().into_boxed_slice();
         let func = (0..n).map(|_| selectfunc(n_f, rng)).collect::<Vec<_>>().into_boxed_slice();
         Self { layer_idx, conn, func }
@@ -257,14 +277,14 @@ impl Chromosome {
         let n = layer_len(self.layer_idx);
         let n_ext = layer_n_ext(self.layer_idx);
         let n_f = layer_n_funcs(self.layer_idx) as u8;
-        let mut n_mut = 1usize;
-        while rng.gen::<f64>() > 0.15 && n_mut < n { n_mut += 1; }
+        // MUT_STOP_PROB: 対数一様分布の最大値。大きいほど多くのノードを変異させる。
+        let mut n_mut = (rng.gen::<f64>() * MUT_STOP_PROB).exp() as usize + 1;
         for _ in 0..n_mut {
             let i = rng.gen_range(0..n);
             let max = (n_ext + i) as u16;
             match rng.gen_range(0..3u8) {
-                0 => conn[i][0] = rng.gen_range(0..max),
-                1 => conn[i][1] = rng.gen_range(0..max),
+                0 => conn[i][0] = ((1.0 - rng.gen::<f64>().powf(P)) * max as f64).floor() as u16,
+                1 => conn[i][1] = ((1.0 - rng.gen::<f64>().powf(P)) * max as f64).floor() as u16,
                 _ => func[i] = selectfunc(n_f, rng),
             }
             if rng.gen::<f64>() < 0.05 {
@@ -313,7 +333,8 @@ impl Genome {
         let totals: Vec<usize> = (0..N_LAYERS)
             .map(|li| if is_top(li) { 1 } else { layer_n_adf(li) }).collect();
         let grand_total: usize = totals.iter().sum();
-        let n_targets = rng.gen_range(1..=3usize);
+        // MUT_MAX_TARGETS: 一度に変異させる Chromosome の最大数
+        let n_targets = rng.gen_range(1..=MUT_MAX_TARGETS.min(grand_total));
         for _ in 0..n_targets {
             let mut t = rng.gen_range(0..grand_total);
             for (li, &cnt) in totals.iter().enumerate() {
@@ -385,7 +406,7 @@ fn node_get_or_compute(sig: Sig, v0: &[Complex<f64>], v1: &[Complex<f64>], ev: &
 
 // ─── Dataset ──────────────────────────────────────────────────────────────────
 
-fn target_fn(x: Complex<f64>) -> Complex<f64> { 1.0 / (1.0 + x * x)  }
+fn target_fn(x: Complex<f64>) -> Complex<f64> { (x * x * x - x).sin() + x.sin()  }
 
 fn make_batch(rng: &mut SmallRng, x_range: (f64, f64))
     -> ([Vec<Complex<f64>>; N_INPUTS_MAIN], Vec<Complex<f64>>)
@@ -404,14 +425,12 @@ struct Dataset {
 }
 
 impl Dataset {
-    fn new_random(rng: &mut SmallRng) -> Self {
+    /// 固定データセット: 起動時に一度だけ生成し、以降は変更しない。
+    /// batch_sig も固定値になるため、世代をまたいだキャッシュが正しく機能する。
+    fn new_fixed(rng: &mut SmallRng) -> Self {
         let batches: Vec<_> = (0..N_BATCHES).map(|_| make_batch(rng, (-HILO, HILO))).collect();
         let batch_sig = Self::compute_sig(&batches);
         Self { batches, batch_sig }
-    }
-    fn refresh(&mut self, rng: &mut SmallRng) {
-        self.batches = (0..N_BATCHES).map(|_| make_batch(rng, (-HILO, HILO))).collect();
-        self.batch_sig = Self::compute_sig(&self.batches);
     }
     fn compute_sig(batches: &[([Vec<Complex<f64>>; N_INPUTS_MAIN], Vec<Complex<f64>>)]) -> Sig {
         let mut h = AHasher::default();
@@ -425,6 +444,8 @@ impl Dataset {
 struct Evaluator {
     node_cache: DashMap<Sig, ArcVec>,
     adf_cache: DashMap<AdfKey, (Sig, ArcVec)>,
+    /// 固定データセット運用では fitness_cache はゲノムが同一なら永続的に有効。
+    /// 世代をまたいで保持し、新規ゲノムのみ計算する。
     fitness_cache: DashMap<u64, Score>,
     score_cache: DashMap<(Sig, Sig), Score>,
 }
@@ -438,13 +459,21 @@ impl Evaluator {
             score_cache: DashMap::with_capacity(1 << 17),
         }
     }
-    fn reset_generation(&self, batch_sig_changed: bool) {
+
+    /// 固定データセット運用向けリセット。
+    /// - node_cache: メモリ節約のため世代ごとにクリア（再計算コストは小さい）。
+    /// - fitness_cache / adf_cache / score_cache:
+    ///   データセットが変わらないため保持。同一ゲノムは再評価不要。
+    ///   ただし adf_cache がメモリ上限を超えたら解放する。
+    fn reset_generation(&self) {
         self.node_cache.clear();
-        self.fitness_cache.clear();
-        if batch_sig_changed || self.adf_cache.len() > ADF_CACHE_MAX {
-            self.adf_cache.clear(); self.score_cache.clear();
+        if self.adf_cache.len() > ADF_CACHE_MAX {
+            self.adf_cache.clear();
+            self.score_cache.clear();
+            // fitness_cache は adf_cache に依存しないので保持してよい
         }
     }
+
     fn get_node_score(&self, batch_sig: Sig, node_sig: Sig, val: &ArcVec, target: &[Complex<f64>],
         p_buf: &mut [f64], t_buf: &mut [f64], order_buf: &mut [usize], rank_buf: &mut [i64]) -> Score
     {
@@ -496,7 +525,7 @@ fn score_and_acc_into(pred: &[Complex<f64>], target: &[Complex<f64>],
         let c_fwd = chatterjee_from_ranks(&order_buf[..n], rank_buf);
         let c_bwd = chatterjee_from_ranks(&t_order_buf[..n], &p_rank_buf);
         let pe = pearson_raw(&p_buf[..n], &t_buf[..n]).abs();
-        total_score += (c_fwd + c_bwd + pe) / 3.0;
+        total_score += (((c_fwd.max(0.0).powf(C) + c_bwd.max(0.0).powf(C)) / 2.0) * (1.0 - D) + pe.powf(C) * D).powf(1.0 / C);
         if pe > max_pearson { max_pearson = pe; }
     }
     (total_score / 4.0, max_pearson)
@@ -597,7 +626,10 @@ fn eval(g: &Genome, ds: &Dataset, ev: &Evaluator, inter_weight: f64) -> (f64, f6
     let top_active = &all_acts[top_li][0];
     let genome_base = genome_key(&all_sigs);
     let top_sig = all_sigs[top_li][0];
-    let gkey = make_sig(genome_base, ds.batch_sig, 0);
+    // 固定データセット: batch_sig は不変なのでキャッシュキーとして安全に使える。
+    // inter_weight もキーに含める（世代が異なると値が変わるため）。
+    let gkey = make_sig(make_sig(genome_base, ds.batch_sig, 0),
+                        inter_weight.to_bits(), 1);
     if let Some(v) = ev.fitness_cache.get(&gkey) { return *v; }
     let mut p_buf = vec![0.0f64; VEC_LEN];
     let mut t_buf = vec![0.0f64; VEC_LEN];
@@ -629,21 +661,19 @@ fn main() {
     assert!(N_LAYERS >= 1, "N_LAYERS は 1 以上にしてください");
 
     eprintln!(
-        "ADF-CGP  N_LAYERS={N_LAYERS}  N_ADF_PER_LAYER={:?}  LAYER_LEN={:?}  POP={POP_SIZE}  BATCHES={N_BATCHES}",
+        "ADF-CGP  N_LAYERS={N_LAYERS}  N_ADF_PER_LAYER={:?}  LAYER_LEN={:?}  POP={POP_SIZE}  BATCHES={N_BATCHES}  MUT_STOP_PROB={MUT_STOP_PROB}  MUT_MAX_TARGETS={MUT_MAX_TARGETS}",
         N_ADF_PER_LAYER, LAYER_LEN,
     );
 
     let mut rng = SmallRng::seed_from_u64(42);
-    let mut ds = Dataset::new_random(&mut rng);
+    // 固定データセット: 起動時に一度だけ生成する
+    let ds = Dataset::new_fixed(&mut rng);
     let mut pop: Vec<Genome> = (0..POP_SIZE).map(|_| Genome::random(&mut rng)).collect();
     let evaluator = Evaluator::new();
-    let mut prev_batch_sig = ds.batch_sig;
 
     for gen in 0..N_GEN {
-        ds.refresh(&mut rng);
-        let batch_changed = ds.batch_sig != prev_batch_sig;
-        prev_batch_sig = ds.batch_sig;
-        evaluator.reset_generation(batch_changed);
+        // 固定データセット運用: バッチ変更なし。node_cache のみクリア。
+        evaluator.reset_generation();
         let inter_weight = INTER_WEIGHT_MAX * (gen as f64 / CURRICULUM_RAMP_GENS as f64).min(1.0);
         let mut scored: Vec<(f64, f64, Genome)> = pop
             .par_iter()
@@ -680,11 +710,8 @@ def generate_rust_source(params: dict) -> str:
     llen2 = params["LAYER_LEN_LAST"]
     nadf = params["N_ADF_PER_LAYER"]
 
-    # LAYER_LEN 配列: 最終層だけ少し大きくする (min 4)
-    # 最終層は top layer なので他より少し大きい方が良い場合が多い
     layer_len_arr = ", ".join([str(llen)] * (n - 1) + [str(llen2)])
 
-    # N_ADF_PER_LAYER: N_LAYERS-1 個
     if n == 1:
         n_adf_arr = ""
     else:
@@ -692,7 +719,6 @@ def generate_rust_source(params: dict) -> str:
 
     elite = params["ELITE"]
     pop_size = params["POP_SIZE"]
-    # ELITE は POP_SIZE の半分以下
     elite = min(elite, pop_size // 2)
     elite = max(elite, 2)
 
@@ -706,7 +732,12 @@ def generate_rust_source(params: dict) -> str:
         PROB_EML=f"{params['PROB_EML']:.8f}",
         A=f"{params['A']:.8f}",
         B=f"{params['B']:.8f}",
+        C=f"{params['C']:.8f}",
+        D=f"{params['D']:.8f}",
         HILO=f"{params['HILO']:.8f}",
+        P=f"{params['P']:.8f}",
+        MUT_STOP_PROB=f"{params['MUT_STOP_PROB']:.8f}",
+        MUT_MAX_TARGETS=params["MUT_MAX_TARGETS"],
         BODY=RUST_BODY,
     )
     return src
@@ -721,26 +752,18 @@ def build_and_run(
     trial_idx: int,
     out_dir: str,
 ) -> float:
-    """
-    1. Rustソースを書き換えてビルド
-    2. eval_time 秒間実行して acc を取得
-    3. acc を返す (失敗時は 0.0)
-    """
     src = generate_rust_source(params)
     src_path = os.path.join(project_dir, "src", "main.rs")
 
-    # バックアップ & 書き換え
     with open(src_path, "w", encoding="utf-8") as f:
         f.write(src)
 
     log_dir = os.path.join(out_dir, f"trial_{trial_idx:04d}")
     os.makedirs(log_dir, exist_ok=True)
 
-    # パラメータ保存
     with open(os.path.join(log_dir, "params.json"), "w") as f:
         json.dump(params, f, indent=2)
 
-    # ─── ビルド ───────────────────────────────────────────────────────────────
     print(f"  [trial {trial_idx}] Building ...", flush=True)
     build_start = time.time()
     build_result = subprocess.run(
@@ -761,23 +784,18 @@ def build_and_run(
 
     print(f"  [trial {trial_idx}] Build OK ({build_elapsed:.1f}s). Running {eval_time}s ...", flush=True)
 
-    # ─── 実行 ─────────────────────────────────────────────────────────────────
-    binary = os.path.join(project_dir, "target", "release",
-                          os.path.basename(project_dir))
-    # Cargo.toml からバイナリ名を取得
+    cargo_toml = os.path.join(project_dir, "Cargo.toml")
+    bin_name = None
     try:
-        import tomllib  # Python 3.11+
+        import tomllib
     except ImportError:
         tomllib = None
 
-    cargo_toml = os.path.join(project_dir, "Cargo.toml")
-    bin_name = None
     if tomllib and os.path.exists(cargo_toml):
         with open(cargo_toml, "rb") as f:
             toml_data = tomllib.load(f)
         bin_name = toml_data.get("package", {}).get("name", None)
     if bin_name is None:
-        # フォールバック: Cargo.toml をテキストで読む
         if os.path.exists(cargo_toml):
             for line in open(cargo_toml):
                 m = re.match(r'\s*name\s*=\s*"([^"]+)"', line)
@@ -801,20 +819,18 @@ def build_and_run(
     lines = []
     deadline = time.time() + eval_time
     last_output_time = time.time()
-    SILENCE_TIMEOUT = 5.0  # 5秒無出力で無効判定
+    SILENCE_TIMEOUT = 5.0
     timed_out_by_silence = False
 
     try:
         while time.time() < deadline:
             remaining = min(deadline - time.time(), SILENCE_TIMEOUT - (time.time() - last_output_time))
             if remaining <= 0:
-                # 無出力タイムアウト判定
                 if time.time() - last_output_time >= SILENCE_TIMEOUT:
                     timed_out_by_silence = True
                 break
             ready, _, _ = _select.select([run_proc.stdout], [], [], max(remaining, 0.0))
             if not ready:
-                # select がタイムアウト → 無出力経過秒数を再チェック
                 if time.time() - last_output_time >= SILENCE_TIMEOUT:
                     timed_out_by_silence = True
                     break
@@ -824,7 +840,6 @@ def build_and_run(
                 break
             last_output_time = time.time()
             lines.append(line.rstrip())
-            # リアルタイム表示 (CMAES_ACC 行のみ)
             if "CMAES_ACC" in line:
                 print(f"    {line.rstrip()}", flush=True)
     finally:
@@ -834,7 +849,6 @@ def build_and_run(
         except subprocess.TimeoutExpired:
             run_proc.kill()
 
-    # ログ保存
     with open(os.path.join(log_dir, "stdout.txt"), "w") as f:
         f.write("\n".join(lines))
 
@@ -842,21 +856,21 @@ def build_and_run(
         print(f"  [trial {trial_idx}] INVALID: no output for {SILENCE_TIMEOUT:.0f}s → acc = None")
         with open(os.path.join(log_dir, "result.json"), "w") as f:
             json.dump({"acc": None, "invalid": "silence_timeout", **params}, f, indent=2)
-        return None  # 呼び出し側で None を大きなペナルティに変換する
+        return None
 
-    # 全 CMAES_ACC 行の acc の最大値を取得
     i = 0.0
     best_acc = 0.0
     for line in lines:
         m = re.search(r"CMAES_ACC.*acc=([0-9.]+)", line)
         if m:
             try:
-                best_acc += math.log(max(1 - float(m.group(1)), 1e-24))
+                if i == 0:
+                    best_acc = math.log(max(1 - float(m.group(1)), 1e-24))
+                else:
+                    best_acc = best_acc * 0.7 + math.log(max(1 - float(m.group(1)), 1e-24)) * 0.3
                 i += 1
-                #best_acc = max(best_acc, float(m.group(1)))
             except ValueError:
                 pass
-    best_acc /= max(i, 1)
     best_acc = 1.0 - math.exp(best_acc)
 
     print(f"  [trial {trial_idx}] acc = {best_acc:.6f}")
@@ -879,11 +893,9 @@ class CMAESSearcher:
 
         os.makedirs(out_dir, exist_ok=True)
 
-        # CMA-ES 初期化
         x0 = initial_x()
         sigma0 = initial_sigma()
 
-        # 境界制約 (対数スケール変換後)
         bounds_lo = []
         bounds_hi = []
         for name, lo, hi, init, is_int, log_scale in PARAM_DEFS:
@@ -897,7 +909,7 @@ class CMAESSearcher:
         opts = cma.CMAOptions()
         opts["bounds"] = [bounds_lo, bounds_hi]
         opts["maxfevals"] = budget
-        opts["verbose"] = -9  # CMA-ES 内部ログを抑制
+        opts["verbose"] = -9
         opts["tolx"] = 1e-4
         opts["tolfun"] = 1e-4
 
@@ -912,15 +924,11 @@ class CMAESSearcher:
         self.trial_idx += 1
 
         if acc is None:
-            # 無出力タイムアウト → 無効。CMA-ES には大きなペナルティを返す
-            fitness = 0.0  # log(1-0) = 0 が最悪なのでそれより悪い値
-            #fitness = 1.0  # log(1-acc) は acc→1 で -∞、acc=0 で 0。無効は 0 より大きい正値で最悪扱い
+            fitness = 0.0
             self.history.append({"trial": self.trial_idx - 1, "acc": None, "invalid": True, **params})
             self._save_history()
-            return fitness  # 正値 = log(1-acc) の最大値より大きい → 最悪扱い
+            return fitness
 
-        # log(1 - acc) : acc が大きいほど負に大きくなる → 最小化で acc 最大化
-        # acc=1.0 の場合 log(0) = -inf になるため EPS でクランプ
         EPS = 1e-24
         fitness = math.log(max(1.0 - acc, EPS))
         self.history.append({"trial": self.trial_idx - 1, "acc": acc, **params})
@@ -940,12 +948,10 @@ class CMAESSearcher:
             fitnesses = [self.objective(x) for x in solutions]
             self.es.tell(solutions, fitnesses)
 
-            # 今回世代のbest
             iter_best_idx = int(min(range(len(fitnesses)), key=lambda i: fitnesses[i]))
             iter_best_fitness = fitnesses[iter_best_idx]
             iter_best_params = decode(solutions[iter_best_idx])
 
-            # 累積best更新
             if iter_best_fitness < global_best_fitness:
                 global_best_fitness = iter_best_fitness
                 global_best_params = iter_best_params
@@ -957,16 +963,17 @@ class CMAESSearcher:
                 f"global best: acc≈{global_best_acc:.6f} params={global_best_params}"
             )
 
-        # 最終結果
         print("\n" + "="*60)
         print("CMA-ES search finished.")
         if self.history:
-            best = max(self.history, key=lambda d: d["acc"])
-            print(f"Best trial #{best['trial']}: acc={best['acc']:.6f}")
-            print(f"Best params: { {k: v for k, v in best.items() if k not in ('trial','acc')} }")
-            with open(os.path.join(self.out_dir, "best_params.json"), "w") as f:
-                json.dump(best, f, indent=2)
-            print(f"Saved to {self.out_dir}/best_params.json")
+            valid = [d for d in self.history if d.get("acc") is not None]
+            if valid:
+                best = max(valid, key=lambda d: d["acc"])
+                print(f"Best trial #{best['trial']}: acc={best['acc']:.6f}")
+                print(f"Best params: { {k: v for k, v in best.items() if k not in ('trial','acc')} }")
+                with open(os.path.join(self.out_dir, "best_params.json"), "w") as f:
+                    json.dump(best, f, indent=2)
+                print(f"Saved to {self.out_dir}/best_params.json")
         return self.history
 
     def _save_history(self):
@@ -997,10 +1004,6 @@ codegen-units = 1
 
 
 def setup_project(project_dir: str, src_rs_path: Optional[str] = None):
-    """
-    Cargo プロジェクトをセットアップする。
-    project_dir が既存の Cargo プロジェクトでない場合は新規作成する。
-    """
     src_dir = os.path.join(project_dir, "src")
     os.makedirs(src_dir, exist_ok=True)
 
@@ -1015,7 +1018,6 @@ def setup_project(project_dir: str, src_rs_path: Optional[str] = None):
         shutil.copy2(src_rs_path, src_dest)
         print(f"Copied {src_rs_path} → {src_dest}")
     elif not os.path.exists(src_dest):
-        # ダミー初期ファイル
         params = {name: init for name, lo, hi, init, is_int, log_scale in PARAM_DEFS}
         with open(src_dest, "w") as f:
             f.write(generate_rust_source(params))

@@ -9,21 +9,33 @@ use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
 // ─── アーキテクチャ ハイパーパラメータ ───────────────────────────────────────
-const N_LAYERS: usize = 2;
-const LAYER_LEN: [usize; N_LAYERS] = [122, 61];
+const N_LAYERS: usize = 8;
+const LAYER_LEN: [usize; N_LAYERS] = [43, 43, 43, 43, 43, 43, 43, 4];
 const N_INPUTS_MAIN: usize = 2;
 const N_INPUTS_ADF: usize = 3;
-const N_ADF_PER_LAYER: [usize; N_LAYERS - 1] = [16];
+const N_ADF_PER_LAYER: [usize; N_LAYERS - 1] = [22, 22, 22, 22, 22, 22, 22];
 
 const ONE_SIG: Sig = 0xFFFF_FFFF_FFFF_FFFFu64;
-const VEC_LEN: usize = 212;
-const POP_SIZE: usize = 5119;
-const ELITE: usize = 214;
+const VEC_LEN: usize = 3146;
+const POP_SIZE: usize = 1444;
+const ELITE: usize = 152;
 const N_GEN: usize = 99999999;  // 時間制限で止める
-const PROB_EML: f64 = 0.88189263;
-const A: f64 = -0.05927185;
-const B: f64 = 0.07533474;
-const HILO: f64 = 4.17404179;
+const PROB_EML: f64 = 0.30882948;
+const A: f64 = 1.87208837;
+const B: f64 = 0.32975676;
+const C: f64 = 0.51604380;
+const D: f64 = 0.41134392;
+const HILO: f64 = 5.00000011;
+const P: f64 = 1.59948234;
+
+// ─── 突然変異率パラメータ ────────────────────────────────────────────────────
+/// Chromosome::mutate の幾何分布停止確率。
+/// while rng.gen::<f64>() > MUT_STOP_PROB で使用。
+/// 小さいほど多ノード変異、大きいほど少数変異。
+const MUT_STOP_PROB: f64 = 6.43844907;
+
+/// Genome::mutate で一度に変異させる Chromosome の最大数。
+const MUT_MAX_TARGETS: usize = 8;
 
 // ─── カリキュラム学習 ────────────────────────────────────────────────────────
 const CURRICULUM_RAMP_GENS: usize = 1;
@@ -99,7 +111,7 @@ impl Chromosome {
         let n_ext = layer_n_ext(layer_idx);
         let n_f = layer_n_funcs(layer_idx) as u8;
         let conn = (0..n)
-            .map(|i| { let m = (n_ext + i) as u16; [rng.gen_range(0..m), rng.gen_range(0..m)] })
+            .map(|i| { let m = (n_ext + i) as u16; [((1.0 - rng.gen::<f64>().powf(P)) * m as f64).floor() as u16, ((1.0 - rng.gen::<f64>().powf(P)) * m as f64).floor() as u16] })
             .collect::<Vec<_>>().into_boxed_slice();
         let func = (0..n).map(|_| selectfunc(n_f, rng)).collect::<Vec<_>>().into_boxed_slice();
         Self { layer_idx, conn, func }
@@ -135,14 +147,14 @@ impl Chromosome {
         let n = layer_len(self.layer_idx);
         let n_ext = layer_n_ext(self.layer_idx);
         let n_f = layer_n_funcs(self.layer_idx) as u8;
-        let mut n_mut = 1usize;
-        while rng.gen::<f64>() > 0.15 && n_mut < n { n_mut += 1; }
+        // MUT_STOP_PROB: 対数一様分布の最大値。大きいほど多くのノードを変異させる。
+        let mut n_mut = (rng.gen::<f64>() * MUT_STOP_PROB).exp() as usize + 1;
         for _ in 0..n_mut {
             let i = rng.gen_range(0..n);
             let max = (n_ext + i) as u16;
             match rng.gen_range(0..3u8) {
-                0 => conn[i][0] = rng.gen_range(0..max),
-                1 => conn[i][1] = rng.gen_range(0..max),
+                0 => conn[i][0] = ((1.0 - rng.gen::<f64>().powf(P)) * max as f64).floor() as u16,
+                1 => conn[i][1] = ((1.0 - rng.gen::<f64>().powf(P)) * max as f64).floor() as u16,
                 _ => func[i] = selectfunc(n_f, rng),
             }
             if rng.gen::<f64>() < 0.05 {
@@ -191,7 +203,8 @@ impl Genome {
         let totals: Vec<usize> = (0..N_LAYERS)
             .map(|li| if is_top(li) { 1 } else { layer_n_adf(li) }).collect();
         let grand_total: usize = totals.iter().sum();
-        let n_targets = rng.gen_range(1..=3usize);
+        // MUT_MAX_TARGETS: 一度に変異させる Chromosome の最大数
+        let n_targets = rng.gen_range(1..=MUT_MAX_TARGETS.min(grand_total));
         for _ in 0..n_targets {
             let mut t = rng.gen_range(0..grand_total);
             for (li, &cnt) in totals.iter().enumerate() {
@@ -263,7 +276,7 @@ fn node_get_or_compute(sig: Sig, v0: &[Complex<f64>], v1: &[Complex<f64>], ev: &
 
 // ─── Dataset ──────────────────────────────────────────────────────────────────
 
-fn target_fn(x: Complex<f64>) -> Complex<f64> { 1.0 / (1.0 + x * x)  }
+fn target_fn(x: Complex<f64>) -> Complex<f64> { (x * x * x - x).sin() + x.sin()  }
 
 fn make_batch(rng: &mut SmallRng, x_range: (f64, f64))
     -> ([Vec<Complex<f64>>; N_INPUTS_MAIN], Vec<Complex<f64>>)
@@ -282,14 +295,12 @@ struct Dataset {
 }
 
 impl Dataset {
-    fn new_random(rng: &mut SmallRng) -> Self {
+    /// 固定データセット: 起動時に一度だけ生成し、以降は変更しない。
+    /// batch_sig も固定値になるため、世代をまたいだキャッシュが正しく機能する。
+    fn new_fixed(rng: &mut SmallRng) -> Self {
         let batches: Vec<_> = (0..N_BATCHES).map(|_| make_batch(rng, (-HILO, HILO))).collect();
         let batch_sig = Self::compute_sig(&batches);
         Self { batches, batch_sig }
-    }
-    fn refresh(&mut self, rng: &mut SmallRng) {
-        self.batches = (0..N_BATCHES).map(|_| make_batch(rng, (-HILO, HILO))).collect();
-        self.batch_sig = Self::compute_sig(&self.batches);
     }
     fn compute_sig(batches: &[([Vec<Complex<f64>>; N_INPUTS_MAIN], Vec<Complex<f64>>)]) -> Sig {
         let mut h = AHasher::default();
@@ -303,6 +314,8 @@ impl Dataset {
 struct Evaluator {
     node_cache: DashMap<Sig, ArcVec>,
     adf_cache: DashMap<AdfKey, (Sig, ArcVec)>,
+    /// 固定データセット運用では fitness_cache はゲノムが同一なら永続的に有効。
+    /// 世代をまたいで保持し、新規ゲノムのみ計算する。
     fitness_cache: DashMap<u64, Score>,
     score_cache: DashMap<(Sig, Sig), Score>,
 }
@@ -316,13 +329,21 @@ impl Evaluator {
             score_cache: DashMap::with_capacity(1 << 17),
         }
     }
-    fn reset_generation(&self, batch_sig_changed: bool) {
+
+    /// 固定データセット運用向けリセット。
+    /// - node_cache: メモリ節約のため世代ごとにクリア（再計算コストは小さい）。
+    /// - fitness_cache / adf_cache / score_cache:
+    ///   データセットが変わらないため保持。同一ゲノムは再評価不要。
+    ///   ただし adf_cache がメモリ上限を超えたら解放する。
+    fn reset_generation(&self) {
         self.node_cache.clear();
-        self.fitness_cache.clear();
-        if batch_sig_changed || self.adf_cache.len() > ADF_CACHE_MAX {
-            self.adf_cache.clear(); self.score_cache.clear();
+        if self.adf_cache.len() > ADF_CACHE_MAX {
+            self.adf_cache.clear();
+            self.score_cache.clear();
+            // fitness_cache は adf_cache に依存しないので保持してよい
         }
     }
+
     fn get_node_score(&self, batch_sig: Sig, node_sig: Sig, val: &ArcVec, target: &[Complex<f64>],
         p_buf: &mut [f64], t_buf: &mut [f64], order_buf: &mut [usize], rank_buf: &mut [i64]) -> Score
     {
@@ -374,7 +395,7 @@ fn score_and_acc_into(pred: &[Complex<f64>], target: &[Complex<f64>],
         let c_fwd = chatterjee_from_ranks(&order_buf[..n], rank_buf);
         let c_bwd = chatterjee_from_ranks(&t_order_buf[..n], &p_rank_buf);
         let pe = pearson_raw(&p_buf[..n], &t_buf[..n]).abs();
-        total_score += (c_fwd + c_bwd + pe) / 3.0;
+        total_score += (((c_fwd.max(0.0).powf(C) + c_bwd.max(0.0).powf(C)) / 2.0) * (1.0 - D) + pe.powf(C) * D).powf(1.0 / C);
         if pe > max_pearson { max_pearson = pe; }
     }
     (total_score / 4.0, max_pearson)
@@ -475,7 +496,10 @@ fn eval(g: &Genome, ds: &Dataset, ev: &Evaluator, inter_weight: f64) -> (f64, f6
     let top_active = &all_acts[top_li][0];
     let genome_base = genome_key(&all_sigs);
     let top_sig = all_sigs[top_li][0];
-    let gkey = make_sig(genome_base, ds.batch_sig, 0);
+    // 固定データセット: batch_sig は不変なのでキャッシュキーとして安全に使える。
+    // inter_weight もキーに含める（世代が異なると値が変わるため）。
+    let gkey = make_sig(make_sig(genome_base, ds.batch_sig, 0),
+                        inter_weight.to_bits(), 1);
     if let Some(v) = ev.fitness_cache.get(&gkey) { return *v; }
     let mut p_buf = vec![0.0f64; VEC_LEN];
     let mut t_buf = vec![0.0f64; VEC_LEN];
@@ -507,21 +531,19 @@ fn main() {
     assert!(N_LAYERS >= 1, "N_LAYERS は 1 以上にしてください");
 
     eprintln!(
-        "ADF-CGP  N_LAYERS={N_LAYERS}  N_ADF_PER_LAYER={:?}  LAYER_LEN={:?}  POP={POP_SIZE}  BATCHES={N_BATCHES}",
+        "ADF-CGP  N_LAYERS={N_LAYERS}  N_ADF_PER_LAYER={:?}  LAYER_LEN={:?}  POP={POP_SIZE}  BATCHES={N_BATCHES}  MUT_STOP_PROB={MUT_STOP_PROB}  MUT_MAX_TARGETS={MUT_MAX_TARGETS}",
         N_ADF_PER_LAYER, LAYER_LEN,
     );
 
     let mut rng = SmallRng::seed_from_u64(42);
-    let mut ds = Dataset::new_random(&mut rng);
+    // 固定データセット: 起動時に一度だけ生成する
+    let ds = Dataset::new_fixed(&mut rng);
     let mut pop: Vec<Genome> = (0..POP_SIZE).map(|_| Genome::random(&mut rng)).collect();
     let evaluator = Evaluator::new();
-    let mut prev_batch_sig = ds.batch_sig;
 
     for gen in 0..N_GEN {
-        ds.refresh(&mut rng);
-        let batch_changed = ds.batch_sig != prev_batch_sig;
-        prev_batch_sig = ds.batch_sig;
-        evaluator.reset_generation(batch_changed);
+        // 固定データセット運用: バッチ変更なし。node_cache のみクリア。
+        evaluator.reset_generation();
         let inter_weight = INTER_WEIGHT_MAX * (gen as f64 / CURRICULUM_RAMP_GENS as f64).min(1.0);
         let mut scored: Vec<(f64, f64, Genome)> = pop
             .par_iter()
