@@ -9,33 +9,33 @@ use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
 // ─── アーキテクチャ ハイパーパラメータ ───────────────────────────────────────
-const N_LAYERS: usize = 8;
-const LAYER_LEN: [usize; N_LAYERS] = [43, 43, 43, 43, 43, 43, 43, 4];
+const N_LAYERS: usize = 2;
+const LAYER_LEN: [usize; N_LAYERS] = [113, 264];
 const N_INPUTS_MAIN: usize = 2;
 const N_INPUTS_ADF: usize = 3;
-const N_ADF_PER_LAYER: [usize; N_LAYERS - 1] = [22, 22, 22, 22, 22, 22, 22];
+const N_ADF_PER_LAYER: [usize; N_LAYERS - 1] = [27];
 
 const ONE_SIG: Sig = 0xFFFF_FFFF_FFFF_FFFFu64;
-const VEC_LEN: usize = 3146;
-const POP_SIZE: usize = 1444;
-const ELITE: usize = 152;
+const VEC_LEN: usize = 182;
+const POP_SIZE: usize = 91;
+const ELITE: usize = 45;
 const N_GEN: usize = 99999999;  // 時間制限で止める
-const PROB_EML: f64 = 0.30882948;
-const A: f64 = 1.87208837;
-const B: f64 = 0.32975676;
-const C: f64 = 0.51604380;
-const D: f64 = 0.41134392;
-const HILO: f64 = 5.00000011;
-const P: f64 = 1.59948234;
+const PROB_EML: f64 = 0.47471978;
+const A: f64 = 1.02604426;
+const B: f64 = 0.31593178;
+const C: f64 = -0.78357518;
+const D: f64 = 0.00051017;
+const HILO: f64 = 11.52728179;
+const P: f64 = 0.83515476;
 
 // ─── 突然変異率パラメータ ────────────────────────────────────────────────────
 /// Chromosome::mutate の幾何分布停止確率。
 /// while rng.gen::<f64>() > MUT_STOP_PROB で使用。
 /// 小さいほど多ノード変異、大きいほど少数変異。
-const MUT_STOP_PROB: f64 = 6.43844907;
+const MUT_STOP_PROB: f64 = 4.81766858;
 
 /// Genome::mutate で一度に変異させる Chromosome の最大数。
-const MUT_MAX_TARGETS: usize = 8;
+const MUT_MAX_TARGETS: usize = 6;
 
 // ─── カリキュラム学習 ────────────────────────────────────────────────────────
 const CURRICULUM_RAMP_GENS: usize = 1;
@@ -276,7 +276,7 @@ fn node_get_or_compute(sig: Sig, v0: &[Complex<f64>], v1: &[Complex<f64>], ev: &
 
 // ─── Dataset ──────────────────────────────────────────────────────────────────
 
-fn target_fn(x: Complex<f64>) -> Complex<f64> { (x * x * x - x).sin() + x.sin()  }
+fn target_fn(x: Complex<f64>) -> Complex<f64> { (x * x * x - x).sin() * (x * x).sin()  }
 
 fn make_batch(rng: &mut SmallRng, x_range: (f64, f64))
     -> ([Vec<Complex<f64>>; N_INPUTS_MAIN], Vec<Complex<f64>>)
