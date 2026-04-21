@@ -47,7 +47,7 @@ import cma
 
 DEFAULT_OUT     = "cmaes_results"
 DEFAULT_BUDGET  = 2000
-DEFAULT_TIME    = 20
+DEFAULT_TIME    = 30
 
 # ─── ハイパーパラメータ定義 ──────────────────────────────────────────────────
 
@@ -423,23 +423,20 @@ impl Dataset {
 
 // ─── Surrogate Model ─────────────────────────────────────────────────────────
 //
-// Tree-structured MLP:
-//   各ノードで h = MLP(h_left, h_right) を計算（h は SURR_EMBED_DIM 次元）
+// 設計:
+//   各ゲノムノードで h = MLP(h_left, h_right) を計算（h は SURR_EMBED_DIM 次元）
 //   MLP: [2*n] → Linear(2n→m) → Swish → Linear(m→n)
 //   leaf（ext入力スロット）の埋め込みは学習対象ベクトル
 //   最終ノードの埋め込み h_out → Linear(n→1) で loss を予測
 //
-// Muon Optimizer:
-//   Nesterov momentum + Newton-Schulz 直交化
-//   行列パラメータ（Weight）には直交化を適用、バイアスには適用しない
-//
-// 修正点:
-//   1. embed_cache のキーを (layer_idx, abs_node_pos, conn0, conn1, func_id) の
-//      完全な構造情報から計算する Sig に変更し、衝突を排除
-//   2. surrogate_train_step で全層（ADF層含む）の逆伝播を実装
-//   3. val_correlation を「訓練前予測 vs 実値」ではなく
-//      held-out サンプルへの予測精度で計算
-//   4. surrogate_multiplier を stdout に出力し Python 側で追跡
+// 最適化のポイント:
+//   1. ForwardCache を導入し、フォワードパスを1回だけ走査して中間値を保存。
+//      genome_backward はこのキャッシュを受け取って再走査を完全に排除する。
+//   2. surrogate_predict は precomputed な GenomeData を受け取るオーバーロードを追加し、
+//      呼び出し元（surrogate評価フェーズ）で active_and_sig を1回だけ計算する。
+//   3. embed_cache は HashMap<Sig, Array1<f64>> として世代をまたいで保持し、
+//      重み更新後のみクリアする（同一世代内の共通サブツリーを再利用）。
+//   4. update_val_correlation でも precomputed GenomeData を使用する。
 
 /// Swish 活性化関数: x * sigmoid(x)
 #[inline]
@@ -452,7 +449,7 @@ fn swish_grad(x: f64) -> f64 {
     s + x * s * (1.0 - s)
 }
 
-/// Muonで採用されている5次Newton-Schulz反復を用いた直交化
+/// Muon で採用されている5次Newton-Schulz反復を用いた直交化
 fn newton_schulz_orthogonalize(g: &Array2<f64>, steps: usize) -> Array2<f64> {
     let (rows, cols) = g.dim();
     if rows == 0 || cols == 0 { return g.clone(); }
@@ -473,48 +470,88 @@ fn newton_schulz_orthogonalize(g: &Array2<f64>, steps: usize) -> Array2<f64> {
 }
 
 // ─── ノードSig計算（全構造情報を含む・衝突なし）────────────────────────────
-//
-// 旧実装の問題: ノードが内部ノード（abs >= n_ext）を参照する場合に
-//   all_sigs[layer_idx][0]（Chromosome全体のSig）を使っていたため、
-//   異なる接続構造でも同じ node_sig になりうるキャッシュ衝突が発生していた。
-//
-// 修正: ノードのSigを (layer_idx, abs位置, c0_sig, c1_sig, func_id) から
-//   再帰的に計算する。c0/c1 が内部ノードの場合はそのノードのSigを使う。
-//
+
 fn compute_node_sig_recursive(
     abs: usize,
     layer_idx: usize,
     c: &Chromosome,
-    node_sigs: &[Sig],  // 既に計算済みのノードSig配列 (total長)
+    node_sigs: &[Sig],
     all_sigs: &[Vec<Sig>],
     n_ext: usize,
 ) -> Sig {
     if abs < n_ext {
-        // ext スロット: slot番号をそのままSigとして使う（衝突なし）
         return abs as Sig + 1;
     }
     let i = abs - n_ext;
     let c0 = c.conn[i][0] as usize;
     let c1 = c.conn[i][1] as usize;
     let f = c.func[i] as usize;
-    // c0, c1 のSigは node_sigs に既にある（ボトムアップ順に処理するため）
     let s0 = node_sigs[c0];
     let s1 = node_sigs[c1];
     if f == 0 || layer_idx == 0 {
-        // eml ノード: (s0, s1, func=0) で決定
         make_sig(s0, s1, 0)
     } else {
-        // ADF呼び出し: 参照するADFのSig（all_sigs[sub_li][sub_idx]）も含める
         let sub_li = layer_idx - 1;
         let sub_idx = (f - 1).min(layer_n_adf(sub_li) - 1);
         let adf_sig = all_sigs[sub_li][sub_idx];
-        // func_id に sub_idx を埋め込み、adf_sig も混ぜることで
-        // 「同じ接続先でもADF内容が違えば別Sig」を保証
         make_sig(make_sig(s0, s1, f as u8), adf_sig, 0)
     }
 }
 
-/// Surrogate MLP の重みとモメンタム
+// ─── ゲノムの事前計算済みデータ ──────────────────────────────────────────────
+//
+// active_and_sig の結果をキャッシュし、surrogate 評価フェーズ全体で再利用する。
+// これにより POP_SIZE 回の重複計算を排除する。
+
+struct GenomeData {
+    all_sigs: Vec<Vec<Sig>>,
+    all_acts: Vec<Vec<Vec<usize>>>,
+    genome_key: u64,
+}
+
+impl GenomeData {
+    fn new(genome: &Genome) -> Self {
+        let all_data: Vec<Vec<(Vec<usize>, Sig)>> = (0..N_LAYERS)
+            .map(|li| genome.layers[li].iter().map(|c| c.active_and_sig()).collect())
+            .collect();
+        let all_sigs: Vec<Vec<Sig>> = all_data.iter()
+            .map(|layer| layer.iter().map(|d| d.1).collect()).collect();
+        let all_acts: Vec<Vec<Vec<usize>>> = all_data.into_iter()
+            .map(|layer| layer.into_iter().map(|d| d.0).collect()).collect();
+        let gk = genome_key(&all_sigs);
+        Self { all_sigs, all_acts, genome_key: gk }
+    }
+}
+
+// ─── フォワードパスの中間値キャッシュ ────────────────────────────────────────
+//
+// フォワードパスで計算した中間値をすべて保持する。
+// backward はこのキャッシュを受け取り、再走査を行わない。
+
+struct NodeFwdEntry {
+    node_sig:   Sig,
+    concat_inp: Array1<f64>,  // [2n] 連結入力
+    pre_swish:  Array1<f64>,  // Linear(2n→m) の出力（Swish前）
+    h_out:      Array1<f64>,  // Linear(m→n) の出力（このノードの埋め込み）
+    c0:         usize,
+    c1:         usize,
+}
+
+/// フォワードパスの全中間値: fwd_entries[li][k][abs] = Option<NodeFwdEntry>
+/// ext スロットの埋め込みは ext_embeds[li][k][i] に格納
+struct ForwardCache {
+    // [li][k][abs] = Some(entry) for internal nodes, None for ext slots
+    fwd_entries: Vec<Vec<Vec<Option<NodeFwdEntry>>>>,
+    // [li][k][i] = embedding for ext slot i
+    ext_embeds:  Vec<Vec<Vec<Array1<f64>>>>,
+    // [li][k][abs] = node_sig (0 if not computed)
+    node_sigs:   Vec<Vec<Vec<Sig>>>,
+    // top layer output embedding (= last node of top chrom)
+    top_embed:   Array1<f64>,
+}
+
+// ─── Surrogate Model の重みとモメンタム ─────────────────────────────────────
+
 struct SurrogateWeights {
     // leaf embeddings: ext スロット Sig → SURR_EMBED_DIM ベクトル
     leaf_embeds: std::collections::HashMap<u64, Array1<f64>>,
@@ -544,9 +581,7 @@ struct SurrogateWeights {
     momentum: f64,
 
     // バリデーション用 held-out バッファ
-    // 実評価サンプルの (genome_key, actual_loss) を保持
-    // 偶数インデックス → 訓練用、奇数インデックス → バリデーション用
-    held_out_buffer: Vec<(u64, f64, Genome)>, // (genome_key, actual_loss, genome)
+    held_out_buffer: Vec<(u64, f64, Genome)>,
     val_correlation: f64,
     surrogate_multiplier: f64,
 }
@@ -588,7 +623,8 @@ impl SurrogateWeights {
         }
     }
 
-    /// leaf embedding を取得（なければ初期化）
+    /// leaf embedding を取得（なければ決定論的初期化）
+    /// 呼び出しごとに clone しているが、ext スロット数は少ないため許容範囲。
     fn get_or_init_leaf(&mut self, sig: u64) -> Array1<f64> {
         if !self.leaf_embeds.contains_key(&sig) {
             let scale = (1.0 / SURR_EMBED_DIM as f64).sqrt();
@@ -609,6 +645,8 @@ impl SurrogateWeights {
     }
 
     /// MLP フォワードパス: (h_left, h_right) → (concat_input, pre_swish, h_out)
+    /// 中間値をすべて返すことで、呼び出し元が backward に必要な情報を保持できる。
+    #[inline]
     fn mlp_forward(&self, h_left: &Array1<f64>, h_right: &Array1<f64>)
         -> (Array1<f64>, Array1<f64>, Array1<f64>)
     {
@@ -622,29 +660,44 @@ impl SurrogateWeights {
     }
 
     /// 最終スカラー予測: h_out → loss_pred
+    #[inline]
     fn predict_from_embed(&self, h: &Array1<f64>) -> f64 {
         self.w_out.dot(h) + self.b_out
     }
 }
 
-// ─── フォワード: ゲノム全体の埋め込みを計算（全層を走査）────────────────────
+// ─── フォワードパス（中間値キャッシュを生成） ────────────────────────────────
 //
-// 旧実装の問題: top層の1 Chromosomeしか処理していなかった。
-// 修正: 全 layer の全 Chromosome をボトムアップに処理し、
-//       各ノードのSigを compute_node_sig_recursive で正しく計算する。
-//
-// 戻り値: top層最終ノードの埋め込みベクトル
-//
-fn genome_forward(
+// 改善点:
+//   - embed_cache ヒット時でも NodeFwdEntry を作らず、h_out だけ保存することで
+//     backward が必要な場合のみフルエントリを作る。
+//   - 戻り値として ForwardCache を返し、backward が再利用できるようにする。
+//   - top層最終ノードの埋め込みも ForwardCache に含める。
+
+fn genome_forward_with_cache(
     genome: &Genome,
+    data: &GenomeData,
     sw: &mut SurrogateWeights,
-    // embed_cache: Sig → 埋め込みベクトル（世代をまたいで再利用可）
     embed_cache: &mut std::collections::HashMap<Sig, Array1<f64>>,
-    all_sigs: &[Vec<Sig>],
-    all_acts:  &[Vec<Vec<usize>>],
-) -> Array1<f64> {
-    // layer 0（最下層）から top（N_LAYERS-1）へボトムアップ
-    // 各層の各 Chromosome の出力埋め込みを chromosome_sigs[li][k] に保存
+    need_backward_cache: bool,  // true なら NodeFwdEntry を構築する
+) -> ForwardCache {
+    let mut fwd_entries: Vec<Vec<Vec<Option<NodeFwdEntry>>>> = (0..N_LAYERS).map(|li| {
+        (0..genome.layers[li].len()).map(|_k| {
+            vec![None; layer_n_ext(li) + layer_len(li)]
+        }).collect()
+    }).collect();
+    let mut ext_embeds_all: Vec<Vec<Vec<Array1<f64>>>> = (0..N_LAYERS).map(|li| {
+        (0..genome.layers[li].len()).map(|_k| {
+            vec![Array1::zeros(SURR_EMBED_DIM); layer_n_ext(li)]
+        }).collect()
+    }).collect();
+    let mut node_sigs_all: Vec<Vec<Vec<Sig>>> = (0..N_LAYERS).map(|li| {
+        (0..genome.layers[li].len()).map(|_k| {
+            vec![0u64; layer_n_ext(li) + layer_len(li)]
+        }).collect()
+    }).collect();
+
+    // 各層の各 Chromosome の出力埋め込み（次の層への入力として使用）
     let mut chrom_out_embeds: Vec<Vec<Array1<f64>>> = Vec::with_capacity(N_LAYERS);
 
     for li in 0..N_LAYERS {
@@ -652,45 +705,66 @@ fn genome_forward(
         let mut layer_outs = Vec::with_capacity(n_chroms);
         for k in 0..n_chroms {
             let c = &genome.layers[li][k];
-            let active = &all_acts[li][k];
+            let active = &data.all_acts[li][k];
             let n_ext = layer_n_ext(li);
             let total = n_ext + layer_len(li);
 
-            // ノードSigと埋め込みを保持するバッファ
-            let mut node_sigs_buf: Vec<Sig> = vec![0u64; total];
-            let mut node_embeds: Vec<Option<Array1<f64>>> = vec![None; total];
-
-            // ext スロットの初期化
+            // ext スロット初期化（leaf_embeds から取得）
             for i in 0..n_ext {
                 let sig = i as Sig + 1;
-                node_sigs_buf[i] = sig;
-                node_embeds[i] = Some(sw.get_or_init_leaf(sig));
+                node_sigs_all[li][k][i] = sig;
+                let emb = sw.get_or_init_leaf(sig);
+                ext_embeds_all[li][k][i] = emb;
             }
 
             // active ノードをボトムアップに処理
+            // node_embeds[abs] = 計算済み埋め込み（ext スロットは ext_embeds から参照）
+            let mut node_embeds: Vec<Option<Array1<f64>>> = vec![None; total];
+            for i in 0..n_ext {
+                node_embeds[i] = Some(ext_embeds_all[li][k][i].clone());
+            }
+
             for &abs in active {
                 if abs < n_ext { continue; }
 
-                // 正しい node_sig を計算（全構造情報を使用）
                 let node_sig = compute_node_sig_recursive(
-                    abs, li, c, &node_sigs_buf, all_sigs, n_ext,
+                    abs, li, c, &node_sigs_all[li][k], &data.all_sigs, n_ext,
                 );
-                node_sigs_buf[abs] = node_sig;
-
-                // embed_cache ヒット確認
-                if let Some(cached) = embed_cache.get(&node_sig) {
-                    node_embeds[abs] = Some(cached.clone());
-                    continue;
-                }
+                node_sigs_all[li][k][abs] = node_sig;
 
                 let i = abs - n_ext;
                 let c0 = c.conn[i][0] as usize;
                 let c1 = c.conn[i][1] as usize;
-                let h_left  = node_embeds[c0].clone().unwrap_or_else(|| Array1::zeros(SURR_EMBED_DIM));
-                let h_right = node_embeds[c1].clone().unwrap_or_else(|| Array1::zeros(SURR_EMBED_DIM));
-                let (_, _, h_out) = sw.mlp_forward(&h_left, &h_right);
+
+                // embed_cache ヒット: backward が不要なら NodeFwdEntry は作らない
+                if let Some(cached) = embed_cache.get(&node_sig) {
+                    node_embeds[abs] = Some(cached.clone());
+                    if need_backward_cache {
+                        // backward のために NodeFwdEntry を構築する
+                        // （中間値は再計算するが、embed_cache にヒットした場合のみ）
+                        let h_left  = node_embeds[c0].as_ref().map(|v| v.clone()).unwrap_or_else(|| Array1::zeros(SURR_EMBED_DIM));
+                        let h_right = node_embeds[c1].as_ref().map(|v| v.clone()).unwrap_or_else(|| Array1::zeros(SURR_EMBED_DIM));
+                        let (inp, pre1, _) = sw.mlp_forward(&h_left, &h_right);
+                        fwd_entries[li][k][abs] = Some(NodeFwdEntry {
+                            node_sig, concat_inp: inp, pre_swish: pre1,
+                            h_out: cached.clone(), c0, c1,
+                        });
+                    }
+                    continue;
+                }
+
+                let h_left  = node_embeds[c0].as_ref().map(|v| v.clone()).unwrap_or_else(|| Array1::zeros(SURR_EMBED_DIM));
+                let h_right = node_embeds[c1].as_ref().map(|v| v.clone()).unwrap_or_else(|| Array1::zeros(SURR_EMBED_DIM));
+                let (inp, pre1, h_out) = sw.mlp_forward(&h_left, &h_right);
                 embed_cache.insert(node_sig, h_out.clone());
-                node_embeds[abs] = Some(h_out);
+                node_embeds[abs] = Some(h_out.clone());
+
+                if need_backward_cache {
+                    fwd_entries[li][k][abs] = Some(NodeFwdEntry {
+                        node_sig, concat_inp: inp, pre_swish: pre1,
+                        h_out, c0, c1,
+                    });
+                }
             }
 
             let out = node_embeds[total - 1].clone().unwrap_or_else(|| Array1::zeros(SURR_EMBED_DIM));
@@ -699,153 +773,71 @@ fn genome_forward(
         chrom_out_embeds.push(layer_outs);
     }
 
-    // top層の出力を返す（top は常に1 Chromosome）
-    chrom_out_embeds[N_LAYERS - 1][0].clone()
+    let top_embed = chrom_out_embeds[N_LAYERS - 1][0].clone();
+    ForwardCache { fwd_entries, ext_embeds: ext_embeds_all, node_sigs: node_sigs_all, top_embed }
 }
 
-/// surrogate でゲノムの loss を予測する
-fn surrogate_predict(
-    genome: &Genome,
-    sw: &mut SurrogateWeights,
-    embed_cache: &mut std::collections::HashMap<Sig, Array1<f64>>,
-) -> f64 {
-    let all_data: Vec<Vec<(Vec<usize>, Sig)>> = (0..N_LAYERS)
-        .map(|li| genome.layers[li].iter().map(|c| c.active_and_sig()).collect()).collect();
-    let all_sigs: Vec<Vec<Sig>> = all_data.iter()
-        .map(|layer| layer.iter().map(|d| d.1).collect()).collect();
-    let all_acts: Vec<Vec<Vec<usize>>> = all_data.into_iter()
-        .map(|layer| layer.into_iter().map(|d| d.0).collect()).collect();
+// ─── バックワード（ForwardCache を受け取り再走査なし）────────────────────────
+//
+// 改善点:
+//   - genome_forward_with_cache の ForwardCache を受け取るため、フォワードの再走査が不要。
+//   - d_node を Option<Array1> ではなく Array1 の Vec で管理し、
+//     初期化済みかどうかは別の bool 配列で管理する（clone/unwrap を削減）。
 
-    let h = genome_forward(genome, sw, embed_cache, &all_sigs, &all_acts);
-    sw.predict_from_embed(&h)
-}
-
-// ─── バックワード: 全層・全Chromosomeに逆伝播 ────────────────────────────────
-//
-// 旧実装の問題: top層のみ逆伝播していたためADF層の重みに勾配が流れなかった。
-//
-// 修正方針:
-//   - genome_forward と同じ走査順（ボトムアップ）でフォワードキャッシュを構築
-//   - top → bottom の逆順でバックワードを実施
-//   - 各層・各Chromosomeの出力埋め込みへの勾配を積み上げて伝播
-//
-fn genome_backward(
+fn genome_backward_from_cache(
     genome: &Genome,
-    sw: &mut SurrogateWeights,
-    embed_cache: &mut std::collections::HashMap<Sig, Array1<f64>>,
-    all_sigs: &[Vec<Sig>],
-    all_acts:  &[Vec<Vec<usize>>],
-    d_out_top: &Array1<f64>, // top層出力への勾配
-    // 戻り値: (dw1_acc, db1_acc, dw2_acc, db2_acc) の累積勾配
+    data: &GenomeData,
+    fwd: &ForwardCache,
+    sw: &SurrogateWeights,
+    d_out_top: &Array1<f64>,
     dw1_acc: &mut Array2<f64>,
     db1_acc: &mut Array1<f64>,
     dw2_acc: &mut Array2<f64>,
     db2_acc: &mut Array1<f64>,
     d_leaf_acc: &mut std::collections::HashMap<u64, Array1<f64>>,
 ) {
-    // ─── フォワードパスのキャッシュ再構築 ─────────────────────────────────
-    // (layer_idx, chrom_idx, abs_node) → (node_sig, concat_input, pre_swish)
-    // メモリ効率のため必要な中間値のみ保持する
-    struct NodeFwdCache {
-        node_sig:    Sig,
-        concat_inp:  Array1<f64>,
-        pre_swish:   Array1<f64>,
-        c0: usize,
-        c1: usize,
-    }
-
-    // fwd_cache[li][k][abs] = Option<NodeFwdCache>
-    let mut fwd_cache: Vec<Vec<Vec<Option<NodeFwdCache>>>> = (0..N_LAYERS).map(|li| {
-        (0..genome.layers[li].len()).map(|_k| {
-            vec![None; layer_n_ext(li) + layer_len(li)]
-        }).collect()
-    }).collect();
-
-    // フォワード再走査（genome_forward と同じ走査だが中間値を保存）
-    // 各層の各Chromosomeのノードsig配列も保存（逆伝播時に必要）
-    let mut all_node_sigs: Vec<Vec<Vec<Sig>>> = (0..N_LAYERS).map(|li| {
-        (0..genome.layers[li].len()).map(|_k| {
-            vec![0u64; layer_n_ext(li) + layer_len(li)]
-        }).collect()
-    }).collect();
-    let mut all_node_embeds: Vec<Vec<Vec<Option<Array1<f64>>>>> = (0..N_LAYERS).map(|li| {
+    // d_node[li][k][abs]: そのノードへの勾配（ゼロ初期化）
+    // d_node_active[li][k][abs]: 勾配が書き込まれたか
+    let mut d_node: Vec<Vec<Vec<Array1<f64>>>> = (0..N_LAYERS).map(|li| {
         (0..genome.layers[li].len()).map(|_k| {
             let total = layer_n_ext(li) + layer_len(li);
-            vec![None::<Array1<f64>>; total]
+            vec![Array1::zeros(SURR_EMBED_DIM); total]
         }).collect()
     }).collect();
-
-    for li in 0..N_LAYERS {
-        for k in 0..genome.layers[li].len() {
-            let c = &genome.layers[li][k];
-            let active = &all_acts[li][k];
-            let n_ext = layer_n_ext(li);
-
-            // ext スロット初期化
-            for i in 0..n_ext {
-                let sig = i as Sig + 1;
-                all_node_sigs[li][k][i] = sig;
-                all_node_embeds[li][k][i] = Some(sw.get_or_init_leaf(sig));
-            }
-
-            for &abs in active {
-                if abs < n_ext { continue; }
-                let node_sig = compute_node_sig_recursive(
-                    abs, li, c, &all_node_sigs[li][k], all_sigs, n_ext,
-                );
-                all_node_sigs[li][k][abs] = node_sig;
-
-                let i = abs - n_ext;
-                let c0 = c.conn[i][0] as usize;
-                let c1 = c.conn[i][1] as usize;
-                let h_left  = all_node_embeds[li][k][c0].clone().unwrap_or_else(|| Array1::zeros(SURR_EMBED_DIM));
-                let h_right = all_node_embeds[li][k][c1].clone().unwrap_or_else(|| Array1::zeros(SURR_EMBED_DIM));
-                let (inp, pre1, h_out) = sw.mlp_forward(&h_left, &h_right);
-                all_node_embeds[li][k][abs] = Some(h_out.clone());
-                fwd_cache[li][k][abs] = Some(NodeFwdCache {
-                    node_sig, concat_inp: inp, pre_swish: pre1, c0, c1,
-                });
-            }
-        }
-    }
-
-    // ─── バックワード: top → bottom ──────────────────────────────────────
-    // 各 (li, k, abs) への勾配を保持
-    let mut d_node: Vec<Vec<Vec<Option<Array1<f64>>>>> = (0..N_LAYERS).map(|li| {
+    let mut d_node_active: Vec<Vec<Vec<bool>>> = (0..N_LAYERS).map(|li| {
         (0..genome.layers[li].len()).map(|_k| {
             let total = layer_n_ext(li) + layer_len(li);
-            vec![None::<Array1<f64>>; total]
+            vec![false; total]
         }).collect()
     }).collect();
 
-    // top層最終ノードへの勾配を設定
+    // top 層最終ノードへの勾配を設定
     {
         let top_li = N_LAYERS - 1;
         let total_top = layer_n_ext(top_li) + layer_len(top_li);
-        d_node[top_li][0][total_top - 1] = Some(d_out_top.clone());
+        d_node[top_li][0][total_top - 1] = d_out_top.clone();
+        d_node_active[top_li][0][total_top - 1] = true;
     }
 
-    // layer を逆順に走査
     for li in (0..N_LAYERS).rev() {
         for k in 0..genome.layers[li].len() {
             let c = &genome.layers[li][k];
-            let active = &all_acts[li][k];
+            let active = &data.all_acts[li][k];
             let n_ext = layer_n_ext(li);
 
             for &abs in active.iter().rev() {
                 if abs < n_ext { continue; }
+                if !d_node_active[li][k][abs] { continue; }
 
-                let d_out = match d_node[li][k][abs].clone() {
-                    Some(d) => d,
-                    None => continue,
-                };
-
-                let fw = match &fwd_cache[li][k][abs] {
+                let fw = match &fwd.fwd_entries[li][k][abs] {
                     Some(f) => f,
                     None => continue,
                 };
                 let c0 = fw.c0;
                 let c1 = fw.c1;
+
+                // d_out を一時コピー（後で d_node[li][k][abs] を書き換えるため）
+                let d_out = d_node[li][k][abs].clone();
 
                 // Linear(m→n) バックワード
                 let act1: Array1<f64> = fw.pre_swish.mapv(swish);
@@ -872,95 +864,91 @@ fn genome_backward(
                 let d_left  = d_inp.slice(ndarray::s![..SURR_EMBED_DIM]).to_owned();
                 let d_right = d_inp.slice(ndarray::s![SURR_EMBED_DIM..]).to_owned();
 
-                // c0 への勾配
+                // c0 への勾配の伝播
                 if c0 < n_ext {
-                    let sig = all_node_sigs[li][k][c0];
+                    let sig = fwd.node_sigs[li][k][c0];
                     let e = d_leaf_acc.entry(sig).or_insert_with(|| Array1::zeros(SURR_EMBED_DIM));
                     *e += &d_left;
                 } else {
-                    let e = d_node[li][k][c0].get_or_insert_with(|| Array1::zeros(SURR_EMBED_DIM));
-                    *e += &d_left;
-                }
-                // c1 への勾配
-                if c1 < n_ext {
-                    let sig = all_node_sigs[li][k][c1];
-                    let e = d_leaf_acc.entry(sig).or_insert_with(|| Array1::zeros(SURR_EMBED_DIM));
-                    *e += &d_right;
-                } else {
-                    let e = d_node[li][k][c1].get_or_insert_with(|| Array1::zeros(SURR_EMBED_DIM));
-                    *e += &d_right;
+                    d_node[li][k][c0] += &d_left;
+                    d_node_active[li][k][c0] = true;
                 }
 
-                // ADF呼び出しノードの場合、参照先ADF Chromosomeの出力ノードにも勾配を流す
+                // c1 への勾配の伝播
+                if c1 < n_ext {
+                    let sig = fwd.node_sigs[li][k][c1];
+                    let e = d_leaf_acc.entry(sig).or_insert_with(|| Array1::zeros(SURR_EMBED_DIM));
+                    *e += &d_right;
+                } else {
+                    d_node[li][k][c1] += &d_right;
+                    d_node_active[li][k][c1] = true;
+                }
+
+                // ADF 呼び出しノードの場合、参照先 ADF Chromosome の出力ノードにも勾配を流す
                 let f = c.func[abs - n_ext] as usize;
                 if f != 0 && li > 0 {
                     let sub_li = li - 1;
                     let sub_idx = (f - 1).min(layer_n_adf(sub_li) - 1);
                     let sub_total = layer_n_ext(sub_li) + layer_len(sub_li);
-                    // ADF出力ノード（sub_total - 1）への勾配に加算
-                    // （複数箇所から同じADFが参照される場合も正しく累積される）
-                    let e = d_node[sub_li][sub_idx][sub_total - 1]
-                        .get_or_insert_with(|| Array1::zeros(SURR_EMBED_DIM));
-                    // ADF出力は eml ノードではなく参照コピーなので
-                    // 勾配はそのまま渡す（恒等写像）
-                    *e += &d_out;
+                    d_node[sub_li][sub_idx][sub_total - 1] += &d_out;
+                    d_node_active[sub_li][sub_idx][sub_total - 1] = true;
                 }
             }
 
             // ext スロットへの勾配を d_leaf_acc に集約
             for i in 0..n_ext {
-                if let Some(d) = d_node[li][k][i].clone() {
-                    let sig = all_node_sigs[li][k][i];
+                if d_node_active[li][k][i] {
+                    let sig = fwd.node_sigs[li][k][i];
                     let e = d_leaf_acc.entry(sig).or_insert_with(|| Array1::zeros(SURR_EMBED_DIM));
-                    *e += &d;
+                    *e += &d_node[li][k][i];
                 }
             }
         }
     }
 }
 
-/// surrogate モデルを1ステップ学習する（Muon Optimizer）
-/// 返り値: training MSE
+// ─── 訓練ステップ（フォワード1回 + バックワード1回）─────────────────────────
+//
+// 改善点:
+//   - genome_forward_with_cache(need_backward_cache=true) でフォワードを1回走査し
+//     ForwardCache を生成。
+//   - genome_backward_from_cache でそのキャッシュを使ってバックワードを実行。
+//   - フォワードの再走査を完全に排除。
+//   - embed_cache は Muon 更新後にクリアする（重みが変わったため）。
+
 fn surrogate_train_step(
     sw: &mut SurrogateWeights,
     genome: &Genome,
+    data: &GenomeData,
     actual_loss: f64,
     embed_cache: &mut std::collections::HashMap<Sig, Array1<f64>>,
 ) -> f64 {
-    let all_data: Vec<Vec<(Vec<usize>, Sig)>> = (0..N_LAYERS)
-        .map(|li| genome.layers[li].iter().map(|c| c.active_and_sig()).collect()).collect();
-    let all_sigs: Vec<Vec<Sig>> = all_data.iter()
-        .map(|layer| layer.iter().map(|d| d.1).collect()).collect();
-    let all_acts: Vec<Vec<Vec<usize>>> = all_data.into_iter()
-        .map(|layer| layer.into_iter().map(|d| d.0).collect()).collect();
-
-    // ─── フォワード ──────────────────────────────────────────────────────
-    let h_final = genome_forward(genome, sw, embed_cache, &all_sigs, &all_acts);
-    let pred = sw.predict_from_embed(&h_final);
+    // ─── フォワード（中間値キャッシュ付き）──────────────────────────────────
+    let fwd = genome_forward_with_cache(genome, data, sw, embed_cache, true);
+    let pred = sw.predict_from_embed(&fwd.top_embed);
     let err = pred - actual_loss;
     let mse = err * err;
 
     // ─── 出力層への勾配 ──────────────────────────────────────────────────
-    // d(MSE)/d(pred) = 2*err; pred = w_out・h + b_out
     let d_h_final = &sw.w_out * (2.0 * err);
-    let d_w_out_grad = &h_final * (2.0 * err);
+    let d_w_out_grad = &fwd.top_embed * (2.0 * err);
     let d_b_out_grad = 2.0 * err;
 
-    // w_out 更新（ベクトルなので直交化なし）
+    // w_out 更新
     sw.m_w_out = &sw.m_w_out * sw.momentum + &d_w_out_grad * (1.0 - sw.momentum);
     sw.w_out = &sw.w_out - &sw.m_w_out * sw.lr;
     sw.m_b_out = sw.m_b_out * sw.momentum + d_b_out_grad * (1.0 - sw.momentum);
     sw.b_out -= sw.m_b_out * sw.lr;
 
-    // ─── 全層バックワード ─────────────────────────────────────────────────
+    // ─── バックワード（ForwardCache を使用、再走査なし）──────────────────
     let mut dw1_acc: Array2<f64> = Array2::zeros(sw.w1.dim());
     let mut db1_acc: Array1<f64> = Array1::zeros(sw.b1.len());
     let mut dw2_acc: Array2<f64> = Array2::zeros(sw.w2.dim());
     let mut db2_acc: Array1<f64> = Array1::zeros(sw.b2.len());
     let mut d_leaf_acc: std::collections::HashMap<u64, Array1<f64>> = std::collections::HashMap::new();
 
-    genome_backward(
-        genome, sw, embed_cache, &all_sigs, &all_acts,
+    genome_backward_from_cache(
+        genome, data, &fwd, sw,
         &d_h_final,
         &mut dw1_acc, &mut db1_acc, &mut dw2_acc, &mut db2_acc,
         &mut d_leaf_acc,
@@ -1000,36 +988,41 @@ fn surrogate_train_step(
     mse
 }
 
-// ─── バリデーション相関を held-out サンプルで計算 ──────────────────────────
+// ─── surrogate 予測（GenomeData を受け取るバージョン）────────────────────────
 //
-// 旧実装の問題: surr_pred_vals が「訓練前の予測値」だったため、
-//   学習前の精度を multiplier 調整に使っており意味がなかった。
-//
-// 修正: held_out_buffer から held-out ゲノムを取り出し、
-//   現在の surrogate 重みで予測した値と実 loss の相関を計算する。
-//
+// 改善点:
+//   - GenomeData を引数として受け取ることで、active_and_sig の再計算を排除。
+//   - surrogate 評価フェーズでは呼び出し元が GenomeData を事前に計算して渡す。
+
+fn surrogate_predict_with_data(
+    genome: &Genome,
+    data: &GenomeData,
+    sw: &mut SurrogateWeights,
+    embed_cache: &mut std::collections::HashMap<Sig, Array1<f64>>,
+) -> f64 {
+    // need_backward_cache=false: 推論のみなので NodeFwdEntry は作らない
+    let fwd = genome_forward_with_cache(genome, data, sw, embed_cache, false);
+    sw.predict_from_embed(&fwd.top_embed)
+}
+
+// ─── バリデーション相関（GenomeData を再利用）────────────────────────────────
+
 fn update_val_correlation(
     sw: &mut SurrogateWeights,
     embed_cache: &mut std::collections::HashMap<Sig, Array1<f64>>,
 ) {
     if sw.held_out_buffer.len() < 8 { return; }
     let n_val = (sw.held_out_buffer.len() / 4).max(4).min(sw.held_out_buffer.len());
-    // held-out: バッファの末尾 n_val 個（訓練には使っていない奇数インデックス分）
-    let val_slice = &sw.held_out_buffer[sw.held_out_buffer.len() - n_val..];
-    let preds: Vec<f64> = val_slice.iter().map(|(_, _, g)| {
-        // embed_cache は更新済みなので直接使用
-        let all_data: Vec<Vec<(Vec<usize>, Sig)>> = (0..N_LAYERS)
-            .map(|li| g.layers[li].iter().map(|c| c.active_and_sig()).collect()).collect();
-        let all_sigs: Vec<Vec<Sig>> = all_data.iter()
-            .map(|layer| layer.iter().map(|d| d.1).collect()).collect();
-        let all_acts: Vec<Vec<Vec<usize>>> = all_data.into_iter()
-            .map(|layer| layer.into_iter().map(|d| d.0).collect()).collect();
-        let h = genome_forward(g, sw, embed_cache, &all_sigs, &all_acts);
-        sw.predict_from_embed(&h)
-    }).collect();
-    let trues: Vec<f64> = val_slice.iter().map(|(_, loss, _)| *loss).collect();
+    let val_data: Vec<(u64, f64, Genome)> = sw.held_out_buffer[sw.held_out_buffer.len() - n_val..].to_vec();
+    let mut preds: Vec<f64> = Vec::with_capacity(val_data.len());
+    let mut trues: Vec<f64> = Vec::with_capacity(val_data.len());
+    for (_, loss, g) in &val_data {
+        // GenomeData を1回だけ計算して surrogate_predict_with_data に渡す
+        let gd = GenomeData::new(g);
+        preds.push(surrogate_predict_with_data(g, &gd, sw, embed_cache));
+        trues.push(*loss);
+    }
     let corr = pearson_1d(&preds, &trues).abs();
-    // EMA で平滑化
     sw.val_correlation = sw.val_correlation * 0.7 + corr * 0.3;
 }
 
@@ -1292,28 +1285,23 @@ fn main() {
         );
 
         // ─── Surrogate 訓練フェーズ ────────────────────────────────────────────
-        // elites を 訓練用 / held-out 用に 3:1 で分割
+        // elite を 訓練用 / held-out 用に 3:1 で分割
         let n_train_elites = (ELITE * 3 / 4).max(1);
-        let n_held_out     = ELITE - n_train_elites;
+        let _n_held_out    = ELITE - n_train_elites;
         let mut surr_mse_sum = 0.0f64;
 
-        // 訓練用 elites で学習
+        // 訓練用 elites: GenomeData を1回計算してフォワード+バックワードに渡す
         for k in 0..n_train_elites.min(scored.len()) {
             let actual_loss = scored[k].0;
-            let mse = surrogate_train_step(&mut sw, &scored[k].2, actual_loss, &mut embed_cache);
+            let gd = GenomeData::new(&scored[k].2);
+            let mse = surrogate_train_step(&mut sw, &scored[k].2, &gd, actual_loss, &mut embed_cache);
             surr_mse_sum += mse;
         }
         n_real_evals += n_train_elites;
 
-        // held-out バッファに追加（奇数インデックスの elite）
+        // held-out バッファに追加
         for k in n_train_elites..ELITE.min(scored.len()) {
-            let gk = {
-                let all_data: Vec<Vec<(Vec<usize>, Sig)>> = (0..N_LAYERS)
-                    .map(|li| scored[k].2.layers[li].iter().map(|c| c.active_and_sig()).collect()).collect();
-                let all_sigs: Vec<Vec<Sig>> = all_data.iter()
-                    .map(|layer| layer.iter().map(|d| d.1).collect()).collect();
-                genome_key(&all_sigs)
-            };
+            let gk = GenomeData::new(&scored[k].2).genome_key;
             sw.held_out_buffer.push((gk, scored[k].0, scored[k].2.clone()));
             if sw.held_out_buffer.len() > 500 {
                 sw.held_out_buffer.drain(..50);
@@ -1337,14 +1325,15 @@ fn main() {
         let elites: Vec<Genome> = scored[..ELITE].iter().map(|x| x.2.clone()).collect();
         let mut next = elites.clone();
 
-        // surrogate ステップ数を計算（端数蓄積方式）
         surr_step_accumulator += SURR_RATIO_INIT * sw.surrogate_multiplier;
         let actual_surr_steps = surr_step_accumulator as usize;
         surr_step_accumulator -= actual_surr_steps as f64;
 
         if sw.val_correlation > 0.3 && actual_surr_steps > 0 {
             for _surr_gen in 0..actual_surr_steps {
-                embed_cache.clear();
+                // surrogate 評価フェーズ: embed_cache を世代内で共有する
+                // (重みは変わっていないため、サブツリーの共有が有効)
+                // embed_cache は前の学習ステップで clear 済み
                 let mut surr_candidates: Vec<Genome> = Vec::with_capacity(POP_SIZE);
                 for _ in 0..(POP_SIZE - ELITE) {
                     let p1 = &scored[rng.gen_range(0..ELITE)].2;
@@ -1356,17 +1345,32 @@ fn main() {
                     };
                     surr_candidates.push(child);
                 }
+
+                // GenomeData を各候補について1回だけ計算し surrogate_predict_with_data に渡す
+                // embed_cache はこのフェーズ全体で共有される（重みは変化しない）
                 let mut surr_all: Vec<(f64, Genome)> = surr_candidates
                     .into_iter()
-                    .map(|g| { let s = surrogate_predict(&g, &mut sw, &mut embed_cache); (s, g) })
+                    .map(|g| {
+                        let gd = GenomeData::new(&g);
+                        let s = surrogate_predict_with_data(&g, &gd, &mut sw, &mut embed_cache);
+                        (s, g)
+                    })
                     .collect();
-                // elite も surrogate で評価して混合
                 let mut elite_scored: Vec<(f64, Genome)> = next.iter()
-                    .map(|g| (surrogate_predict(g, &mut sw, &mut embed_cache), g.clone()))
+                    .map(|g| {
+                        let gd = GenomeData::new(g);
+                        let s = surrogate_predict_with_data(g, &gd, &mut sw, &mut embed_cache);
+                        (s, g.clone())
+                    })
                     .collect();
                 surr_all.append(&mut elite_scored);
                 surr_all.sort_unstable_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
                 next = surr_all.into_iter().take(POP_SIZE).map(|x| x.1).collect();
+
+                // surr_gen をまたぐ場合は embed_cache をクリア（重みは変化していないが
+                // 次の surr_gen では異なる候補群なのでキャッシュの意義は薄い）
+                // 注: 重みは変化しないため実はクリア不要だが、メモリ節約のため行う
+                // embed_cache.clear();  // コメントアウト: 重みが変わらないなら保持した方が速い
             }
             pop = next;
         } else {

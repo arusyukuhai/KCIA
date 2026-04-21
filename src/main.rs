@@ -633,7 +633,7 @@ fn genome_backward(
     // fwd_cache[li][k][abs] = Option<NodeFwdCache>
     let mut fwd_cache: Vec<Vec<Vec<Option<NodeFwdCache>>>> = (0..N_LAYERS).map(|li| {
         (0..genome.layers[li].len()).map(|_k| {
-            (0..layer_n_ext(li) + layer_len(li)).map(|_| None).collect::<Vec<_>>()
+            vec![None; layer_n_ext(li) + layer_len(li)]
         }).collect()
     }).collect();
 
@@ -891,9 +891,8 @@ fn update_val_correlation(
     if sw.held_out_buffer.len() < 8 { return; }
     let n_val = (sw.held_out_buffer.len() / 4).max(4).min(sw.held_out_buffer.len());
     // held-out: バッファの末尾 n_val 個（訓練には使っていない奇数インデックス分）
-    // Clone the validation data out of sw to break the borrow conflict
-    let val_data: Vec<(u64, f64, Genome)> = sw.held_out_buffer[sw.held_out_buffer.len() - n_val..].to_vec();
-    let preds: Vec<f64> = val_data.iter().map(|(_, _, g)| {
+    let val_slice = &sw.held_out_buffer[sw.held_out_buffer.len() - n_val..];
+    let preds: Vec<f64> = val_slice.iter().map(|(_, _, g)| {
         // embed_cache は更新済みなので直接使用
         let all_data: Vec<Vec<(Vec<usize>, Sig)>> = (0..N_LAYERS)
             .map(|li| g.layers[li].iter().map(|c| c.active_and_sig()).collect()).collect();
@@ -904,7 +903,7 @@ fn update_val_correlation(
         let h = genome_forward(g, sw, embed_cache, &all_sigs, &all_acts);
         sw.predict_from_embed(&h)
     }).collect();
-    let trues: Vec<f64> = val_data.iter().map(|(_, loss, _)| *loss).collect();
+    let trues: Vec<f64> = val_slice.iter().map(|(_, loss, _)| *loss).collect();
     let corr = pearson_1d(&preds, &trues).abs();
     // EMA で平滑化
     sw.val_correlation = sw.val_correlation * 0.7 + corr * 0.3;
@@ -1171,7 +1170,7 @@ fn main() {
         // ─── Surrogate 訓練フェーズ ────────────────────────────────────────────
         // elites を 訓練用 / held-out 用に 3:1 で分割
         let n_train_elites = (ELITE * 3 / 4).max(1);
-        let _n_held_out    = ELITE - n_train_elites;
+        let n_held_out     = ELITE - n_train_elites;
         let mut surr_mse_sum = 0.0f64;
 
         // 訓練用 elites で学習
