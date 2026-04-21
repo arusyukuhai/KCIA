@@ -1,26 +1,26 @@
 #!/usr/bin/env python3
 """
-CMA-ES によるADF-CGP ハイパーパラメータ探索
+CMA-ES によるADF-CGP ハイパーパラメータ探索 (Surrogate Model付き)
 ============================================
 
 探索対象:
-  - N_LAYERS       : 2〜5 (整数)
-  - LAYER_LEN      : 各層共通のノード数 4〜64 (整数)
-  - N_ADF_PER_LAYER: 各ADF層共通のADF数 1〜8 (整数)
-  - ELITE          : 8〜128 (整数)
-  - POP_SIZE       : 128〜8192 (整数)
-  - VEC_LEN        : 64〜2048 (整数)
+  - N_LAYERS       : 2〜9 (整数)
+  - LAYER_LEN      : 各層共通のノード数 4〜128 (整数)
+  - LAYER_LEN_LAST : 最終層ノード数 4〜1024 (整数)
+  - N_ADF_PER_LAYER: 各ADF層共通のADF数 1〜32 (整数)
+  - ELITE          : 8〜256 (整数)
+  - POP_SIZE       : 48〜16384 (整数)
+  - VEC_LEN        : 64〜16384 (整数)
   - PROB_EML       : 0.0〜1.0 (実数)
-  - MUT_STOP_PROB  : 0.05〜0.6 (実数) ← 追加: Chromosome突然変異の幾何分布停止確率
-  - MUT_MAX_TARGETS: 1〜8 (整数)      ← 追加: Genome突然変異の最大対象Chromosome数
-
-評価方法:
-  各候補パラメータでRustソースを生成 → cargo build --release →
-  30秒間実行 → stdout から最終行の acc を取得
-  目的関数 = -acc (最小化)
+  - MUT_STOP_PROB  : 0.001〜12 (実数)
+  - MUT_MAX_TARGETS: 1〜8 (整数)
+  - SURR_EMBED_DIM : surrogate MLP の埋め込み次元 n (8〜256)
+  - SURR_HIDDEN_DIM: surrogate MLP の隠れ次元 m (8〜512)
+  - SURR_LR        : Muon Optimizer の学習率 (1e-4〜1e-1)
+  - SURR_RATIO     : surrogate ステップ / 実評価ステップの比率初期値 (0.05〜20)
 
 使い方:
-  python3 cmaes_search.py [--src SRC_RS] [--out OUT_DIR] [--budget N] [--time SEC]
+  python3 cmaes_search.py [--project DIR] [--out OUT_DIR] [--budget N] [--time SEC]
 
 依存:
   pip install cma
@@ -45,60 +45,55 @@ import cma
 
 # ─── デフォルト設定 ───────────────────────────────────────────────────────────
 
-DEFAULT_SRC     = "src/main.rs"   # Rustソースの相対パス (プロジェクトルートから)
-DEFAULT_OUT     = "cmaes_results" # 結果ディレクトリ
-DEFAULT_BUDGET  = 3000             # CMA-ES の最大評価回数
-DEFAULT_TIME    = 30              # 各評価の実行秒数
+DEFAULT_OUT     = "cmaes_results"
+DEFAULT_BUDGET  = 3000
+DEFAULT_TIME    = 30
 
 # ─── ハイパーパラメータ定義 ──────────────────────────────────────────────────
-
-# CMA-ES は実数ベクトルを操作する。
-# 各パラメータを以下のスケーリングで扱う:
-#   整数パラメータ → round(clip(x, lo, hi))
-#   実数パラメータ → clip(x, lo, hi)
 
 PARAM_DEFS = [
     # (name,             lo,    hi,   init,  is_int, log_scale)
     ("N_LAYERS",          2,     9,    4,    True,   True),
     ("LAYER_LEN",         4,    128,   32,   True,   True),
-    ("LAYER_LEN_LAST",    4,   1024,   64,  True,   True),
-    ("N_ADF_PER_LAYER",   1,    32,    12,    True,   True),
-    ("ELITE",             8,   256,   24,    True,   True),
-    ("POP_SIZE",         48,  16384, 1024,   True,   True),
-    ("VEC_LEN",          64,  16384,  1024,   True,   True),
+    ("LAYER_LEN_LAST",    4,   1024,   64,   True,   True),
+    ("N_ADF_PER_LAYER",   1,    32,    12,   True,   True),
+    ("ELITE",             8,   256,   24,   True,   True),
+    ("POP_SIZE",         48,  16384, 1024,  True,   True),
+    ("VEC_LEN",          64,  16384, 1024,  True,   True),
     ("PROB_EML",        0.0,   1.0,   0.3,  False,  False),
     ("A",              -1.5,   2.0,   0.01, False,  False),
     ("B",               0.0,   1.0,   0.5,  False,  False),
     ("C",              -1.5,   2.0,   0.01, False,  False),
     ("D",               0.0,   1.0,   0.5,  False,  False),
     ("E",              -1.5,   2.0,   0.01, False,  False),
-    ("HILO",             7.5,  50,  10.0,  False,  True),
-    ("P",               0.5,   3,   1.5,  False,  True),
-    # ── 突然変異率パラメータ (追加) ──────────────────────────────────────────
-    # Chromosome::mutate における幾何分布の停止確率。
-    # 小さいほど多くのノードが変異する（探索的）、大きいほど少数変異（局所的）。
-    ("MUT_STOP_PROB",   0.001,  12,  6, False,  False),
-    # Genome::mutate で一度に変異させる Chromosome の最大数。
+    ("HILO",             7.5,  50,   10.0,  False,  True),
+    ("P",               0.5,   3,    1.5,   False,  True),
+    ("MUT_STOP_PROB",   0.001, 12,    6,    False,  False),
     ("MUT_MAX_TARGETS",  1,     8,    3,    True,   True),
+    # ── Surrogate Model ハイパーパラメータ ──────────────────────────────────
+    # Tree-structured MLP の埋め込み次元 n
+    ("SURR_EMBED_DIM",   8,   256,   32,   True,   True),
+    # Tree-structured MLP の隠れ次元 m  (n*2 → m → n のボトルネック)
+    ("SURR_HIDDEN_DIM",  8,   512,   64,   True,   True),
+    # Muon Optimizer の学習率
+    ("SURR_LR",         1e-4,  0.1,  3e-3, False,  True),
+    # surrogate ステップ / 実評価ステップの比率 (初期値)
+    ("SURR_RATIO",      0.05,  20.0, 1.0,  False,  True),
 ]
-
 
 # ─── ユーティリティ ──────────────────────────────────────────────────────────
 
-def encode(params: dict) -> list[float]:
-    """パラメータ辞書 → CMA-ES ベクトル"""
+def encode(params: dict) -> list:
     vec = []
     for name, lo, hi, init, is_int, log_scale in PARAM_DEFS:
         v = params[name]
         if log_scale:
-            vec.append(math.log(max(v, 1e-6)))
+            vec.append(math.log(max(v, 1e-9)))
         else:
             vec.append(float(v))
     return vec
 
-
-def decode(x: list[float]) -> dict:
-    """CMA-ES ベクトル → パラメータ辞書"""
+def decode(x: list) -> dict:
     result = {}
     for i, (name, lo, hi, init, is_int, log_scale) in enumerate(PARAM_DEFS):
         v = x[i]
@@ -111,15 +106,12 @@ def decode(x: list[float]) -> dict:
         result[name] = v
     return result
 
-
-def initial_x() -> list[float]:
+def initial_x() -> list:
     params = {name: init for name, lo, hi, init, is_int, log_scale in PARAM_DEFS}
     return encode(params)
 
-
 def initial_sigma() -> float:
     return 6.0
-
 
 # ─── Rustソース生成 ──────────────────────────────────────────────────────────
 
@@ -127,6 +119,7 @@ RUST_TEMPLATE = """\
 // AUTO-GENERATED by cmaes_search.py — DO NOT EDIT
 use ahash::AHasher;
 use dashmap::DashMap;
+use ndarray::{{Array1, Array2}};
 use num_complex::Complex;
 use rand::rngs::SmallRng;
 use rand::{{Rng, SeedableRng}};
@@ -138,18 +131,14 @@ use std::sync::Arc;
 const N_LAYERS: usize = {N_LAYERS};
 const LAYER_LEN: [usize; N_LAYERS] = [{LAYER_LEN_ARR}];
 const N_INPUTS_MAIN: usize = 2;
-/// ADF の外部入力: [in0, in1, one, x_global]
-/// x_global はトップ層の ext[0]（入力 x）を全 ADF 層に伝播させたもの。
 const N_INPUTS_ADF: usize = 4;
 const N_ADF_PER_LAYER: [usize; N_LAYERS - 1] = [{N_ADF_ARR}];
-
 const ONE_SIG: Sig = 0xFFFF_FFFF_FFFF_FFFFu64;
-/// x_global の固定 Sig。バッチ変化時は exec_adf に渡す x_sig 引数で上書きされる。
 const X_GLOBAL_SIG_SLOT: usize = 3;
 const VEC_LEN: usize = {VEC_LEN};
 const POP_SIZE: usize = {POP_SIZE};
 const ELITE: usize = {ELITE};
-const N_GEN: usize = 99999999;  // 時間制限で止める
+const N_GEN: usize = 99999999;
 const PROB_EML: f64 = {PROB_EML};
 const A: f64 = {A};
 const B: f64 = {B};
@@ -158,54 +147,42 @@ const D: f64 = {D};
 const E: f64 = {E};
 const HILO: f64 = {HILO};
 const P: f64 = {P};
-
-// ─── 突然変異率パラメータ ────────────────────────────────────────────────────
-/// Chromosome::mutate の幾何分布停止確率。
-/// while rng.gen::<f64>() > MUT_STOP_PROB で使用。
-/// 小さいほど多ノード変異、大きいほど少数変異。
 const MUT_STOP_PROB: f64 = {MUT_STOP_PROB};
-
-/// Genome::mutate で一度に変異させる Chromosome の最大数。
 const MUT_MAX_TARGETS: usize = {MUT_MAX_TARGETS};
+
+// ─── Surrogate Model ハイパーパラメータ ─────────────────────────────────────
+/// Tree-structured MLP の埋め込み次元 n
+const SURR_EMBED_DIM: usize = {SURR_EMBED_DIM};
+/// Tree-structured MLP の隠れ次元 m  (n*2 → Linear → m → Swish → Linear → n)
+const SURR_HIDDEN_DIM: usize = {SURR_HIDDEN_DIM};
+/// Muon Optimizer の学習率
+const SURR_LR: f64 = {SURR_LR};
+/// surrogate ステップ / 実評価ステップの比率 (初期値)
+const SURR_RATIO_INIT: f64 = {SURR_RATIO};
+/// surrogate のバリデーション相関がこの値を超えたら surrogate ステップ倍率を上げる
+const SURR_PROMOTE_THRESH: f64 = 0.85;
+/// surrogate のバリデーション相関がこの値を下回ったら surrogate ステップ倍率を下げる
+const SURR_DEMOTE_THRESH: f64 = 0.5;
+/// surrogate ステップ数の最大倍率 (SURR_RATIO_INIT に対する乗数上限)
+const SURR_MAX_MULTIPLIER: f64 = 4.0;
 
 // ─── カリキュラム学習 ────────────────────────────────────────────────────────
 const CURRICULUM_RAMP_GENS: usize = 1;
 const INTER_WEIGHT_MAX: f64 = 1.0;
-
-// ─── adf_cache 上限 ──────────────────────────────────────────────────────────
 const ADF_CACHE_MAX: usize = 1 << 18;
-
-// ─── バッチ設定 ──────────────────────────────────────────────────────────────
 const N_BATCHES: usize = 1;
 
 {BODY}
 """
 
-# ─── ここに元の関数群を埋め込むため、テンプレート末尾 {BODY} に挿入する ─────
-
 RUST_BODY = r"""
 // ─── レイヤー設定ヘルパー ─────────────────────────────────────────────────────
 
-#[inline]
-fn is_top(layer_idx: usize) -> bool {
-    layer_idx == N_LAYERS - 1
-}
-#[inline]
-fn layer_len(layer_idx: usize) -> usize {
-    LAYER_LEN[layer_idx]
-}
-#[inline]
-fn layer_n_ext(layer_idx: usize) -> usize {
-    if is_top(layer_idx) { N_INPUTS_MAIN } else { N_INPUTS_ADF }
-}
-#[inline]
-fn layer_n_adf(layer_idx: usize) -> usize {
-    N_ADF_PER_LAYER[layer_idx]
-}
-#[inline]
-fn layer_n_funcs(layer_idx: usize) -> usize {
-    if layer_idx == 0 { 1 } else { 1 + layer_n_adf(layer_idx - 1) }
-}
+#[inline] fn is_top(layer_idx: usize) -> bool { layer_idx == N_LAYERS - 1 }
+#[inline] fn layer_len(layer_idx: usize) -> usize { LAYER_LEN[layer_idx] }
+#[inline] fn layer_n_ext(layer_idx: usize) -> usize { if is_top(layer_idx) { N_INPUTS_MAIN } else { N_INPUTS_ADF } }
+#[inline] fn layer_n_adf(layer_idx: usize) -> usize { N_ADF_PER_LAYER[layer_idx] }
+#[inline] fn layer_n_funcs(layer_idx: usize) -> usize { if layer_idx == 0 { 1 } else { 1 + layer_n_adf(layer_idx - 1) } }
 
 fn selectfunc(max: u8, rng: &mut SmallRng) -> u8 {
     if rng.gen::<f64>() < PROB_EML { return 0; }
@@ -283,8 +260,7 @@ impl Chromosome {
         let n = layer_len(self.layer_idx);
         let n_ext = layer_n_ext(self.layer_idx);
         let n_f = layer_n_funcs(self.layer_idx) as u8;
-        // MUT_STOP_PROB: 対数一様分布の最大値。大きいほど多くのノードを変異させる。
-        let mut n_mut = (rng.gen::<f64>() * MUT_STOP_PROB).exp() as usize + 1;
+        let n_mut = (rng.gen::<f64>() * MUT_STOP_PROB).exp() as usize + 1;
         for _ in 0..n_mut {
             let i = rng.gen_range(0..n);
             let max = (n_ext + i) as u16;
@@ -339,7 +315,6 @@ impl Genome {
         let totals: Vec<usize> = (0..N_LAYERS)
             .map(|li| if is_top(li) { 1 } else { layer_n_adf(li) }).collect();
         let grand_total: usize = totals.iter().sum();
-        // MUT_MAX_TARGETS: 一度に変異させる Chromosome の最大数
         let n_targets = rng.gen_range(1..=MUT_MAX_TARGETS.min(grand_total));
         for _ in 0..n_targets {
             let mut t = rng.gen_range(0..grand_total);
@@ -387,9 +362,6 @@ fn genome_key(all_sigs: &[Vec<Sig>]) -> u64 {
 // ─── Cache ────────────────────────────────────────────────────────────────────
 
 type ArcVec = Arc<[Complex<f64>]>;
-/// ADF キャッシュのキー。
-/// (batch_sig, c_sig, in0_sig, in1_sig, x_sig)
-/// x_sig を加えることで、同じ ADF 構造でもバッチの x 値が異なれば別エントリになる。
 type AdfKey = (Sig, Sig, Sig, Sig, Sig);
 type Score = (f64, f64);
 
@@ -415,7 +387,7 @@ fn node_get_or_compute(sig: Sig, v0: &[Complex<f64>], v1: &[Complex<f64>], ev: &
 
 // ─── Dataset ──────────────────────────────────────────────────────────────────
 
-fn target_fn(x: Complex<f64>) -> Complex<f64> { (x * x * x - x).sin() * (x * x).sin()  }
+fn target_fn(x: Complex<f64>) -> Complex<f64> { (x * x * x - x).sin() * (x * x).sin() }
 
 fn make_batch(rng: &mut SmallRng, x_range: (f64, f64))
     -> ([Vec<Complex<f64>>; N_INPUTS_MAIN], Vec<Complex<f64>>)
@@ -434,8 +406,6 @@ struct Dataset {
 }
 
 impl Dataset {
-    /// 固定データセット: 起動時に一度だけ生成し、以降は変更しない。
-    /// batch_sig も固定値になるため、世代をまたいだキャッシュが正しく機能する。
     fn new_fixed(rng: &mut SmallRng) -> Self {
         let batches: Vec<_> = (0..N_BATCHES).map(|_| make_batch(rng, (-HILO, HILO))).collect();
         let batch_sig = Self::compute_sig(&batches);
@@ -448,13 +418,437 @@ impl Dataset {
     }
 }
 
+// ─── Surrogate Model ─────────────────────────────────────────────────────────
+//
+// Tree-structured MLP:
+//   各ノードで h = MLP(h_left, h_right) を計算（h は SURR_EMBED_DIM 次元）
+//   MLP: [2*n] → Linear(2n→m) → Swish → Linear(m→n)
+//   leaf（ext入力スロット）の埋め込みは学習対象ベクトル
+//   最終ノードの埋め込み h_out → Linear(n→1) で loss を予測
+//
+// Muon Optimizer:
+//   Nesterov momentum + Newton-Schulz 直交化
+//   行列パラメータ（Weight）には直交化を適用、バイアスには適用しない
+
+/// Swish 活性化関数: x * sigmoid(x)
+#[inline]
+fn swish(x: f64) -> f64 { x / (1.0 + (-x).exp()) }
+
+/// Swish の微分: sigmoid(x) + x * sigmoid(x) * (1 - sigmoid(x))
+#[inline]
+fn swish_grad(x: f64) -> f64 {
+    let s = 1.0 / (1.0 + (-x).exp());
+    s + x * s * (1.0 - s)
+}
+
+/// Newton-Schulz 直交化: G → G * (3I - G^T G) / 2 を数回繰り返す
+/// 入力行列 G は (rows, cols) で rows >= cols を想定
+fn newton_schulz_orthogonalize(g: &Array2<f64>, steps: usize) -> Array2<f64> {
+    let (rows, cols) = g.dim();
+    if rows == 0 || cols == 0 { return g.clone(); }
+    // 正規化
+    let norm = g.iter().map(|x| x * x).sum::<f64>().sqrt().max(1e-10);
+    let mut x = g / norm;
+    // Newton-Schulz 反復: X ← X * (3I - X^T X) / 2
+    for _ in 0..steps {
+        let xt_x = x.t().dot(&x); // (cols, cols)
+        let eye = Array2::<f64>::eye(cols);
+        let m = 3.0 * &eye - &xt_x;
+        x = x.dot(&m) * 0.5;
+    }
+    x
+}
+
+/// Surrogate MLP の重みとモメンタム
+struct SurrogateWeights {
+    // leaf embeddings: Sig → SURR_EMBED_DIM ベクトル
+    // 入力スロット数 = N_INPUTS_ADF + N_INPUTS_MAIN + 1 (ONE) 程度。
+    // 動的に拡張するため HashMap を使う。
+    // キー: Sig（ext入力の固定Sig）
+    // 値: embedding ベクトル (SURR_EMBED_DIM)
+    leaf_embeds: std::collections::HashMap<u64, Array1<f64>>,
+
+    // MLP ノード層: [2*n → m] の重みと偏り
+    w1: Array2<f64>, // (SURR_HIDDEN_DIM, 2*SURR_EMBED_DIM)
+    b1: Array1<f64>, // (SURR_HIDDEN_DIM,)
+    // [m → n] の重みと偏り
+    w2: Array2<f64>, // (SURR_EMBED_DIM, SURR_HIDDEN_DIM)
+    b2: Array1<f64>, // (SURR_EMBED_DIM,)
+    // 最終スカラー予測層: [n → 1]
+    w_out: Array1<f64>, // (SURR_EMBED_DIM,)
+    b_out: f64,
+
+    // Muon モメンタム（各重み行列対応）
+    m_w1: Array2<f64>,
+    m_b1: Array1<f64>,
+    m_w2: Array2<f64>,
+    m_b2: Array1<f64>,
+    m_w_out: Array1<f64>,
+    m_b_out: f64,
+    // leaf embedding モメンタム
+    m_leaf: std::collections::HashMap<u64, Array1<f64>>,
+
+    // ハイパーパラメータ
+    lr: f64,
+    momentum: f64,
+
+    // 訓練履歴（バリデーション用）
+    train_buffer: Vec<(u64, f64)>, // (genome_key, actual_loss)
+    val_correlation: f64,          // 直近のバリデーション相関
+    surrogate_multiplier: f64,     // 現在のsurrogateステップ倍率
+}
+
+impl SurrogateWeights {
+    fn new(lr: f64) -> Self {
+        use rand::SeedableRng;
+        let mut rng = SmallRng::seed_from_u64(12345);
+        let n = SURR_EMBED_DIM;
+        let m = SURR_HIDDEN_DIM;
+        let scale1 = (2.0 / (2 * n) as f64).sqrt();
+        let scale2 = (2.0 / m as f64).sqrt();
+        let rand_mat = |rows: usize, cols: usize, scale: f64, rng: &mut SmallRng| -> Array2<f64> {
+            Array2::from_shape_fn((rows, cols), |_| (rng.gen::<f64>() * 2.0 - 1.0) * scale)
+        };
+        let rand_vec = |size: usize, scale: f64, rng: &mut SmallRng| -> Array1<f64> {
+            Array1::from_shape_fn(size, |_| (rng.gen::<f64>() * 2.0 - 1.0) * scale)
+        };
+        Self {
+            leaf_embeds: std::collections::HashMap::new(),
+            w1: rand_mat(m, 2 * n, scale1, &mut rng),
+            b1: Array1::zeros(m),
+            w2: rand_mat(n, m, scale2, &mut rng),
+            b2: Array1::zeros(n),
+            w_out: rand_vec(n, (2.0 / n as f64).sqrt(), &mut rng),
+            b_out: 0.0,
+            m_w1: Array2::zeros((m, 2 * n)),
+            m_b1: Array1::zeros(m),
+            m_w2: Array2::zeros((n, m)),
+            m_b2: Array1::zeros(n),
+            m_w_out: Array1::zeros(n),
+            m_b_out: 0.0,
+            m_leaf: std::collections::HashMap::new(),
+            lr,
+            momentum: 0.95,
+            train_buffer: Vec::new(),
+            val_correlation: 0.0,
+            surrogate_multiplier: 1.0,
+        }
+    }
+
+    /// leaf embedding を取得（なければ初期化）
+    fn get_or_init_leaf(&mut self, sig: u64) -> Array1<f64> {
+        if !self.leaf_embeds.contains_key(&sig) {
+            // ランダム初期化
+            let scale = (1.0 / SURR_EMBED_DIM as f64).sqrt();
+            let embed: Array1<f64> = Array1::from_shape_fn(SURR_EMBED_DIM, |_| {
+                // 決定論的な初期化 (sig ベースの擬似乱数)
+                let h = sig.wrapping_mul(0x9e3779b97f4a7c15_u64).wrapping_add(42);
+                let h2 = h ^ (h >> 30);
+                let h3 = h2.wrapping_mul(0xbf58476d1ce4e5b9_u64);
+                let bits = h3 ^ (h3 >> 27);
+                // ビットを f64 に変換 [-scale, scale]
+                let frac = (bits >> 11) as f64 / (1u64 << 53) as f64;
+                (frac * 2.0 - 1.0) * scale
+            });
+            self.leaf_embeds.insert(sig, embed);
+            if !self.m_leaf.contains_key(&sig) {
+                self.m_leaf.insert(sig, Array1::zeros(SURR_EMBED_DIM));
+            }
+        }
+        self.leaf_embeds[&sig].clone()
+    }
+
+    /// MLP フォワードパス: (h_left, h_right) → h_out
+    fn mlp_forward(&self, h_left: &Array1<f64>, h_right: &Array1<f64>) -> (Array1<f64>, Array1<f64>, Array1<f64>) {
+        let mut input = Array1::zeros(2 * SURR_EMBED_DIM);
+        input.slice_mut(ndarray::s![..SURR_EMBED_DIM]).assign(h_left);
+        input.slice_mut(ndarray::s![SURR_EMBED_DIM..]).assign(h_right);
+        // Linear(2n → m)
+        let pre1 = self.w1.dot(&input) + &self.b1;
+        // Swish
+        let act1: Array1<f64> = pre1.mapv(swish);
+        // Linear(m → n)
+        let out = self.w2.dot(&act1) + &self.b2;
+        (input, pre1, out)
+    }
+
+    /// 最終スカラー予測: h_out → loss_pred
+    fn predict_from_embed(&self, h: &Array1<f64>) -> f64 {
+        self.w_out.dot(h) + self.b_out
+    }
+}
+
+/// Tree-structured MLP でゲノムを評価して loss を予測する
+/// キャッシュ: Sig → 埋め込みベクトル
+fn surrogate_predict(
+    genome: &Genome,
+    sw: &mut SurrogateWeights,
+    embed_cache: &mut std::collections::HashMap<Sig, Array1<f64>>,
+) -> f64 {
+    // ゲノム全体の active sigs を収集
+    let all_data: Vec<Vec<(Vec<usize>, Sig)>> = (0..N_LAYERS)
+        .map(|li| genome.layers[li].iter().map(|c| c.active_and_sig()).collect()).collect();
+    let all_sigs: Vec<Vec<Sig>> = all_data.iter()
+        .map(|layer| layer.iter().map(|d| d.1).collect()).collect();
+    let all_acts: Vec<Vec<Vec<usize>>> = all_data.into_iter()
+        .map(|layer| layer.into_iter().map(|d| d.0).collect()).collect();
+
+    // トップ層の Chromosome を評価して出力埋め込みを得る
+    let top_li = N_LAYERS - 1;
+    let top_embed = compute_chromosome_embed(
+        top_li, &genome.layers[top_li][0], &all_sigs[top_li][0],
+        &all_acts[top_li][0], genome, &all_sigs, &all_acts, sw, embed_cache,
+    );
+    sw.predict_from_embed(&top_embed)
+}
+
+/// 1 つの Chromosome の出力埋め込みを再帰的に計算する
+fn compute_chromosome_embed(
+    layer_idx: usize,
+    c: &Chromosome,
+    _c_sig: &Sig,
+    active: &[usize],
+    genome: &Genome,
+    all_sigs: &[Vec<Sig>],
+    _all_acts: &[Vec<Vec<usize>>],
+    sw: &mut SurrogateWeights,
+    embed_cache: &mut std::collections::HashMap<Sig, Array1<f64>>,
+) -> Array1<f64> {
+    let n_ext = layer_n_ext(layer_idx);
+    let total = n_ext + layer_len(layer_idx);
+    let mut node_embeds: Vec<Option<Array1<f64>>> = vec![None; total];
+
+    // ext スロットの leaf 埋め込みを設定
+    for i in 0..n_ext {
+        let sig = i as Sig + 1; // ext の固定 Sig (1, 2, ...)
+        let emb = sw.get_or_init_leaf(sig);
+        node_embeds[i] = Some(emb);
+    }
+
+    // active ノードをボトムアップに処理
+    for &abs in active {
+        if abs < n_ext { continue; }
+        let i = abs - n_ext;
+        let c0 = c.conn[i][0] as usize;
+        let c1 = c.conn[i][1] as usize;
+        let f = c.func[i] as usize;
+
+        let h_left = node_embeds[c0].clone().unwrap_or_else(|| Array1::zeros(SURR_EMBED_DIM));
+        let h_right = node_embeds[c1].clone().unwrap_or_else(|| Array1::zeros(SURR_EMBED_DIM));
+
+        let node_sig = if f == 0 || layer_idx == 0 {
+            make_sig(
+                if c0 < n_ext { c0 as Sig + 1 } else { all_sigs[layer_idx][0] }, // 簡略化
+                if c1 < n_ext { c1 as Sig + 1 } else { all_sigs[layer_idx][0] },
+                f as u8,
+            )
+        } else {
+            let sub_li = layer_idx - 1;
+            let sub_idx = (f - 1).min(layer_n_adf(sub_li) - 1);
+            all_sigs[sub_li][sub_idx]
+        };
+
+        // キャッシュから取得 or 計算
+        let h_out = if let Some(cached) = embed_cache.get(&node_sig) {
+            cached.clone()
+        } else {
+            let (_, _, h) = sw.mlp_forward(&h_left, &h_right);
+            embed_cache.insert(node_sig, h.clone());
+            h
+        };
+        node_embeds[abs] = Some(h_out);
+    }
+
+    node_embeds[total - 1].clone().unwrap_or_else(|| Array1::zeros(SURR_EMBED_DIM))
+}
+
+/// surrogate モデルを1ステップ学習する（Muon Optimizer）
+/// 返り値: training loss (MSE)
+fn surrogate_train_step(
+    sw: &mut SurrogateWeights,
+    genome: &Genome,
+    actual_loss: f64,
+    embed_cache: &mut std::collections::HashMap<Sig, Array1<f64>>,
+) -> f64 {
+    // フォワードパス（勾配追跡のための中間値を保持）
+    let all_data: Vec<Vec<(Vec<usize>, Sig)>> = (0..N_LAYERS)
+        .map(|li| genome.layers[li].iter().map(|c| c.active_and_sig()).collect()).collect();
+    let all_sigs: Vec<Vec<Sig>> = all_data.iter()
+        .map(|layer| layer.iter().map(|d| d.1).collect()).collect();
+    let all_acts: Vec<Vec<Vec<usize>>> = all_data.into_iter()
+        .map(|layer| layer.into_iter().map(|d| d.0).collect()).collect();
+
+    let top_li = N_LAYERS - 1;
+    let top_c = &genome.layers[top_li][0];
+    let top_active = &all_acts[top_li][0];
+    let n_ext = layer_n_ext(top_li);
+    let total = n_ext + layer_len(top_li);
+
+    // ─── フォワード: leaf 埋め込みと中間値を収集 ────────────────────────────
+    let mut node_embeds: Vec<Option<Array1<f64>>> = vec![None; total];
+    let mut node_inputs: Vec<Option<(Array1<f64>, Array1<f64>, Array1<f64>)>> = vec![None; total]; // (concat_input, pre_swish, post_swish)
+    let mut leaf_sigs_used: Vec<(usize, u64)> = Vec::new(); // (slot_idx, sig)
+
+    for i in 0..n_ext {
+        let sig: u64 = i as u64 + 1;
+        let emb = sw.get_or_init_leaf(sig);
+        leaf_sigs_used.push((i, sig));
+        node_embeds[i] = Some(emb);
+    }
+
+    for &abs in top_active {
+        if abs < n_ext { continue; }
+        let i = abs - n_ext;
+        let c0 = top_c.conn[i][0] as usize;
+        let c1 = top_c.conn[i][1] as usize;
+        let h_left = node_embeds[c0].clone().unwrap_or_else(|| Array1::zeros(SURR_EMBED_DIM));
+        let h_right = node_embeds[c1].clone().unwrap_or_else(|| Array1::zeros(SURR_EMBED_DIM));
+        let (inp, pre1, out) = sw.mlp_forward(&h_left, &h_right);
+        node_embeds[abs] = Some(out.clone());
+        node_inputs[abs] = Some((inp, pre1, out));
+    }
+
+    let h_final = node_embeds[total - 1].clone().unwrap_or_else(|| Array1::zeros(SURR_EMBED_DIM));
+    let pred = sw.predict_from_embed(&h_final);
+    let err = pred - actual_loss;
+    let mse = err * err;
+
+    // ─── バックワード ────────────────────────────────────────────────────────
+    // d_pred / d_h_final
+    let d_h_final = &sw.w_out * err * 2.0;
+    let d_w_out_grad = &h_final * err * 2.0;
+    let d_b_out_grad = err * 2.0;
+
+    // w_out の Muon 更新（ベクトルなので直交化なし）
+    sw.m_w_out = &sw.m_w_out * sw.momentum + &d_w_out_grad * (1.0 - sw.momentum);
+    sw.w_out = &sw.w_out - &sw.m_w_out * sw.lr;
+    sw.m_b_out = sw.m_b_out * sw.momentum + d_b_out_grad * (1.0 - sw.momentum);
+    sw.b_out -= sw.m_b_out * sw.lr;
+
+    // ノードをボトムアップに逆伝播（top_active を逆順）
+    let mut d_node: Vec<Option<Array1<f64>>> = vec![None; total];
+    d_node[total - 1] = Some(d_h_final);
+
+    let mut dw1_acc: Array2<f64> = Array2::zeros(sw.w1.dim());
+    let mut db1_acc: Array1<f64> = Array1::zeros(sw.b1.len());
+    let mut dw2_acc: Array2<f64> = Array2::zeros(sw.w2.dim());
+    let mut db2_acc: Array1<f64> = Array1::zeros(sw.b2.len());
+    let mut d_leaf: std::collections::HashMap<usize, Array1<f64>> = std::collections::HashMap::new();
+
+    for &abs in top_active.iter().rev() {
+        if abs < n_ext { continue; }
+        let i = abs - n_ext;
+        let c0 = top_c.conn[i][0] as usize;
+        let c1 = top_c.conn[i][1] as usize;
+
+        let d_out = match d_node[abs].clone() { Some(d) => d, None => continue };
+
+        if let Some((inp, pre1, _)) = node_inputs[abs].clone() {
+            // Linear(m→n) バックワード
+            let d_act1 = sw.w2.t().dot(&d_out);
+            dw2_acc = dw2_acc + d_out.view().insert_axis(ndarray::Axis(1)).dot(&Array1::zeros(SURR_HIDDEN_DIM).view().insert_axis(ndarray::Axis(0)));
+            // ndarray での外積: d_out (n,) x act1 (m,) → (n, m)
+            let act1: Array1<f64> = pre1.mapv(swish);
+            for r in 0..SURR_EMBED_DIM {
+                for c in 0..SURR_HIDDEN_DIM {
+                    dw2_acc[[r, c]] += d_out[r] * act1[c];
+                }
+            }
+            db2_acc = db2_acc + &d_out;
+
+            // Swish バックワード
+            let d_pre1: Array1<f64> = d_act1 * pre1.mapv(swish_grad);
+
+            // Linear(2n→m) バックワード
+            let d_inp = sw.w1.t().dot(&d_pre1);
+            for r in 0..SURR_HIDDEN_DIM {
+                for c in 0..2*SURR_EMBED_DIM {
+                    dw1_acc[[r, c]] += d_pre1[r] * inp[c];
+                }
+            }
+            db1_acc = db1_acc + &d_pre1;
+
+            // leaf/node への勾配を伝播
+            let d_left = d_inp.slice(ndarray::s![..SURR_EMBED_DIM]).to_owned();
+            let d_right = d_inp.slice(ndarray::s![SURR_EMBED_DIM..]).to_owned();
+
+            // c0 への勾配
+            if c0 < n_ext {
+                let e = d_leaf.entry(c0).or_insert_with(|| Array1::zeros(SURR_EMBED_DIM));
+                *e = &*e + &d_left;
+            } else {
+                let e = d_node[c0].get_or_insert_with(|| Array1::zeros(SURR_EMBED_DIM));
+                *e = &*e + &d_left;
+            }
+            // c1 への勾配
+            if c1 < n_ext {
+                let e = d_leaf.entry(c1).or_insert_with(|| Array1::zeros(SURR_EMBED_DIM));
+                *e = &*e + &d_right;
+            } else {
+                let e = d_node[c1].get_or_insert_with(|| Array1::zeros(SURR_EMBED_DIM));
+                *e = &*e + &d_right;
+            }
+        }
+    }
+
+    // ─── Muon 更新: 行列パラメータには Newton-Schulz 直交化を適用 ───────────
+    // w1 更新
+    {
+        let orth = newton_schulz_orthogonalize(&dw1_acc, 5);
+        sw.m_w1 = &sw.m_w1 * sw.momentum + &orth * (1.0 - sw.momentum);
+        sw.w1 = &sw.w1 - &sw.m_w1 * sw.lr;
+    }
+    {
+        sw.m_b1 = &sw.m_b1 * sw.momentum + &db1_acc * (1.0 - sw.momentum);
+        sw.b1 = &sw.b1 - &sw.m_b1 * sw.lr;
+    }
+    // w2 更新
+    {
+        let orth = newton_schulz_orthogonalize(&dw2_acc, 5);
+        sw.m_w2 = &sw.m_w2 * sw.momentum + &orth * (1.0 - sw.momentum);
+        sw.w2 = &sw.w2 - &sw.m_w2 * sw.lr;
+    }
+    {
+        sw.m_b2 = &sw.m_b2 * sw.momentum + &db2_acc * (1.0 - sw.momentum);
+        sw.b2 = &sw.b2 - &sw.m_b2 * sw.lr;
+    }
+    // leaf 埋め込み更新
+    for (slot, d_emb) in d_leaf {
+        let sig: u64 = slot as u64 + 1;
+        if let Some(emb) = sw.leaf_embeds.get_mut(&sig) {
+            let mom = sw.m_leaf.entry(sig).or_insert_with(|| Array1::zeros(SURR_EMBED_DIM));
+            *mom = &*mom * sw.momentum + &d_emb * (1.0 - sw.momentum);
+            *emb = &*emb - &*mom * sw.lr;
+        }
+    }
+
+    // embed_cache を無効化（重みが変わったので）
+    embed_cache.clear();
+
+    mse
+}
+
+/// バッファに蓄積されたデータでバリデーション相関を計算し、surrogate_multiplier を調整する
+fn update_surrogate_multiplier(sw: &mut SurrogateWeights, pop: &[Genome]) {
+    if sw.train_buffer.len() < 10 { return; }
+    let _ = pop; // 将来: held-out ゲノムで評価する用
+
+    // 簡易版: 直近の訓練 MSE の移動平均で判断
+    // val_correlation は外部から設定される
+    if sw.val_correlation > SURR_PROMOTE_THRESH {
+        sw.surrogate_multiplier = (sw.surrogate_multiplier * 1.2).min(SURR_MAX_MULTIPLIER);
+        eprintln!("  [surrogate] promoted: multiplier → {:.2}", sw.surrogate_multiplier);
+    } else if sw.val_correlation < SURR_DEMOTE_THRESH {
+        sw.surrogate_multiplier = (sw.surrogate_multiplier * 0.8).max(0.1);
+        eprintln!("  [surrogate] demoted:  multiplier → {:.2}", sw.surrogate_multiplier);
+    }
+}
+
 // ─── Evaluator ────────────────────────────────────────────────────────────────
 
 struct Evaluator {
     node_cache: DashMap<Sig, ArcVec>,
     adf_cache: DashMap<AdfKey, (Sig, ArcVec)>,
-    /// 固定データセット運用では fitness_cache はゲノムが同一なら永続的に有効。
-    /// 世代をまたいで保持し、新規ゲノムのみ計算する。
     fitness_cache: DashMap<u64, Score>,
     score_cache: DashMap<(Sig, Sig), Score>,
 }
@@ -468,21 +862,13 @@ impl Evaluator {
             score_cache: DashMap::with_capacity(1 << 17),
         }
     }
-
-    /// 固定データセット運用向けリセット。
-    /// - node_cache: メモリ節約のため世代ごとにクリア（再計算コストは小さい）。
-    /// - fitness_cache / adf_cache / score_cache:
-    ///   データセットが変わらないため保持。同一ゲノムは再評価不要。
-    ///   ただし adf_cache がメモリ上限を超えたら解放する。
     fn reset_generation(&self) {
         self.node_cache.clear();
         if self.adf_cache.len() > ADF_CACHE_MAX {
             self.adf_cache.clear();
             self.score_cache.clear();
-            // fitness_cache は adf_cache に依存しないので保持してよい
         }
     }
-
     fn get_node_score(&self, batch_sig: Sig, node_sig: Sig, val: &ArcVec, target: &[Complex<f64>],
         p_buf: &mut [f64], t_buf: &mut [f64], order_buf: &mut [usize], rank_buf: &mut [i64]) -> Score
     {
@@ -542,12 +928,6 @@ fn score_and_acc_into(pred: &[Complex<f64>], target: &[Complex<f64>],
 
 // ─── 汎用 ADF 実行 ────────────────────────────────────────────────────────────
 
-/// ADF を実行する。
-///
-/// `x_sig` / `x_arc` はトップ層の入力 x（ext[0]）をそのまま伝播させたもの。
-/// ADF 内部のスロット 3 (`X_GLOBAL_SIG_SLOT`) に配置され、
-/// ノードの conn がスロット 3 を指せば x_global を直接参照できる（カンニング）。
-/// 再帰呼び出しでも同じ x_sig/x_arc を渡すことで全層で共有される。
 fn exec_adf(
     layer_idx: usize, c: &Chromosome, c_sig: Sig, active: &[usize],
     in0_sig: Sig, in0: &ArcVec, in1_sig: Sig, in1: &ArcVec, one: &ArcVec,
@@ -555,16 +935,15 @@ fn exec_adf(
     genome: &Genome, all_sigs: &[Vec<Sig>], all_acts: &[Vec<Vec<usize>>],
     batch_sig: Sig, ev: &Evaluator,
 ) -> (Sig, ArcVec) {
-    // x_sig をキーに含めることで、同一構造でも x が変われば別エントリになる
     let key: AdfKey = (batch_sig, c_sig, in0_sig, in1_sig, x_sig);
     if let Some(v) = ev.adf_cache.get(&key) { return (v.0, Arc::clone(&v.1)); }
-    let n_ext = N_INPUTS_ADF; // = 4: [in0, in1, one, x_global]
+    let n_ext = N_INPUTS_ADF;
     let total = n_ext + layer_len(layer_idx);
     let mut buf = NodeBuf::new(total);
-    buf.set(0, in0_sig,  Arc::clone(in0));
-    buf.set(1, in1_sig,  Arc::clone(in1));
-    buf.set(2, ONE_SIG,  Arc::clone(one));
-    buf.set(3, x_sig,    Arc::clone(x_arc)); // ← x_global スロット
+    buf.set(0, in0_sig, Arc::clone(in0));
+    buf.set(1, in1_sig, Arc::clone(in1));
+    buf.set(2, ONE_SIG, Arc::clone(one));
+    buf.set(3, x_sig,   Arc::clone(x_arc));
     for &abs in active {
         if abs < n_ext { continue; }
         let i = abs - n_ext;
@@ -582,8 +961,7 @@ fn exec_adf(
             exec_adf(
                 sub_li, &genome.layers[sub_li][sub_idx], all_sigs[sub_li][sub_idx],
                 &all_acts[sub_li][sub_idx], s0, buf.val(c0), s1, buf.val(c1), one,
-                x_sig, x_arc, // ← 再帰先にも x を伝播
-                genome, all_sigs, all_acts, batch_sig, ev,
+                x_sig, x_arc, genome, all_sigs, all_acts, batch_sig, ev,
             )
         };
         buf.set(abs, sig, val);
@@ -608,10 +986,8 @@ fn exec_top(
     let mut buf = NodeBuf::new(total);
     for i in 0..n_ext { buf.set(i, i as Sig + 1, Arc::from(ext[i].as_slice())); }
     let one_arc: ArcVec = Arc::from(ext[1].as_slice());
-    // x_global: トップ層の ext[0]（入力 x）を ADF に渡すための Arc と Sig
-    // トップ層では buf.set(0, 1, ...) としているので x_sig = 1
     let x_arc: ArcVec = Arc::from(ext[0].as_slice());
-    let x_sig: Sig = 1; // ext[0] に割り当てた固定 Sig
+    let x_sig: Sig = 1;
     let mut sum_score = 0.0; let mut count = 0;
     for &abs in top_active {
         if abs < n_ext { continue; }
@@ -629,8 +1005,7 @@ fn exec_top(
             exec_adf(
                 sub_li, &genome.layers[sub_li][sub_idx], all_sigs[sub_li][sub_idx],
                 &all_acts[sub_li][sub_idx], s0, buf.val(c0), s1, buf.val(c1), &one_arc,
-                x_sig, &x_arc, // ← x_global を ADF に注入
-                genome, all_sigs, all_acts, batch_sig, ev,
+                x_sig, &x_arc, genome, all_sigs, all_acts, batch_sig, ev,
             )
         };
         let (s, _) = ev.get_node_score(batch_sig, sig, &val, target, p_buf, t_buf, order_buf, rank_buf);
@@ -654,10 +1029,7 @@ fn eval(g: &Genome, ds: &Dataset, ev: &Evaluator, inter_weight: f64) -> (f64, f6
     let top_active = &all_acts[top_li][0];
     let genome_base = genome_key(&all_sigs);
     let top_sig = all_sigs[top_li][0];
-    // 固定データセット: batch_sig は不変なのでキャッシュキーとして安全に使える。
-    // inter_weight もキーに含める（世代が異なると値が変わるため）。
-    let gkey = make_sig(make_sig(genome_base, ds.batch_sig, 0),
-                        inter_weight.to_bits(), 1);
+    let gkey = make_sig(make_sig(genome_base, ds.batch_sig, 0), inter_weight.to_bits(), 1);
     if let Some(v) = ev.fitness_cache.get(&gkey) { return *v; }
     let mut p_buf = vec![0.0f64; VEC_LEN];
     let mut t_buf = vec![0.0f64; VEC_LEN];
@@ -668,7 +1040,7 @@ fn eval(g: &Genome, ds: &Dataset, ev: &Evaluator, inter_weight: f64) -> (f64, f6
         let (pred, out_sig, sum_score, count) = exec_top(
             g, top_active, &all_sigs, &all_acts, inputs, target, ds.batch_sig, ev,
             &mut p_buf, &mut t_buf, &mut order_buf, &mut rank_buf);
-        let (final_s, final_a) = ev.get_node_score(ds.batch_sig, out_sig, &pred, target,
+        let (_final_s, final_a) = ev.get_node_score(ds.batch_sig, out_sig, &pred, target,
             &mut p_buf, &mut t_buf, &mut order_buf, &mut rank_buf);
         let avg_inter = if count > 0 { (sum_score / count as f64).powf(1.0 / E) } else { 0.0 };
         let combined = avg_inter;
@@ -684,66 +1056,158 @@ fn eval(g: &Genome, ds: &Dataset, ev: &Evaluator, inter_weight: f64) -> (f64, f6
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 fn main() {
-    assert_eq!(LAYER_LEN.len(), N_LAYERS, "LAYER_LEN の要素数は N_LAYERS に合わせてください");
-    assert_eq!(N_ADF_PER_LAYER.len(), N_LAYERS - 1, "N_ADF_PER_LAYER の要素数は N_LAYERS-1 に合わせてください");
-    assert!(N_LAYERS >= 1, "N_LAYERS は 1 以上にしてください");
+    assert_eq!(LAYER_LEN.len(), N_LAYERS);
+    assert_eq!(N_ADF_PER_LAYER.len(), N_LAYERS - 1);
+    assert!(N_LAYERS >= 1);
 
     eprintln!(
-        "ADF-CGP  N_LAYERS={N_LAYERS}  N_ADF_PER_LAYER={:?}  LAYER_LEN={:?}  POP={POP_SIZE}  BATCHES={N_BATCHES}  MUT_STOP_PROB={MUT_STOP_PROB}  MUT_MAX_TARGETS={MUT_MAX_TARGETS}",
-        N_ADF_PER_LAYER, LAYER_LEN,
+        "ADF-CGP+Surrogate  N_LAYERS={N_LAYERS}  LAYER_LEN={:?}  POP={POP_SIZE}  SURR_EMBED={SURR_EMBED_DIM}  SURR_HIDDEN={SURR_HIDDEN_DIM}  SURR_LR={SURR_LR}  SURR_RATIO={SURR_RATIO_INIT}",
+        LAYER_LEN,
     );
 
     let mut rng = SmallRng::seed_from_u64(42);
-    // 固定データセット: 起動時に一度だけ生成する
     let ds = Dataset::new_fixed(&mut rng);
     let mut pop: Vec<Genome> = (0..POP_SIZE).map(|_| Genome::random(&mut rng)).collect();
     let evaluator = Evaluator::new();
 
+    // surrogate モデルを初期化
+    let mut sw = SurrogateWeights::new(SURR_LR);
+    let mut embed_cache: std::collections::HashMap<Sig, ndarray::Array1<f64>> = std::collections::HashMap::new();
+    // 現在の surrogate ステップ数 (実評価ステップに対する比率)
+    let surr_ratio = SURR_RATIO_INIT;
+    // 直近の surrogate 予測誤差を追跡（バリデーション用・将来拡張）
+    // let mut recent_surr_errors: Vec<f64> = Vec::new();
+    // 訓練サンプル数
+    let mut n_real_evals: usize = 0;
+
     for gen in 0..N_GEN {
-        // 固定データセット運用: バッチ変更なし。node_cache のみクリア。
         evaluator.reset_generation();
         let inter_weight = INTER_WEIGHT_MAX * (gen as f64 / CURRICULUM_RAMP_GENS as f64).min(1.0);
+
+        // ─── 実評価フェーズ ────────────────────────────────────────────────────
         let mut scored: Vec<(f64, f64, Genome)> = pop
             .par_iter()
             .map(|g| { let (l, a) = eval(g, &ds, &evaluator, inter_weight); (l, a, g.clone()) })
             .collect();
         scored.sort_unstable_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
-        // CMAES_OUTPUT フォーマット: 最終行に acc を出力
+
         println!(
-            "CMAES_ACC gen={} loss={:.10} acc={:.10}",
-            gen, scored[0].0, scored[0].1
+            "CMAES_ACC gen={} loss={:.10} acc={:.10} surr_mult={:.3} surr_corr={:.3}",
+            gen, scored[0].0, scored[0].1, sw.surrogate_multiplier, sw.val_correlation,
         );
-        let elites: Vec<Genome> = scored[..ELITE].iter().map(|x| x.2.clone()).collect();
-        let mut next = elites;
-        while next.len() < POP_SIZE {
-            let p1 = &scored[rng.gen_range(0..ELITE)].2;
-            let p2 = &scored[rng.gen_range(0..ELITE)].2;
-            let child = match rng.gen_range(0..3u8) {
-                0 => p1.mix(&mut rng, p2),
-                1 => p1.mutate(&mut rng),
-                _ => p1.mix(&mut rng, p2).mutate(&mut rng),
-            };
-            next.push(child);
+
+        // ─── Surrogate 訓練フェーズ（実評価直後）─────────────────────────────
+        // elites の実 loss で surrogate を訓練する
+        let n_train = ELITE.min(scored.len());
+        let mut surr_mse_sum = 0.0f64;
+        let mut surr_pred_vals: Vec<f64> = Vec::new();
+        let mut surr_true_vals: Vec<f64> = Vec::new();
+
+        for k in 0..n_train {
+            let actual_loss = scored[k].0;
+            let pred = surrogate_predict(&scored[k].2, &mut sw, &mut embed_cache);
+            surr_pred_vals.push(pred);
+            surr_true_vals.push(actual_loss);
+            let mse = surrogate_train_step(&mut sw, &scored[k].2, actual_loss, &mut embed_cache);
+            surr_mse_sum += mse;
+            sw.train_buffer.push((gen as u64 * POP_SIZE as u64 + k as u64, actual_loss));
+            if sw.train_buffer.len() > 2000 { sw.train_buffer.drain(..100); }
         }
-        pop = next;
+        n_real_evals += n_train;
+
+        // バリデーション相関を計算（予測値 vs 実値のピアソン相関）
+        if surr_pred_vals.len() >= 4 {
+            let corr = pearson_1d(&surr_pred_vals, &surr_true_vals).abs();
+            sw.val_correlation = sw.val_correlation * 0.7 + corr * 0.3;
+        }
+
+        eprintln!(
+            "  [surrogate] gen={} train_mse_avg={:.6} val_corr={:.4} n_real={}",
+            gen, surr_mse_sum / n_train as f64, sw.val_correlation, n_real_evals,
+        );
+
+        // multiplier の更新
+        update_surrogate_multiplier(&mut sw, &pop);
+
+        // ─── 次世代生成（elite + offspring）──────────────────────────────────
+        let elites: Vec<Genome> = scored[..ELITE].iter().map(|x| x.2.clone()).collect();
+        let mut next = elites.clone();
+
+        // surrogate ステップ数を計算（端数蓄積方式）
+        surr_step_accumulator += surr_ratio * sw.surrogate_multiplier;
+        let actual_surr_steps = surr_step_accumulator as usize;
+        surr_step_accumulator -= actual_surr_steps as f64;
+
+        // surrogate 進化ステップ
+        if sw.val_correlation > 0.3 && actual_surr_steps > 0 {
+            for _surr_gen in 0..actual_surr_steps {
+                embed_cache.clear(); // 各 surrogate ステップで embed cache をリセット
+                let mut surr_scored: Vec<(f64, Genome)> = next
+                    .iter()
+                    .map(|g| (surrogate_predict(g, &mut sw, &mut embed_cache), g.clone()))
+                    .collect();
+                // offspring を surrogate で評価して補充
+                let mut surr_candidates: Vec<Genome> = Vec::with_capacity(POP_SIZE);
+                for _ in 0..(POP_SIZE - ELITE) {
+                    let p1 = &scored[rng.gen_range(0..ELITE)].2;
+                    let p2 = &scored[rng.gen_range(0..ELITE)].2;
+                    let child = match rng.gen_range(0..3u8) {
+                        0 => p1.mix(&mut rng, p2),
+                        1 => p1.mutate(&mut rng),
+                        _ => p1.mix(&mut rng, p2).mutate(&mut rng),
+                    };
+                    surr_candidates.push(child);
+                }
+                let mut surr_all: Vec<(f64, Genome)> = surr_candidates
+                    .into_iter()
+                    .map(|g| { let s = surrogate_predict(&g, &mut sw, &mut embed_cache); (s, g) })
+                    .collect();
+                surr_scored.append(&mut surr_all);
+                surr_scored.sort_unstable_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
+                next = surr_scored.into_iter().take(POP_SIZE).map(|x| x.1).collect();
+            }
+            pop = next;
+        } else {
+            // surrogate 未成熟なら通常進化
+            while next.len() < POP_SIZE {
+                let p1 = &scored[rng.gen_range(0..ELITE)].2;
+                let p2 = &scored[rng.gen_range(0..ELITE)].2;
+                let child = match rng.gen_range(0..3u8) {
+                    0 => p1.mix(&mut rng, p2),
+                    1 => p1.mutate(&mut rng),
+                    _ => p1.mix(&mut rng, p2).mutate(&mut rng),
+                };
+                next.push(child);
+            }
+            pop = next;
+        }
     }
+}
+
+/// 1D ピアソン相関（surrogate バリデーション用）
+fn pearson_1d(x: &[f64], y: &[f64]) -> f64 {
+    let n = x.len() as f64;
+    if n < 2.0 { return 0.0; }
+    let mx = x.iter().sum::<f64>() / n;
+    let my = y.iter().sum::<f64>() / n;
+    let (mut num, mut dx, mut dy) = (0.0f64, 0.0f64, 0.0f64);
+    for (&xi, &yi) in x.iter().zip(y) {
+        let a = xi - mx; let b = yi - my;
+        num += a * b; dx += a * a; dy += b * b;
+    }
+    if dx < 1e-14 || dy < 1e-14 { 0.0 } else { num / (dx.sqrt() * dy.sqrt()) }
 }
 """
 
 
 def generate_rust_source(params: dict) -> str:
-    """パラメータ辞書から Rust ソースを生成する"""
     n = params["N_LAYERS"]
     llen = params["LAYER_LEN"]
     llen2 = params["LAYER_LEN_LAST"]
     nadf = params["N_ADF_PER_LAYER"]
 
     layer_len_arr = ", ".join([str(llen)] * (n - 1) + [str(llen2)])
-
-    if n == 1:
-        n_adf_arr = ""
-    else:
-        n_adf_arr = ", ".join([str(nadf)] * (n - 1))
+    n_adf_arr = "" if n == 1 else ", ".join([str(nadf)] * (n - 1))
 
     elite = params["ELITE"]
     pop_size = params["POP_SIZE"]
@@ -767,6 +1231,10 @@ def generate_rust_source(params: dict) -> str:
         P=f"{params['P']:.8f}",
         MUT_STOP_PROB=f"{params['MUT_STOP_PROB']:.8f}",
         MUT_MAX_TARGETS=params["MUT_MAX_TARGETS"],
+        SURR_EMBED_DIM=params["SURR_EMBED_DIM"],
+        SURR_HIDDEN_DIM=params["SURR_HIDDEN_DIM"],
+        SURR_LR=f"{params['SURR_LR']:.8f}",
+        SURR_RATIO=f"{params['SURR_RATIO']:.8f}",
         BODY=RUST_BODY,
     )
     return src
@@ -774,22 +1242,14 @@ def generate_rust_source(params: dict) -> str:
 
 # ─── ビルド & 実行 ────────────────────────────────────────────────────────────
 
-def build_and_run(
-    params: dict,
-    project_dir: str,
-    eval_time: int,
-    trial_idx: int,
-    out_dir: str,
-) -> float:
+def build_and_run(params: dict, project_dir: str, eval_time: int, trial_idx: int, out_dir: str) -> float:
     src = generate_rust_source(params)
     src_path = os.path.join(project_dir, "src", "main.rs")
-
     with open(src_path, "w", encoding="utf-8") as f:
         f.write(src)
 
     log_dir = os.path.join(out_dir, f"trial_{trial_idx:04d}")
     os.makedirs(log_dir, exist_ok=True)
-
     with open(os.path.join(log_dir, "params.json"), "w") as f:
         json.dump(params, f, indent=2)
 
@@ -797,10 +1257,7 @@ def build_and_run(
     build_start = time.time()
     build_result = subprocess.run(
         ["cargo", "build", "--release"],
-        cwd=project_dir,
-        capture_output=True,
-        text=True,
-        timeout=300,
+        cwd=project_dir, capture_output=True, text=True, timeout=300,
     )
     build_elapsed = time.time() - build_start
 
@@ -813,35 +1270,28 @@ def build_and_run(
 
     print(f"  [trial {trial_idx}] Build OK ({build_elapsed:.1f}s). Running {eval_time}s ...", flush=True)
 
-    cargo_toml = os.path.join(project_dir, "Cargo.toml")
+    # バイナリ名を取得
     bin_name = None
+    cargo_toml = os.path.join(project_dir, "Cargo.toml")
     try:
         import tomllib
-    except ImportError:
-        tomllib = None
-
-    if tomllib and os.path.exists(cargo_toml):
         with open(cargo_toml, "rb") as f:
             toml_data = tomllib.load(f)
         bin_name = toml_data.get("package", {}).get("name", None)
+    except Exception:
+        pass
     if bin_name is None:
-        if os.path.exists(cargo_toml):
-            for line in open(cargo_toml):
-                m = re.match(r'\s*name\s*=\s*"([^"]+)"', line)
-                if m:
-                    bin_name = m.group(1)
-                    break
+        for line in open(cargo_toml):
+            m = re.match(r'\s*name\s*=\s*"([^"]+)"', line)
+            if m:
+                bin_name = m.group(1)
+                break
     if bin_name is None:
         bin_name = os.path.basename(project_dir)
 
     binary = os.path.join(project_dir, "target", "release", bin_name)
-
     run_proc = subprocess.Popen(
-        [binary],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        cwd=project_dir,
+        [binary], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=project_dir,
     )
 
     import select as _select
@@ -897,12 +1347,11 @@ def build_and_run(
                 i += 1
             except ValueError:
                 pass
-    best_acc = 1.0 - math.exp(best_acc / i)
+    best_acc = 1.0 - math.exp(best_acc / i) if i > 0 else 0.0
 
     print(f"  [trial {trial_idx}] acc = {best_acc:.6f}")
     with open(os.path.join(log_dir, "result.json"), "w") as f:
         json.dump({"acc": best_acc, **params}, f, indent=2)
-
     return best_acc
 
 
@@ -914,7 +1363,7 @@ class CMAESSearcher:
         self.eval_time = eval_time
         self.budget = budget
         self.out_dir = out_dir
-        self.history: list[dict] = []
+        self.history = []
         self.trial_idx = 0
 
         os.makedirs(out_dir, exist_ok=True)
@@ -922,11 +1371,10 @@ class CMAESSearcher:
         x0 = initial_x()
         sigma0 = initial_sigma()
 
-        bounds_lo = []
-        bounds_hi = []
+        bounds_lo, bounds_hi = [], []
         for name, lo, hi, init, is_int, log_scale in PARAM_DEFS:
             if log_scale:
-                bounds_lo.append(math.log(lo))
+                bounds_lo.append(math.log(max(lo, 1e-9)))
                 bounds_hi.append(math.log(hi))
             else:
                 bounds_lo.append(float(lo))
@@ -942,8 +1390,9 @@ class CMAESSearcher:
 
         self.es = cma.CMAEvolutionStrategy(x0, sigma0, opts)
         print(f"CMA-ES initialized: dim={len(x0)}, sigma0={sigma0:.3f}, budget={budget}")
+        print(f"Params: {[p[0] for p in PARAM_DEFS]}")
 
-    def objective(self, x: list[float]) -> float:
+    def objective(self, x: list) -> float:
         params = decode(x)
         print(f"\n{'='*60}")
         print(f"Trial {self.trial_idx}: {params}")
@@ -951,10 +1400,9 @@ class CMAESSearcher:
         self.trial_idx += 1
 
         if acc is None:
-            fitness = 0.0
             self.history.append({"trial": self.trial_idx - 1, "acc": None, "invalid": True, **params})
             self._save_history()
-            return fitness
+            return 0.0
 
         EPS = 1e-24
         fitness = math.log(max(1.0 - acc, EPS))
@@ -964,7 +1412,7 @@ class CMAESSearcher:
 
     def run(self):
         print("\n" + "="*60)
-        print("Starting CMA-ES hyperparameter search")
+        print("Starting CMA-ES hyperparameter search (with Surrogate Model)")
         print("="*60)
 
         global_best_fitness = float("inf")
@@ -1019,8 +1467,9 @@ edition = "2021"
 [dependencies]
 ahash = "0.8"
 dashmap = "5"
+ndarray = { version = "0.15", features = ["rayon"] }
 num-complex = "0.4"
-rand = {{ version = "0.8", features = ["small_rng"] }}
+rand = { version = "0.8", features = ["small_rng"] }
 rayon = "1"
 
 [profile.release]
@@ -1039,6 +1488,17 @@ def setup_project(project_dir: str, src_rs_path: Optional[str] = None):
         print(f"Creating new Cargo project at {project_dir}")
         with open(cargo_toml, "w") as f:
             f.write(CARGO_TOML_TEMPLATE)
+    else:
+        # ndarray が依存に含まれているか確認して追記
+        content = open(cargo_toml).read()
+        if "ndarray" not in content:
+            print("Adding ndarray to Cargo.toml ...")
+            content = content.replace(
+                '[dependencies]',
+                '[dependencies]\nndarray = { version = "0.15", features = ["rayon"] }'
+            )
+            with open(cargo_toml, "w") as f:
+                f.write(content)
 
     src_dest = os.path.join(src_dir, "main.rs")
     if src_rs_path and os.path.exists(src_rs_path):
@@ -1055,22 +1515,19 @@ def setup_project(project_dir: str, src_rs_path: Optional[str] = None):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="CMA-ES hyperparameter search for ADF-CGP",
+        description="CMA-ES hyperparameter search for ADF-CGP (with Surrogate Model)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=textwrap.dedent("""\
         例:
-          # カレントディレクトリが Cargo プロジェクトの場合
           python3 cmaes_search.py --project . --budget 30 --time 30
-
-          # ソースファイルを指定して新規プロジェクト作成
           python3 cmaes_search.py --project ./adf_cgp_proj --src main.rs --budget 30 --time 30
         """),
     )
     parser.add_argument("--project", default=".", help="Cargo プロジェクトのルートディレクトリ")
-    parser.add_argument("--src", default=None, help="元の main.rs パス (省略時はプロジェクト内のものを使用)")
-    parser.add_argument("--out", default="cmaes_results", help="結果出力ディレクトリ")
-    parser.add_argument("--budget", type=int, default=DEFAULT_BUDGET, help="CMA-ES 最大評価回数")
-    parser.add_argument("--time", type=int, default=DEFAULT_TIME, help="各評価の実行秒数")
+    parser.add_argument("--src", default=None, help="元の main.rs パス")
+    parser.add_argument("--out", default=DEFAULT_OUT, help="結果出力ディレクトリ")
+    parser.add_argument("--budget", type=int, default=DEFAULT_BUDGET)
+    parser.add_argument("--time", type=int, default=DEFAULT_TIME)
     args = parser.parse_args()
 
     project_dir = os.path.abspath(args.project)

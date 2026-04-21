@@ -1,0 +1,36 @@
+   Compiling cgp_lcm v0.1.0 (/Users/al/Documents/GitHub/KCIA)
+error[E0425]: cannot find value `surr_step_accumulator` in this scope
+    --> src/main.rs:1016:9
+     |
+1016 |         surr_step_accumulator += surr_ratio * sw.surrogate_multiplier;
+     |         ^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find value `surr_step_accumulator` in this scope
+    --> src/main.rs:1017:33
+     |
+1017 |         let actual_surr_steps = surr_step_accumulator as usize;
+     |                                 ^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find value `surr_step_accumulator` in this scope
+    --> src/main.rs:1018:9
+     |
+1018 |         surr_step_accumulator -= actual_surr_steps as f64;
+     |         ^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+warning: unused variable: `genome`
+   --> src/main.rs:490:5
+    |
+490 |     genome: &Genome,
+    |     ^^^^^^ help: if this is intentional, prefix it with an underscore: `_genome`
+    |
+    = note: `#[warn(unused_variables)]` on by default
+
+warning: unused variable: `all_sigs`
+   --> src/main.rs:555:9
+    |
+555 |     let all_sigs: Vec<Vec<Sig>> = all_data.iter()
+    |         ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_all_sigs`
+
+For more information about this error, try `rustc --explain E0425`.
+warning: `cgp_lcm` (bin "cgp_lcm") generated 2 warnings
+error: could not compile `cgp_lcm` (bin "cgp_lcm") due to 3 previous errors; 2 warnings emitted
