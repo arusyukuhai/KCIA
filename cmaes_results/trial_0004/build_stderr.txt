@@ -1,136 +1,36 @@
    Compiling cgp_lcm v0.1.0 (/Users/al/Documents/GitHub/KCIA)
-warning: unused import: `s`
- --> src/main.rs:4:31
-  |
-4 | use ndarray::{Array1, Array2, s};
-  |                               ^
-  |
-  = note: `#[warn(unused_imports)]` on by default
+error[E0425]: cannot find value `surr_step_accumulator` in this scope
+    --> src/main.rs:1015:9
+     |
+1015 |         surr_step_accumulator += surr_ratio * sw.surrogate_multiplier;
+     |         ^^^^^^^^^^^^^^^^^^^^^ not found in this scope
 
-warning: unused imports: `Mutex` and `RwLock`
-  --> src/main.rs:10:22
-   |
-10 | use std::sync::{Arc, Mutex, RwLock};
-   |                      ^^^^^  ^^^^^^
+error[E0425]: cannot find value `surr_step_accumulator` in this scope
+    --> src/main.rs:1016:33
+     |
+1016 |         let actual_surr_steps = surr_step_accumulator as usize;
+     |                                 ^^^^^^^^^^^^^^^^^^^^^ not found in this scope
 
-error[E0283]: type annotations needed for `ArrayBase<OwnedRepr<_>, Dim<[usize; 1]>, _>`
-   --> src/main.rs:612:9
-    |
-612 |     let mut db1_acc = Array1::zeros(sw.b1.len());
-    |         ^^^^^^^^^^^   -------------------------- type must be known at this point
-    |
-    = note: cannot satisfy `_: Clone`
-note: required by a bound in `ndarray::impl_constructors::<impl ArrayBase<S, D>>::zeros`
-   --> /Users/al/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ndarray-0.17.2/src/impl_constructors.rs:353:12
-    |
-351 |     pub fn zeros<Sh>(shape: Sh) -> Self
-    |            ----- required by a bound in this associated function
-352 |     where
-353 |         A: Clone + Zero,
-    |            ^^^^^ required by this bound in `ndarray::impl_constructors::<impl ArrayBase<S, D>>::zeros`
-help: consider giving `db1_acc` an explicit type, where the type for type parameter `A` is specified
-    |
-612 |     let mut db1_acc: ArrayBase<OwnedRepr<A>, _, A> = Array1::zeros(sw.b1.len());
-    |                    +++++++++++++++++++++++++++++++
-
-error[E0283]: type annotations needed for `ArrayBase<OwnedRepr<_>, Dim<[usize; 1]>, _>`
-   --> src/main.rs:612:9
-    |
-612 |     let mut db1_acc = Array1::zeros(sw.b1.len());
-    |         ^^^^^^^^^^^
-...
-681 |         sw.m_b1 = &sw.m_b1 * sw.momentum + &db1_acc * (1.0 - sw.momentum);
-    |                                          - type must be known at this point
-    |
-    = note: multiple `impl`s satisfying `f64: Add<_>` found in the following crates: `core`, `num_complex`:
-            - impl Add for f64;
-            - impl Add<Complex<f64>> for f64;
-    = note: required for `ArrayBase<OwnedRepr<f64>, Dim<[usize; 1]>, f64>` to implement `Add<ArrayBase<OwnedRepr<_>, Dim<[usize; 1]>, _>>`
-help: consider giving `db1_acc` an explicit type, where the type for type parameter `B` is specified
-    |
-612 |     let mut db1_acc: ArrayBase<OwnedRepr<A>, _, A> = Array1::zeros(sw.b1.len());
-    |                    +++++++++++++++++++++++++++++++
-
-error[E0283]: type annotations needed for `ArrayBase<OwnedRepr<_>, Dim<[usize; 1]>, _>`
-   --> src/main.rs:614:9
-    |
-614 |     let mut db2_acc = Array1::zeros(sw.b2.len());
-    |         ^^^^^^^^^^^
-...
-691 |         sw.m_b2 = &sw.m_b2 * sw.momentum + &db2_acc * (1.0 - sw.momentum);
-    |                                          - type must be known at this point
-    |
-    = note: multiple `impl`s satisfying `f64: Add<_>` found in the following crates: `core`, `num_complex`:
-            - impl Add for f64;
-            - impl Add<Complex<f64>> for f64;
-    = note: required for `ArrayBase<OwnedRepr<f64>, Dim<[usize; 1]>, f64>` to implement `Add<ArrayBase<OwnedRepr<_>, Dim<[usize; 1]>, _>>`
-help: consider giving `db2_acc` an explicit type, where the type for type parameter `B` is specified
-    |
-614 |     let mut db2_acc: ArrayBase<OwnedRepr<A>, _, A> = Array1::zeros(sw.b2.len());
-    |                    +++++++++++++++++++++++++++++++
-
-warning: unused variable: `c_sig`
-   --> src/main.rs:488:5
-    |
-488 |     c_sig: &Sig,
-    |     ^^^^^ help: if this is intentional, prefix it with an underscore: `_c_sig`
-    |
-    = note: `#[warn(unused_variables)]` on by default
+error[E0425]: cannot find value `surr_step_accumulator` in this scope
+    --> src/main.rs:1017:9
+     |
+1017 |         surr_step_accumulator -= actual_surr_steps as f64;
+     |         ^^^^^^^^^^^^^^^^^^^^^ not found in this scope
 
 warning: unused variable: `genome`
    --> src/main.rs:490:5
     |
 490 |     genome: &Genome,
     |     ^^^^^^ help: if this is intentional, prefix it with an underscore: `_genome`
-
-warning: unused variable: `all_acts`
-   --> src/main.rs:492:5
     |
-492 |     all_acts: &[Vec<Vec<usize>>],
-    |     ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_all_acts`
+    = note: `#[warn(unused_variables)]` on by default
 
-warning: unused variable: `embed_cache`
-   --> src/main.rs:711:59
+warning: unused variable: `all_sigs`
+   --> src/main.rs:555:9
     |
-711 | fn update_surrogate_multiplier(sw: &mut SurrogateWeights, embed_cache: &mut std::collections::HashMap<Sig, Array1<f64>>, pop: &[Genome]) {
-    |                                                           ^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_embed_cache`
+555 |     let all_sigs: Vec<Vec<Sig>> = all_data.iter()
+    |         ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_all_sigs`
 
-warning: unused variable: `final_s`
-   --> src/main.rs:928:14
-    |
-928 |         let (final_s, final_a) = ev.get_node_score(ds.batch_sig, out_sig, &pred, target,
-    |              ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_final_s`
-
-warning: unused variable: `recent_surr_errors`
-   --> src/main.rs:966:13
-    |
-966 |     let mut recent_surr_errors: Vec<f64> = Vec::new();
-    |             ^^^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_recent_surr_errors`
-
-warning: unused variable: `surr_steps`
-    --> src/main.rs:1024:13
-     |
-1024 |         let surr_steps = (surr_ratio * sw.surrogate_multiplier) as usize;
-     |             ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_surr_steps`
-
-warning: variable does not need to be mutable
-   --> src/main.rs:962:9
-    |
-962 |     let mut surr_ratio = SURR_RATIO_INIT;
-    |         ----^^^^^^^^^^
-    |         |
-    |         help: remove this `mut`
-    |
-    = note: `#[warn(unused_mut)]` on by default
-
-warning: variable does not need to be mutable
-   --> src/main.rs:966:9
-    |
-966 |     let mut recent_surr_errors: Vec<f64> = Vec::new();
-    |         ----^^^^^^^^^^^^^^^^^^
-    |         |
-    |         help: remove this `mut`
-
-For more information about this error, try `rustc --explain E0283`.
-warning: `cgp_lcm` (bin "cgp_lcm") generated 11 warnings
-error: could not compile `cgp_lcm` (bin "cgp_lcm") due to 3 previous errors; 11 warnings emitted
+For more information about this error, try `rustc --explain E0425`.
+warning: `cgp_lcm` (bin "cgp_lcm") generated 2 warnings
+error: could not compile `cgp_lcm` (bin "cgp_lcm") due to 3 previous errors; 2 warnings emitted

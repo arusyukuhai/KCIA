@@ -10,37 +10,37 @@ use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
 // ─── アーキテクチャ ハイパーパラメータ ───────────────────────────────────────
-const N_LAYERS: usize = 4;
-const LAYER_LEN: [usize; N_LAYERS] = [38, 38, 38, 394];
+const N_LAYERS: usize = 5;
+const LAYER_LEN: [usize; N_LAYERS] = [51, 51, 51, 51, 32];
 const N_INPUTS_MAIN: usize = 2;
 const N_INPUTS_ADF: usize = 4;
-const N_ADF_PER_LAYER: [usize; N_LAYERS - 1] = [11, 11, 11];
+const N_ADF_PER_LAYER: [usize; N_LAYERS - 1] = [14, 14, 14, 14];
 const ONE_SIG: Sig = 0xFFFF_FFFF_FFFF_FFFFu64;
 const X_GLOBAL_SIG_SLOT: usize = 3;
-const VEC_LEN: usize = 379;
-const POP_SIZE: usize = 902;
-const ELITE: usize = 78;
+const VEC_LEN: usize = 684;
+const POP_SIZE: usize = 4139;
+const ELITE: usize = 153;
 const N_GEN: usize = 99999999;
-const PROB_EML: f64 = 0.98078306;
-const A: f64 = 0.50750341;
-const B: f64 = 0.95146189;
-const C: f64 = 1.94133542;
-const D: f64 = 0.89228130;
-const E: f64 = -0.41797692;
-const HILO: f64 = 18.55169327;
-const P: f64 = 1.82071180;
-const MUT_STOP_PROB: f64 = 2.98236627;
-const MUT_MAX_TARGETS: usize = 3;
+const PROB_EML: f64 = 0.12127092;
+const A: f64 = -0.30419350;
+const B: f64 = 0.46978481;
+const C: f64 = 1.87979414;
+const D: f64 = 0.00057963;
+const E: f64 = -1.25260474;
+const HILO: f64 = 35.76834296;
+const P: f64 = 1.72865432;
+const MUT_STOP_PROB: f64 = 1.80297335;
+const MUT_MAX_TARGETS: usize = 2;
 
 // ─── Surrogate Model ハイパーパラメータ ─────────────────────────────────────
 /// Tree-structured MLP の埋め込み次元 n
-const SURR_EMBED_DIM: usize = 71;
+const SURR_EMBED_DIM: usize = 20;
 /// Tree-structured MLP の隠れ次元 m  (n*2 → Linear → m → Swish → Linear → n)
-const SURR_HIDDEN_DIM: usize = 149;
+const SURR_HIDDEN_DIM: usize = 115;
 /// Muon Optimizer の学習率
-const SURR_LR: f64 = 0.00054574;
+const SURR_LR: f64 = 0.00466685;
 /// surrogate ステップ / 実評価ステップの比率 (初期値)
-const SURR_RATIO_INIT: f64 = 11.08621661;
+const SURR_RATIO_INIT: f64 = 0.83398270;
 /// surrogate のバリデーション相関がこの値を超えたら surrogate ステップ倍率を上げる
 const SURR_PROMOTE_THRESH: f64 = 0.85;
 /// surrogate のバリデーション相関がこの値を下回ったら surrogate ステップ倍率を下げる
@@ -625,7 +625,6 @@ fn surrogate_train_step(
         if let Some((inp, pre1, _)) = node_inputs[abs].clone() {
             // Linear(m→n) バックワード
             let d_act1 = sw.w2.t().dot(&d_out);
-            dw2_acc = dw2_acc + d_out.view().insert_axis(ndarray::Axis(1)).dot(&Array1::zeros(SURR_HIDDEN_DIM).view().insert_axis(ndarray::Axis(0)));
             // ndarray での外積: d_out (n,) x act1 (m,) → (n, m)
             let act1: Array1<f64> = pre1.mapv(swish);
             for r in 0..SURR_EMBED_DIM {
@@ -954,6 +953,7 @@ fn main() {
     let mut embed_cache: std::collections::HashMap<Sig, ndarray::Array1<f64>> = std::collections::HashMap::new();
     // 現在の surrogate ステップ数 (実評価ステップに対する比率)
     let surr_ratio = SURR_RATIO_INIT;
+    let mut surr_step_accumulator: f64 = 0.0;
     // 直近の surrogate 予測誤差を追跡（バリデーション用・将来拡張）
     // let mut recent_surr_errors: Vec<f64> = Vec::new();
     // 訓練サンプル数

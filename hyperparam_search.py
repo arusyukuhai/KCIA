@@ -746,7 +746,6 @@ fn surrogate_train_step(
         if let Some((inp, pre1, _)) = node_inputs[abs].clone() {
             // Linear(m→n) バックワード
             let d_act1 = sw.w2.t().dot(&d_out);
-            dw2_acc = dw2_acc + d_out.view().insert_axis(ndarray::Axis(1)).dot(&Array1::zeros(SURR_HIDDEN_DIM).view().insert_axis(ndarray::Axis(0)));
             // ndarray での外積: d_out (n,) x act1 (m,) → (n, m)
             let act1: Array1<f64> = pre1.mapv(swish);
             for r in 0..SURR_EMBED_DIM {
@@ -1075,6 +1074,7 @@ fn main() {
     let mut embed_cache: std::collections::HashMap<Sig, ndarray::Array1<f64>> = std::collections::HashMap::new();
     // 現在の surrogate ステップ数 (実評価ステップに対する比率)
     let surr_ratio = SURR_RATIO_INIT;
+    let mut surr_step_accumulator: f64 = 0.0;
     // 直近の surrogate 予測誤差を追跡（バリデーション用・将来拡張）
     // let mut recent_surr_errors: Vec<f64> = Vec::new();
     // 訓練サンプル数
