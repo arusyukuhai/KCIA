@@ -9,33 +9,38 @@ use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
 // ─── アーキテクチャ ハイパーパラメータ ───────────────────────────────────────
-const N_LAYERS: usize = 2;
-const LAYER_LEN: [usize; N_LAYERS] = [113, 264];
+const N_LAYERS: usize = 3;
+const LAYER_LEN: [usize; N_LAYERS] = [20, 20, 839];
 const N_INPUTS_MAIN: usize = 2;
-const N_INPUTS_ADF: usize = 3;
-const N_ADF_PER_LAYER: [usize; N_LAYERS - 1] = [27];
+/// ADF の外部入力: [in0, in1, one, x_global]
+/// x_global はトップ層の ext[0]（入力 x）を全 ADF 層に伝播させたもの。
+const N_INPUTS_ADF: usize = 4;
+const N_ADF_PER_LAYER: [usize; N_LAYERS - 1] = [4, 4];
 
 const ONE_SIG: Sig = 0xFFFF_FFFF_FFFF_FFFFu64;
-const VEC_LEN: usize = 182;
-const POP_SIZE: usize = 91;
-const ELITE: usize = 45;
+/// x_global の固定 Sig。バッチ変化時は exec_adf に渡す x_sig 引数で上書きされる。
+const X_GLOBAL_SIG_SLOT: usize = 3;
+const VEC_LEN: usize = 216;
+const POP_SIZE: usize = 288;
+const ELITE: usize = 25;
 const N_GEN: usize = 99999999;  // 時間制限で止める
-const PROB_EML: f64 = 0.47471978;
-const A: f64 = 1.02604426;
-const B: f64 = 0.31593178;
-const C: f64 = -0.78357518;
-const D: f64 = 0.00051017;
-const HILO: f64 = 11.52728179;
-const P: f64 = 0.83515476;
+const PROB_EML: f64 = 0.60461614;
+const A: f64 = -1.10167168;
+const B: f64 = 0.69572571;
+const C: f64 = 0.08391905;
+const D: f64 = 0.30642071;
+const E: f64 = -0.73133417;
+const HILO: f64 = 19.28842124;
+const P: f64 = 0.93637526;
 
 // ─── 突然変異率パラメータ ────────────────────────────────────────────────────
 /// Chromosome::mutate の幾何分布停止確率。
 /// while rng.gen::<f64>() > MUT_STOP_PROB で使用。
 /// 小さいほど多ノード変異、大きいほど少数変異。
-const MUT_STOP_PROB: f64 = 4.81766858;
+const MUT_STOP_PROB: f64 = 11.97565023;
 
 /// Genome::mutate で一度に変異させる Chromosome の最大数。
-const MUT_MAX_TARGETS: usize = 6;
+const MUT_MAX_TARGETS: usize = 3;
 
 // ─── カリキュラム学習 ────────────────────────────────────────────────────────
 const CURRICULUM_RAMP_GENS: usize = 1;
@@ -251,7 +256,10 @@ fn genome_key(all_sigs: &[Vec<Sig>]) -> u64 {
 // ─── Cache ────────────────────────────────────────────────────────────────────
 
 type ArcVec = Arc<[Complex<f64>]>;
-type AdfKey = (Sig, Sig, Sig, Sig);
+/// ADF キャッシュのキー。
+/// (batch_sig, c_sig, in0_sig, in1_sig, x_sig)
+/// x_sig を加えることで、同じ ADF 構造でもバッチの x 値が異なれば別エントリになる。
+type AdfKey = (Sig, Sig, Sig, Sig, Sig);
 type Score = (f64, f64);
 
 struct NodeBuf { sigs: Vec<Sig>, vals: Vec<ArcVec> }
@@ -395,7 +403,7 @@ fn score_and_acc_into(pred: &[Complex<f64>], target: &[Complex<f64>],
         let c_fwd = chatterjee_from_ranks(&order_buf[..n], rank_buf);
         let c_bwd = chatterjee_from_ranks(&t_order_buf[..n], &p_rank_buf);
         let pe = pearson_raw(&p_buf[..n], &t_buf[..n]).abs();
-        total_score += (((c_fwd.max(0.0).powf(C) + c_bwd.max(0.0).powf(C)) / 2.0) * (1.0 - D) + pe.powf(C) * D).powf(1.0 / C);
+        total_score += (1.0 - ((((c_fwd.max(0.0).powf(C) + c_bwd.max(0.0).powf(C)) / 2.0) * (1.0 - D) + pe.powf(C) * D)).powf(1.0 / C)).powf(E);
         if pe > max_pearson { max_pearson = pe; }
     }
     (total_score / 4.0, max_pearson)
@@ -403,20 +411,29 @@ fn score_and_acc_into(pred: &[Complex<f64>], target: &[Complex<f64>],
 
 // ─── 汎用 ADF 実行 ────────────────────────────────────────────────────────────
 
+/// ADF を実行する。
+///
+/// `x_sig` / `x_arc` はトップ層の入力 x（ext[0]）をそのまま伝播させたもの。
+/// ADF 内部のスロット 3 (`X_GLOBAL_SIG_SLOT`) に配置され、
+/// ノードの conn がスロット 3 を指せば x_global を直接参照できる（カンニング）。
+/// 再帰呼び出しでも同じ x_sig/x_arc を渡すことで全層で共有される。
 fn exec_adf(
     layer_idx: usize, c: &Chromosome, c_sig: Sig, active: &[usize],
     in0_sig: Sig, in0: &ArcVec, in1_sig: Sig, in1: &ArcVec, one: &ArcVec,
+    x_sig: Sig, x_arc: &ArcVec,
     genome: &Genome, all_sigs: &[Vec<Sig>], all_acts: &[Vec<Vec<usize>>],
     batch_sig: Sig, ev: &Evaluator,
 ) -> (Sig, ArcVec) {
-    let key: AdfKey = (batch_sig, c_sig, in0_sig, in1_sig);
+    // x_sig をキーに含めることで、同一構造でも x が変われば別エントリになる
+    let key: AdfKey = (batch_sig, c_sig, in0_sig, in1_sig, x_sig);
     if let Some(v) = ev.adf_cache.get(&key) { return (v.0, Arc::clone(&v.1)); }
-    let n_ext = N_INPUTS_ADF;
+    let n_ext = N_INPUTS_ADF; // = 4: [in0, in1, one, x_global]
     let total = n_ext + layer_len(layer_idx);
     let mut buf = NodeBuf::new(total);
-    buf.set(0, in0_sig, Arc::clone(in0));
-    buf.set(1, in1_sig, Arc::clone(in1));
-    buf.set(2, ONE_SIG, Arc::clone(one));
+    buf.set(0, in0_sig,  Arc::clone(in0));
+    buf.set(1, in1_sig,  Arc::clone(in1));
+    buf.set(2, ONE_SIG,  Arc::clone(one));
+    buf.set(3, x_sig,    Arc::clone(x_arc)); // ← x_global スロット
     for &abs in active {
         if abs < n_ext { continue; }
         let i = abs - n_ext;
@@ -431,9 +448,12 @@ fn exec_adf(
         } else {
             let sub_li = layer_idx - 1;
             let sub_idx = (f - 1).min(layer_n_adf(sub_li) - 1);
-            exec_adf(sub_li, &genome.layers[sub_li][sub_idx], all_sigs[sub_li][sub_idx],
+            exec_adf(
+                sub_li, &genome.layers[sub_li][sub_idx], all_sigs[sub_li][sub_idx],
                 &all_acts[sub_li][sub_idx], s0, buf.val(c0), s1, buf.val(c1), one,
-                genome, all_sigs, all_acts, batch_sig, ev)
+                x_sig, x_arc, // ← 再帰先にも x を伝播
+                genome, all_sigs, all_acts, batch_sig, ev,
+            )
         };
         buf.set(abs, sig, val);
     }
@@ -457,6 +477,10 @@ fn exec_top(
     let mut buf = NodeBuf::new(total);
     for i in 0..n_ext { buf.set(i, i as Sig + 1, Arc::from(ext[i].as_slice())); }
     let one_arc: ArcVec = Arc::from(ext[1].as_slice());
+    // x_global: トップ層の ext[0]（入力 x）を ADF に渡すための Arc と Sig
+    // トップ層では buf.set(0, 1, ...) としているので x_sig = 1
+    let x_arc: ArcVec = Arc::from(ext[0].as_slice());
+    let x_sig: Sig = 1; // ext[0] に割り当てた固定 Sig
     let mut sum_score = 0.0; let mut count = 0;
     for &abs in top_active {
         if abs < n_ext { continue; }
@@ -471,9 +495,12 @@ fn exec_top(
         } else {
             let sub_li = top_li - 1;
             let sub_idx = (f - 1).min(layer_n_adf(sub_li) - 1);
-            exec_adf(sub_li, &genome.layers[sub_li][sub_idx], all_sigs[sub_li][sub_idx],
+            exec_adf(
+                sub_li, &genome.layers[sub_li][sub_idx], all_sigs[sub_li][sub_idx],
                 &all_acts[sub_li][sub_idx], s0, buf.val(c0), s1, buf.val(c1), &one_arc,
-                genome, all_sigs, all_acts, batch_sig, ev)
+                x_sig, &x_arc, // ← x_global を ADF に注入
+                genome, all_sigs, all_acts, batch_sig, ev,
+            )
         };
         let (s, _) = ev.get_node_score(batch_sig, sig, &val, target, p_buf, t_buf, order_buf, rank_buf);
         sum_score += s; count += 1;
@@ -512,9 +539,9 @@ fn eval(g: &Genome, ds: &Dataset, ev: &Evaluator, inter_weight: f64) -> (f64, f6
             &mut p_buf, &mut t_buf, &mut order_buf, &mut rank_buf);
         let (final_s, final_a) = ev.get_node_score(ds.batch_sig, out_sig, &pred, target,
             &mut p_buf, &mut t_buf, &mut order_buf, &mut rank_buf);
-        let avg_inter = if count > 0 { sum_score / count as f64 } else { 0.0 };
-        let combined = final_s * (1.0 - inter_weight) + avg_inter * inter_weight;
-        total_loss += ((1.0 - combined).powf(A) * B + (1.0 - final_a).powf(A) * (1.0 - B)).powf(1.0 / A);
+        let avg_inter = if count > 0 { (sum_score / count as f64).powf(1.0 / E) } else { 0.0 };
+        let combined = avg_inter;
+        total_loss += ((combined).powf(A) * B + (1.0 - final_a).powf(A) * (1.0 - B)).powf(1.0 / A);
         total_acc += final_a;
     }
     let _ = top_sig;
