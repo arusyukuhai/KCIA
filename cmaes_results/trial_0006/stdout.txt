@@ -1,0 +1,42 @@
+CMAES_STAGE gen=0 stage=eval_begin
+CMAES_STAGE gen=0 stage=eval_progress chunk=0 done=32/286
+CMAES_STAGE gen=0 stage=eval_progress chunk=1 done=64/286
+CMAES_STAGE gen=0 stage=eval_progress chunk=2 done=96/286
+CMAES_STAGE gen=0 stage=eval_progress chunk=3 done=128/286
+CMAES_STAGE gen=0 stage=eval_progress chunk=4 done=160/286
+CMAES_STAGE gen=0 stage=eval_progress chunk=5 done=192/286
+CMAES_STAGE gen=0 stage=eval_progress chunk=6 done=224/286
+CMAES_STAGE gen=0 stage=eval_progress chunk=7 done=256/286
+CMAES_STAGE gen=0 stage=eval_progress chunk=8 done=286/286
+CMAES_ACC gen=0 loss=0.9004973268 acc=0.3303319435
+CMAES_STAGE gen=0 stage=train_begin
+CMAES_STAGE stage=train_progress epoch=0 step=4 max_steps=14 pairs=31
+CMAES_STAGE gen=0 stage=train_end teacher_pairs=31 subset=74 max_pairs=31 max_steps=14
+CMAES_STAGE gen=1 stage=eval_begin
+CMAES_STAGE gen=1 stage=eval_progress chunk=0 done=32/286
+CMAES_STAGE gen=1 stage=eval_progress chunk=1 done=64/286
+CMAES_STAGE gen=1 stage=eval_progress chunk=2 done=96/286
+CMAES_STAGE gen=1 stage=eval_progress chunk=3 done=128/286
+CMAES_STAGE gen=1 stage=eval_progress chunk=4 done=160/286
+CMAES_STAGE gen=1 stage=eval_progress chunk=5 done=192/286
+CMAES_STAGE gen=1 stage=eval_progress chunk=6 done=224/286
+CMAES_STAGE gen=1 stage=eval_progress chunk=7 done=256/286
+CMAES_STAGE gen=1 stage=eval_progress chunk=8 done=286/286
+CMAES_ACC gen=1 loss=0.9004973268 acc=0.3303319435
+CMAES_STAGE gen=1 stage=train_begin
+CMAES_STAGE stage=train_progress epoch=0 step=4 max_steps=14 pairs=31
+CMAES_STAGE gen=1 stage=train_end teacher_pairs=31 subset=74 max_pairs=31 max_steps=14
+CMAES_STAGE gen=2 stage=eval_begin
+CMAES_STAGE gen=2 stage=eval_progress chunk=0 done=32/286
+CMAES_STAGE gen=2 stage=eval_progress chunk=1 done=64/286
+CMAES_STAGE gen=2 stage=eval_progress chunk=2 done=96/286
+CMAES_STAGE gen=2 stage=eval_progress chunk=3 done=128/286
+CMAES_STAGE gen=2 stage=eval_progress chunk=4 done=160/286
+CMAES_STAGE gen=2 stage=eval_progress chunk=5 done=192/286
+CMAES_STAGE gen=2 stage=eval_progress chunk=6 done=224/286
+CMAES_STAGE gen=2 stage=eval_progress chunk=7 done=256/286
+CMAES_STAGE gen=2 stage=eval_progress chunk=8 done=286/286
+CMAES_ACC gen=2 loss=0.8914843267 acc=0.3479294050
+CMAES_STAGE gen=2 stage=train_begin
+CMAES_STAGE stage=train_progress epoch=0 step=4 max_steps=14 pairs=31
+CMAES_STAGE gen=2 stage=train_end teacher_pairs=31 subset=74 max_pairs=31 max_steps=14

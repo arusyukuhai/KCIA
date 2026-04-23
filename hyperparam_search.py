@@ -1,26 +1,26 @@
 #!/usr/bin/env python3
 """
-CMA-ES によるADF-CGP ハイパーパラメータ探索 (Surrogate Model付き)
+CMA-ES によるADF-CGP ハイパーパラメータ探索
 ============================================
 
 探索対象:
-  - N_LAYERS       : 2〜9 (整数)
-  - LAYER_LEN      : 各層共通のノード数 4〜128 (整数)
-  - LAYER_LEN_LAST : 最終層ノード数 4〜1024 (整数)
-  - N_ADF_PER_LAYER: 各ADF層共通のADF数 1〜32 (整数)
-  - ELITE          : 8〜256 (整数)
-  - POP_SIZE       : 48〜16384 (整数)
-  - VEC_LEN        : 64〜16384 (整数)
+  - N_LAYERS       : 2〜5 (整数)
+  - LAYER_LEN      : 各層共通のノード数 4〜64 (整数)
+  - N_ADF_PER_LAYER: 各ADF層共通のADF数 1〜8 (整数)
+  - ELITE          : 8〜128 (整数)
+  - POP_SIZE       : 128〜8192 (整数)
+  - VEC_LEN        : 64〜2048 (整数)
   - PROB_EML       : 0.0〜1.0 (実数)
-  - MUT_STOP_PROB  : 0.001〜12 (実数)
-  - MUT_MAX_TARGETS: 1〜8 (整数)
-  - SURR_EMBED_DIM : surrogate MLP の埋め込み次元 n (8〜256)
-  - SURR_HIDDEN_DIM: surrogate MLP の隠れ次元 m (8〜512)
-  - SURR_LR        : Muon Optimizer の学習率 (1e-4〜1e-1)
-  - SURR_RATIO     : surrogate ステップ / 実評価ステップの比率初期値 (0.05〜20)
+  - MUT_STOP_PROB  : 0.05〜0.6 (実数) ← 追加: Chromosome突然変異の幾何分布停止確率
+  - MUT_MAX_TARGETS: 1〜8 (整数)      ← 追加: Genome突然変異の最大対象Chromosome数
+
+評価方法:
+  各候補パラメータでRustソースを生成 → cargo build --release →
+  30秒間実行 → stdout から最終行の acc を取得
+  目的関数 = -acc (最小化)
 
 使い方:
-  python3 cmaes_search.py [--project DIR] [--out OUT_DIR] [--budget N] [--time SEC]
+  python3 cmaes_search.py [--src SRC_RS] [--out OUT_DIR] [--budget N] [--time SEC]
 
 依存:
   pip install cma
@@ -45,58 +45,84 @@ import cma
 
 # ─── デフォルト設定 ───────────────────────────────────────────────────────────
 
-DEFAULT_OUT     = "cmaes_results"
-DEFAULT_BUDGET  = 2000
-DEFAULT_TIME    = 30
+DEFAULT_SRC     = "src/main.rs"   # Rustソースの相対パス (プロジェクトルートから)
+DEFAULT_OUT     = "cmaes_results" # 結果ディレクトリ
+DEFAULT_BUDGET  = 3000             # CMA-ES の最大評価回数
+DEFAULT_TIME    = 40              # 各評価の実行秒数
 
 # ─── ハイパーパラメータ定義 ──────────────────────────────────────────────────
 
+# CMA-ES は実数ベクトルを操作する。
+# 各パラメータを以下のスケーリングで扱う:
+#   整数パラメータ → round(clip(x, lo, hi))
+#   実数パラメータ → clip(x, lo, hi)
+
 PARAM_DEFS = [
-    # (name,             lo,    hi,   init,  is_int, log_scale)
-    ("N_LAYERS",          2,     9,    3,    True,   True),
-    ("LAYER_LEN",         4,    128,   32,   True,   True),
-    ("LAYER_LEN_LAST",    4,   1024,   64,   True,   True),
-    ("N_ADF_PER_LAYER",   1,    32,    12,   True,   True),
-    ("ELITE",             8,   256,   24,   True,   True),
-    ("POP_SIZE",         48,  16384, 1024,  True,   True),
-    ("VEC_LEN",          64,  16384, 1024,  True,   True),
-    ("PROB_EML",        0.0,   1.0,   0.3,  False,  False),
-    ("A",              -1.5,   2.0,   0.01, False,  False),
-    ("B",               0.0,   1.0,   0.5,  False,  False),
-    ("C",              -1.5,   2.0,   0.01, False,  False),
-    ("D",               0.0,   1.0,   0.5,  False,  False),
-    ("E",              -1.5,   2.0,   0.01, False,  False),
-    ("HILO",             7.5,  50,   10.0,  False,  True),
-    ("P",               0.5,   3,    1.5,   False,  True),
-    ("MUT_STOP_PROB",   0.001, 12,    6,    False,  False),
-    ("MUT_MAX_TARGETS",  1,     64,    16,   True,   True),
-    # ── Surrogate Model ハイパーパラメータ ──────────────────────────────────
-    # Tree-structured MLP の埋め込み次元 n
-    ("SURR_EMBED_DIM",   8,   256,   32,   True,   True),
-    # Tree-structured MLP の隠れ次元 m  (n*2 → m → n のボトルネック)
-    ("SURR_HIDDEN_DIM",  8,   512,   64,   True,   True),
-    # Muon Optimizer の学習率
-    ("SURR_LR",         1e-4,  0.1,  3e-3, False,  True),
-    # surrogate ステップ / 実評価ステップの比率 (初期値)
-    ("SURR_RATIO",      0.05,  20.0, 1.0,  False,  True),
-    ("SURR_PROMOTE_THRESH", 0.01, 0.99, 0.5, False, False),
-    ("SURR_DEMOTE_RATIO",  0.01, 0.99, 0.1,  False, False),
-    ("SURR_MAX_MULTIPLIER", 1.01, 50.0, 4.0,  False, False),
+    # (name,                      lo,        hi,      init,    is_int, log_scale)
+    ("N_LAYERS",                   2,         9,         4,    True,   True),
+    ("LAYER_LEN",                  4,       128,        32,    True,   True),
+    ("LAYER_LEN_LAST",             4,      1024,        64,    True,   True),
+    ("N_ADF_PER_LAYER",            1,        32,        12,    True,   True),
+    ("ELITE",                      8,       256,        24,    True,   True),
+    ("POP_SIZE",                  48,     16384,      1024,    True,   True),
+    ("VEC_LEN",                   64,     16384,      1024,    True,   True),
+    ("PROB_EML",                 0.0,       1.0,       0.3,   False,  False),
+    ("A",                       -1.5,       2.0,      0.01,   False,  False),
+    ("B",                        0.0,       1.0,       0.5,   False,  False),
+    ("C",                       -1.5,       2.0,      0.01,   False,  False),
+    ("D",                        0.0,       1.0,       0.5,   False,  False),
+    ("E",                       -1.5,       2.0,      0.01,   False,  False),
+    ("HILO",                      7.5,      50.0,      10.0,   False,   True),
+    ("P",                         0.5,       3.0,       1.5,   False,   True),
+    ("MUT_STOP_PROB",           0.001,      12.0,       6.0,   False,  False),
+    ("MUT_MAX_TARGETS",           1.0,       8.0,       3.0,    True,   True),
+
+    # learned mutator / mixer
+    ("LEARNED_MUTATION_PROB",     0.0,      0.75,      0.15,   False,  False),
+    ("NEAREST_BETTER_CACHE_SIZE", 64.0, 1048576.0,   16384.0,    True,   True),
+    ("MIXER_D1",                  8.0,     256.0,      64.0,    True,   True),
+    ("MIXER_D2",                  8.0,     256.0,      64.0,    True,   True),
+    ("MIXER_BLOCKS",              1.0,       6.0,       2.0,    True,   True),
+    ("MIXER_TOKEN_HIDDEN",       16.0,     512.0,     128.0,    True,   True),
+    ("MIXER_CHANNEL_HIDDEN",     16.0,     512.0,     128.0,    True,   True),
+    ("MIXER_COND_PROJ_HIDDEN",    4.0,     256.0,      32.0,    True,   True),
+    ("MIXER_COND_VEC_DIM",        2.0,     128.0,      32.0,    True,   True),
+    ("MIXER_TRAIN_EVERY",         1.0,       8.0,       1.0,    True,   True),
+    ("MIXER_TRAIN_EPOCHS",        1.0,       8.0,       1.0,    True,   True),
+    ("MIXER_BATCH_SIZE",          1.0,      64.0,       8.0,    True,   True),
+    ("MIXER_TRAIN_POP_SUBSET",    8.0,    2048.0,     256.0,    True,   True),
+    ("MIXER_MAX_TEACHER_PAIRS",   8.0,    4096.0,     256.0,    True,   True),
+    ("MIXER_MAX_MINIBATCHES",     1.0,     256.0,      16.0,    True,   True),
+    ("MIXER_LR_MATRIX",       1.0e-4,     1.0e-1,     2.0e-2,   False,   True),
+    ("MIXER_LR_VECTOR",       1.0e-5,     1.0e-2,     1.0e-3,   False,   True),
+    ("MUON_WEIGHT_DECAY",     1.0e-6,     1.0e-1,     1.0e-2,   False,   True),
+    ("MUON_MOMENTUM",             0.5,     0.999,      0.95,    False,  False),
+    ("MUON_NS_STEPS",             1.0,      10.0,       5.0,    True,   True),
+    ("MUON_NESTEROV",             0.0,       1.0,       1.0,    True,  False),
+    ("ADAMW_BETA1",               0.5,     0.999,       0.9,    False,  False),
+    ("ADAMW_BETA2",               0.8,    0.9999,      0.95,    False,  False),
+    ("ADAMW_EPS",             1.0e-10,    1.0e-6,     1.0e-8,   False,   True),
+    ("ADAMW_WEIGHT_DECAY",    1.0e-6,     1.0e-1,     1.0e-2,   False,   True),
 ]
+
+
 
 # ─── ユーティリティ ──────────────────────────────────────────────────────────
 
-def encode(params: dict) -> list:
+def encode(params: dict) -> list[float]:
+    """パラメータ辞書 → CMA-ES ベクトル"""
     vec = []
     for name, lo, hi, init, is_int, log_scale in PARAM_DEFS:
         v = params[name]
         if log_scale:
-            vec.append(math.log(max(v, 1e-9)))
+            vec.append(math.log(max(v, 1e-6)))
         else:
             vec.append(float(v))
     return vec
 
-def decode(x: list) -> dict:
+
+def decode(x: list[float]) -> dict:
+    """CMA-ES ベクトル → パラメータ辞書"""
     result = {}
     for i, (name, lo, hi, init, is_int, log_scale) in enumerate(PARAM_DEFS):
         v = x[i]
@@ -109,12 +135,15 @@ def decode(x: list) -> dict:
         result[name] = v
     return result
 
-def initial_x() -> list:
+
+def initial_x() -> list[float]:
     params = {name: init for name, lo, hi, init, is_int, log_scale in PARAM_DEFS}
     return encode(params)
 
+
 def initial_sigma() -> float:
     return 6.0
+
 
 # ─── Rustソース生成 ──────────────────────────────────────────────────────────
 
@@ -122,10 +151,12 @@ RUST_TEMPLATE = """\
 // AUTO-GENERATED by cmaes_search.py — DO NOT EDIT
 use ahash::AHasher;
 use dashmap::DashMap;
-use ndarray::{{Array1, Array2, Axis}};
+use ndarray::{{s, Array1, Array2, Axis}};
 use num_complex::Complex;
-use rand::rngs::SmallRng;
+use rand::rngs::{{SmallRng, StdRng}};
+use rand::seq::SliceRandom;
 use rand::{{Rng, SeedableRng}};
+use rand_distr::{{Distribution, StandardNormal}};
 use rayon::prelude::*;
 use std::hash::{{Hash, Hasher}};
 use std::sync::Arc;
@@ -134,14 +165,18 @@ use std::sync::Arc;
 const N_LAYERS: usize = {N_LAYERS};
 const LAYER_LEN: [usize; N_LAYERS] = [{LAYER_LEN_ARR}];
 const N_INPUTS_MAIN: usize = 2;
+/// ADF の外部入力: [in0, in1, one, x_global]
+/// x_global はトップ層の ext[0]（入力 x）を全 ADF 層に伝播させたもの。
 const N_INPUTS_ADF: usize = 4;
 const N_ADF_PER_LAYER: [usize; N_LAYERS - 1] = [{N_ADF_ARR}];
+
 const ONE_SIG: Sig = 0xFFFF_FFFF_FFFF_FFFFu64;
+/// x_global の固定 Sig。バッチ変化時は exec_adf に渡す x_sig 引数で上書きされる。
 const X_GLOBAL_SIG_SLOT: usize = 3;
 const VEC_LEN: usize = {VEC_LEN};
 const POP_SIZE: usize = {POP_SIZE};
 const ELITE: usize = {ELITE};
-const N_GEN: usize = 99999999;
+const N_GEN: usize = 99999999;  // 時間制限で止める
 const PROB_EML: f64 = {PROB_EML};
 const A: f64 = {A};
 const B: f64 = {B};
@@ -150,42 +185,78 @@ const D: f64 = {D};
 const E: f64 = {E};
 const HILO: f64 = {HILO};
 const P: f64 = {P};
+
+// ─── 突然変異率パラメータ ────────────────────────────────────────────────────
 const MUT_STOP_PROB: f64 = {MUT_STOP_PROB};
 const MUT_MAX_TARGETS: usize = {MUT_MAX_TARGETS};
 
-// ─── Surrogate Model ハイパーパラメータ ─────────────────────────────────────
-/// Tree-structured MLP の埋め込み次元 n
-const SURR_EMBED_DIM: usize = {SURR_EMBED_DIM};
-/// Tree-structured MLP の隠れ次元 m  (n*2 → Linear → m → Swish → Linear → n)
-const SURR_HIDDEN_DIM: usize = {SURR_HIDDEN_DIM};
-/// Muon Optimizer の学習率
-const SURR_LR: f64 = {SURR_LR};
-/// surrogate ステップ / 実評価ステップの比率 (初期値)
-const SURR_RATIO_INIT: f64 = {SURR_RATIO};
-/// surrogate のバリデーション相関がこの値を超えたら surrogate ステップ倍率を上げる
-const SURR_PROMOTE_THRESH: f64 = {SURR_PROMOTE_THRESH};
-/// surrogate のバリデーション相関がこの値を下回ったら surrogate ステップ倍率を下げる
-const SURR_DEMOTE_THRESH: f64 = {SURR_DEMOTE_THRESH};
-/// surrogate ステップ数の最大倍率 (SURR_RATIO_INIT に対する乗数上限)
-const SURR_MAX_MULTIPLIER: f64 = {SURR_MAX_MULTIPLIER};
+// ─── learned mutator / mixer hyperparams ─────────────────────────────────────
+const LEARNED_MUTATION_PROB: f64 = {LEARNED_MUTATION_PROB};
+const MIXER_D1: usize = {MIXER_D1};
+const MIXER_D2: usize = {MIXER_D2};
+const MIXER_BLOCKS: usize = {MIXER_BLOCKS};
+const MIXER_TOKEN_HIDDEN: usize = {MIXER_TOKEN_HIDDEN};
+const MIXER_CHANNEL_HIDDEN: usize = {MIXER_CHANNEL_HIDDEN};
+const MIXER_COND_PROJ_HIDDEN: usize = {MIXER_COND_PROJ_HIDDEN};
+const MIXER_COND_VEC_DIM: usize = {MIXER_COND_VEC_DIM};
+const MIXER_TRAIN_EVERY: usize = {MIXER_TRAIN_EVERY};
+const MIXER_TRAIN_EPOCHS: usize = {MIXER_TRAIN_EPOCHS};
+const MIXER_BATCH_SIZE: usize = {MIXER_BATCH_SIZE};
+const MIXER_TRAIN_POP_SUBSET: usize = {MIXER_TRAIN_POP_SUBSET};
+const MIXER_MAX_TEACHER_PAIRS: usize = {MIXER_MAX_TEACHER_PAIRS};
+const MIXER_MAX_MINIBATCHES: usize = {MIXER_MAX_MINIBATCHES};
+const MIXER_LR_MATRIX: f32 = {MIXER_LR_MATRIX};
+const MIXER_LR_VECTOR: f32 = {MIXER_LR_VECTOR};
+const NEAREST_BETTER_CACHE_SIZE: usize = {NEAREST_BETTER_CACHE_SIZE};
+const MUON_WEIGHT_DECAY: f32 = {MUON_WEIGHT_DECAY};
+const MUON_MOMENTUM: f32 = {MUON_MOMENTUM};
+const MUON_NS_STEPS: usize = {MUON_NS_STEPS};
+const MUON_NESTEROV: bool = {MUON_NESTEROV};
+const ADAMW_BETA1: f32 = {ADAMW_BETA1};
+const ADAMW_BETA2: f32 = {ADAMW_BETA2};
+const ADAMW_EPS: f32 = {ADAMW_EPS};
+const ADAMW_WEIGHT_DECAY: f32 = {ADAMW_WEIGHT_DECAY};
+const EVAL_PROGRESS_CHUNK: usize = 32;
+const TRAIN_PROGRESS_EVERY: usize = 4;
 
 // ─── カリキュラム学習 ────────────────────────────────────────────────────────
 const CURRICULUM_RAMP_GENS: usize = 1;
 const INTER_WEIGHT_MAX: f64 = 1.0;
+
+// ─── adf_cache 上限 ──────────────────────────────────────────────────────────
 const ADF_CACHE_MAX: usize = 1 << 18;
+
+// ─── バッチ設定 ──────────────────────────────────────────────────────────────
 const N_BATCHES: usize = 1;
 
 {BODY}
 """
 
+# ─── ここに元の関数群を埋め込むため、テンプレート末尾 {BODY} に挿入する ─────
+
 RUST_BODY = r"""
 // ─── レイヤー設定ヘルパー ─────────────────────────────────────────────────────
 
-#[inline] fn is_top(layer_idx: usize) -> bool { layer_idx == N_LAYERS - 1 }
-#[inline] fn layer_len(layer_idx: usize) -> usize { LAYER_LEN[layer_idx] }
-#[inline] fn layer_n_ext(layer_idx: usize) -> usize { if is_top(layer_idx) { N_INPUTS_MAIN } else { N_INPUTS_ADF } }
-#[inline] fn layer_n_adf(layer_idx: usize) -> usize { N_ADF_PER_LAYER[layer_idx] }
-#[inline] fn layer_n_funcs(layer_idx: usize) -> usize { if layer_idx == 0 { 1 } else { 1 + layer_n_adf(layer_idx - 1) } }
+#[inline]
+fn is_top(layer_idx: usize) -> bool {
+    layer_idx == N_LAYERS - 1
+}
+#[inline]
+fn layer_len(layer_idx: usize) -> usize {
+    LAYER_LEN[layer_idx]
+}
+#[inline]
+fn layer_n_ext(layer_idx: usize) -> usize {
+    if is_top(layer_idx) { N_INPUTS_MAIN } else { N_INPUTS_ADF }
+}
+#[inline]
+fn layer_n_adf(layer_idx: usize) -> usize {
+    N_ADF_PER_LAYER[layer_idx]
+}
+#[inline]
+fn layer_n_funcs(layer_idx: usize) -> usize {
+    if layer_idx == 0 { 1 } else { 1 + layer_n_adf(layer_idx - 1) }
+}
 
 fn selectfunc(max: u8, rng: &mut SmallRng) -> u8 {
     if rng.gen::<f64>() < PROB_EML { return 0; }
@@ -263,7 +334,8 @@ impl Chromosome {
         let n = layer_len(self.layer_idx);
         let n_ext = layer_n_ext(self.layer_idx);
         let n_f = layer_n_funcs(self.layer_idx) as u8;
-        let n_mut = (rng.gen::<f64>() * MUT_STOP_PROB).exp() as usize + 1;
+        // MUT_STOP_PROB: 対数一様分布の最大値。大きいほど多くのノードを変異させる。
+        let mut n_mut = (rng.gen::<f64>() * MUT_STOP_PROB).exp() as usize + 1;
         for _ in 0..n_mut {
             let i = rng.gen_range(0..n);
             let max = (n_ext + i) as u16;
@@ -318,6 +390,7 @@ impl Genome {
         let totals: Vec<usize> = (0..N_LAYERS)
             .map(|li| if is_top(li) { 1 } else { layer_n_adf(li) }).collect();
         let grand_total: usize = totals.iter().sum();
+        // MUT_MAX_TARGETS: 一度に変異させる Chromosome の最大数
         let n_targets = rng.gen_range(1..=MUT_MAX_TARGETS.min(grand_total));
         for _ in 0..n_targets {
             let mut t = rng.gen_range(0..grand_total);
@@ -365,6 +438,9 @@ fn genome_key(all_sigs: &[Vec<Sig>]) -> u64 {
 // ─── Cache ────────────────────────────────────────────────────────────────────
 
 type ArcVec = Arc<[Complex<f64>]>;
+/// ADF キャッシュのキー。
+/// (batch_sig, c_sig, in0_sig, in1_sig, x_sig)
+/// x_sig を加えることで、同じ ADF 構造でもバッチの x 値が異なれば別エントリになる。
 type AdfKey = (Sig, Sig, Sig, Sig, Sig);
 type Score = (f64, f64);
 
@@ -390,7 +466,7 @@ fn node_get_or_compute(sig: Sig, v0: &[Complex<f64>], v1: &[Complex<f64>], ev: &
 
 // ─── Dataset ──────────────────────────────────────────────────────────────────
 
-fn target_fn(x: Complex<f64>) -> Complex<f64> { (x * x * x - x).sin() * (x * x).sin() }
+fn target_fn(x: Complex<f64>) -> Complex<f64> { (x * x * x - x).sin() * (x * x).sin()  }
 
 fn make_batch(rng: &mut SmallRng, x_range: (f64, f64))
     -> ([Vec<Complex<f64>>; N_INPUTS_MAIN], Vec<Complex<f64>>)
@@ -409,6 +485,8 @@ struct Dataset {
 }
 
 impl Dataset {
+    /// 固定データセット: 起動時に一度だけ生成し、以降は変更しない。
+    /// batch_sig も固定値になるため、世代をまたいだキャッシュが正しく機能する。
     fn new_fixed(rng: &mut SmallRng) -> Self {
         let batches: Vec<_> = (0..N_BATCHES).map(|_| make_batch(rng, (-HILO, HILO))).collect();
         let batch_sig = Self::compute_sig(&batches);
@@ -421,626 +499,13 @@ impl Dataset {
     }
 }
 
-// ─── Surrogate Model ─────────────────────────────────────────────────────────
-//
-// 設計:
-//   各ゲノムノードで h = MLP(h_left, h_right) を計算（h は SURR_EMBED_DIM 次元）
-//   MLP: [2*n] → Linear(2n→m) → Swish → Linear(m→n)
-//   leaf（ext入力スロット）の埋め込みは学習対象ベクトル
-//   最終ノードの埋め込み h_out → Linear(n→1) で loss を予測
-//
-// 最適化のポイント:
-//   1. ForwardCache を導入し、フォワードパスを1回だけ走査して中間値を保存。
-//      genome_backward はこのキャッシュを受け取って再走査を完全に排除する。
-//   2. surrogate_predict は precomputed な GenomeData を受け取るオーバーロードを追加し、
-//      呼び出し元（surrogate評価フェーズ）で active_and_sig を1回だけ計算する。
-//   3. embed_cache は HashMap<Sig, Array1<f64>> として世代をまたいで保持し、
-//      重み更新後のみクリアする（同一世代内の共通サブツリーを再利用）。
-//   4. update_val_correlation でも precomputed GenomeData を使用する。
-
-/// Swish 活性化関数: x * sigmoid(x)
-#[inline]
-fn swish(x: f64) -> f64 { x / (1.0 + (-x).exp()) }
-
-/// Swish の微分: sigmoid(x) + x * sigmoid(x) * (1 - sigmoid(x))
-#[inline]
-fn swish_grad(x: f64) -> f64 {
-    let s = 1.0 / (1.0 + (-x).exp());
-    s + x * s * (1.0 - s)
-}
-
-/// Muon で採用されている5次Newton-Schulz反復を用いた直交化
-fn newton_schulz_orthogonalize(g: &Array2<f64>, steps: usize) -> Array2<f64> {
-    let (rows, cols) = g.dim();
-    if rows == 0 || cols == 0 { return g.clone(); }
-    let norm = g.iter().map(|x| x * x).sum::<f64>().sqrt().max(1e-10);
-    let mut x = g / norm;
-    let (a, b, c) = (3.4445, -4.7750, 2.0315);
-    for _ in 0..steps {
-        let xt = x.t();
-        let s = xt.dot(&x);
-        let s2 = s.dot(&s);
-        let eye = Array2::<f64>::eye(cols);
-        let mut m = eye * a;
-        m += &(&s * b);
-        m += &(&s2 * c);
-        x = x.dot(&m);
-    }
-    x
-}
-
-// ─── ノードSig計算（全構造情報を含む・衝突なし）────────────────────────────
-
-fn compute_node_sig_recursive(
-    abs: usize,
-    layer_idx: usize,
-    c: &Chromosome,
-    node_sigs: &[Sig],
-    all_sigs: &[Vec<Sig>],
-    n_ext: usize,
-) -> Sig {
-    if abs < n_ext {
-        return abs as Sig + 1;
-    }
-    let i = abs - n_ext;
-    let c0 = c.conn[i][0] as usize;
-    let c1 = c.conn[i][1] as usize;
-    let f = c.func[i] as usize;
-    let s0 = node_sigs[c0];
-    let s1 = node_sigs[c1];
-    if f == 0 || layer_idx == 0 {
-        make_sig(s0, s1, 0)
-    } else {
-        let sub_li = layer_idx - 1;
-        let sub_idx = (f - 1).min(layer_n_adf(sub_li) - 1);
-        let adf_sig = all_sigs[sub_li][sub_idx];
-        make_sig(make_sig(s0, s1, f as u8), adf_sig, 0)
-    }
-}
-
-// ─── ゲノムの事前計算済みデータ ──────────────────────────────────────────────
-//
-// active_and_sig の結果をキャッシュし、surrogate 評価フェーズ全体で再利用する。
-// これにより POP_SIZE 回の重複計算を排除する。
-
-struct GenomeData {
-    all_sigs: Vec<Vec<Sig>>,
-    all_acts: Vec<Vec<Vec<usize>>>,
-    genome_key: u64,
-}
-
-impl GenomeData {
-    fn new(genome: &Genome) -> Self {
-        let all_data: Vec<Vec<(Vec<usize>, Sig)>> = (0..N_LAYERS)
-            .map(|li| genome.layers[li].iter().map(|c| c.active_and_sig()).collect())
-            .collect();
-        let all_sigs: Vec<Vec<Sig>> = all_data.iter()
-            .map(|layer| layer.iter().map(|d| d.1).collect()).collect();
-        let all_acts: Vec<Vec<Vec<usize>>> = all_data.into_iter()
-            .map(|layer| layer.into_iter().map(|d| d.0).collect()).collect();
-        let gk = genome_key(&all_sigs);
-        Self { all_sigs, all_acts, genome_key: gk }
-    }
-}
-
-// ─── フォワードパスの中間値キャッシュ ────────────────────────────────────────
-//
-// フォワードパスで計算した中間値をすべて保持する。
-// backward はこのキャッシュを受け取り、再走査を行わない。
-
-struct NodeFwdEntry {
-    node_sig:   Sig,
-    concat_inp: Array1<f64>,  // [2n] 連結入力
-    pre_swish:  Array1<f64>,  // Linear(2n→m) の出力（Swish前）
-    h_out:      Array1<f64>,  // Linear(m→n) の出力（このノードの埋め込み）
-    c0:         usize,
-    c1:         usize,
-}
-
-/// フォワードパスの全中間値: fwd_entries[li][k][abs] = Option<NodeFwdEntry>
-/// ext スロットの埋め込みは ext_embeds[li][k][i] に格納
-struct ForwardCache {
-    // [li][k][abs] = Some(entry) for internal nodes, None for ext slots
-    fwd_entries: Vec<Vec<Vec<Option<NodeFwdEntry>>>>,
-    // [li][k][i] = embedding for ext slot i
-    ext_embeds:  Vec<Vec<Vec<Array1<f64>>>>,
-    // [li][k][abs] = node_sig (0 if not computed)
-    node_sigs:   Vec<Vec<Vec<Sig>>>,
-    // top layer output embedding (= last node of top chrom)
-    top_embed:   Array1<f64>,
-}
-
-// ─── Surrogate Model の重みとモメンタム ─────────────────────────────────────
-
-struct SurrogateWeights {
-    // leaf embeddings: ext スロット Sig → SURR_EMBED_DIM ベクトル
-    leaf_embeds: std::collections::HashMap<u64, Array1<f64>>,
-
-    // MLP ノード層: [2*n → m] の重みと偏り
-    w1: Array2<f64>, // (SURR_HIDDEN_DIM, 2*SURR_EMBED_DIM)
-    b1: Array1<f64>, // (SURR_HIDDEN_DIM,)
-    // [m → n] の重みと偏り
-    w2: Array2<f64>, // (SURR_EMBED_DIM, SURR_HIDDEN_DIM)
-    b2: Array1<f64>, // (SURR_EMBED_DIM,)
-    // 最終スカラー予測層: [n → 1]
-    w_out: Array1<f64>, // (SURR_EMBED_DIM,)
-    b_out: f64,
-
-    // Muon モメンタム（各重み行列対応）
-    m_w1: Array2<f64>,
-    m_b1: Array1<f64>,
-    m_w2: Array2<f64>,
-    m_b2: Array1<f64>,
-    m_w_out: Array1<f64>,
-    m_b_out: f64,
-    // leaf embedding モメンタム
-    m_leaf: std::collections::HashMap<u64, Array1<f64>>,
-
-    // ハイパーパラメータ
-    lr: f64,
-    momentum: f64,
-
-    // バリデーション用 held-out バッファ
-    held_out_buffer: Vec<(u64, f64, Genome)>,
-    val_correlation: f64,
-    surrogate_multiplier: f64,
-}
-
-impl SurrogateWeights {
-    fn new(lr: f64) -> Self {
-        use rand::SeedableRng;
-        let mut rng = SmallRng::seed_from_u64(12345);
-        let n = SURR_EMBED_DIM;
-        let m = SURR_HIDDEN_DIM;
-        let scale1 = (2.0 / (2 * n) as f64).sqrt();
-        let scale2 = (2.0 / m as f64).sqrt();
-        let rand_mat = |rows: usize, cols: usize, scale: f64, rng: &mut SmallRng| -> Array2<f64> {
-            Array2::from_shape_fn((rows, cols), |_| (rng.gen::<f64>() * 2.0 - 1.0) * scale)
-        };
-        let rand_vec = |size: usize, scale: f64, rng: &mut SmallRng| -> Array1<f64> {
-            Array1::from_shape_fn(size, |_| (rng.gen::<f64>() * 2.0 - 1.0) * scale)
-        };
-        Self {
-            leaf_embeds: std::collections::HashMap::new(),
-            w1: rand_mat(m, 2 * n, scale1, &mut rng),
-            b1: Array1::zeros(m),
-            w2: rand_mat(n, m, scale2, &mut rng),
-            b2: Array1::zeros(n),
-            w_out: rand_vec(n, (2.0 / n as f64).sqrt(), &mut rng),
-            b_out: 0.0,
-            m_w1: Array2::zeros((m, 2 * n)),
-            m_b1: Array1::zeros(m),
-            m_w2: Array2::zeros((n, m)),
-            m_b2: Array1::zeros(n),
-            m_w_out: Array1::zeros(n),
-            m_b_out: 0.0,
-            m_leaf: std::collections::HashMap::new(),
-            lr,
-            momentum: 0.95,
-            held_out_buffer: Vec::new(),
-            val_correlation: 0.0,
-            surrogate_multiplier: 1.0,
-        }
-    }
-
-    /// leaf embedding を取得（なければ決定論的初期化）
-    /// 呼び出しごとに clone しているが、ext スロット数は少ないため許容範囲。
-    fn get_or_init_leaf(&mut self, sig: u64) -> Array1<f64> {
-        if !self.leaf_embeds.contains_key(&sig) {
-            let scale = (1.0 / SURR_EMBED_DIM as f64).sqrt();
-            let embed: Array1<f64> = Array1::from_shape_fn(SURR_EMBED_DIM, |idx| {
-                let h = sig
-                    .wrapping_mul(0x9e3779b97f4a7c15_u64)
-                    .wrapping_add(idx as u64 * 0x6c62272e07bb0142_u64);
-                let h2 = h ^ (h >> 30);
-                let h3 = h2.wrapping_mul(0xbf58476d1ce4e5b9_u64);
-                let bits = h3 ^ (h3 >> 27);
-                let frac = (bits >> 11) as f64 / (1u64 << 53) as f64;
-                (frac * 2.0 - 1.0) * scale
-            });
-            self.leaf_embeds.insert(sig, embed);
-            self.m_leaf.entry(sig).or_insert_with(|| Array1::zeros(SURR_EMBED_DIM));
-        }
-        self.leaf_embeds[&sig].clone()
-    }
-
-    /// MLP フォワードパス: (h_left, h_right) → (concat_input, pre_swish, h_out)
-    /// 中間値をすべて返すことで、呼び出し元が backward に必要な情報を保持できる。
-    #[inline]
-    fn mlp_forward(&self, h_left: &Array1<f64>, h_right: &Array1<f64>)
-        -> (Array1<f64>, Array1<f64>, Array1<f64>)
-    {
-        let mut input = Array1::zeros(2 * SURR_EMBED_DIM);
-        input.slice_mut(ndarray::s![..SURR_EMBED_DIM]).assign(h_left);
-        input.slice_mut(ndarray::s![SURR_EMBED_DIM..]).assign(h_right);
-        let pre1 = self.w1.dot(&input) + &self.b1;
-        let act1: Array1<f64> = pre1.mapv(swish);
-        let out = self.w2.dot(&act1) + &self.b2;
-        (input, pre1, out)
-    }
-
-    /// 最終スカラー予測: h_out → loss_pred
-    #[inline]
-    fn predict_from_embed(&self, h: &Array1<f64>) -> f64 {
-        self.w_out.dot(h) + self.b_out
-    }
-}
-
-// ─── フォワードパス（中間値キャッシュを生成） ────────────────────────────────
-//
-// 改善点:
-//   - embed_cache ヒット時でも NodeFwdEntry を作らず、h_out だけ保存することで
-//     backward が必要な場合のみフルエントリを作る。
-//   - 戻り値として ForwardCache を返し、backward が再利用できるようにする。
-//   - top層最終ノードの埋め込みも ForwardCache に含める。
-
-fn genome_forward_with_cache(
-    genome: &Genome,
-    data: &GenomeData,
-    sw: &mut SurrogateWeights,
-    embed_cache: &mut std::collections::HashMap<Sig, Array1<f64>>,
-    need_backward_cache: bool,  // true なら NodeFwdEntry を構築する
-) -> ForwardCache {
-    let mut fwd_entries: Vec<Vec<Vec<Option<NodeFwdEntry>>>> = (0..N_LAYERS).map(|li| {
-        (0..genome.layers[li].len()).map(|_k| {
-            vec![None; layer_n_ext(li) + layer_len(li)]
-        }).collect()
-    }).collect();
-    let mut ext_embeds_all: Vec<Vec<Vec<Array1<f64>>>> = (0..N_LAYERS).map(|li| {
-        (0..genome.layers[li].len()).map(|_k| {
-            vec![Array1::zeros(SURR_EMBED_DIM); layer_n_ext(li)]
-        }).collect()
-    }).collect();
-    let mut node_sigs_all: Vec<Vec<Vec<Sig>>> = (0..N_LAYERS).map(|li| {
-        (0..genome.layers[li].len()).map(|_k| {
-            vec![0u64; layer_n_ext(li) + layer_len(li)]
-        }).collect()
-    }).collect();
-
-    // 各層の各 Chromosome の出力埋め込み（次の層への入力として使用）
-    let mut chrom_out_embeds: Vec<Vec<Array1<f64>>> = Vec::with_capacity(N_LAYERS);
-
-    for li in 0..N_LAYERS {
-        let n_chroms = genome.layers[li].len();
-        let mut layer_outs = Vec::with_capacity(n_chroms);
-        for k in 0..n_chroms {
-            let c = &genome.layers[li][k];
-            let active = &data.all_acts[li][k];
-            let n_ext = layer_n_ext(li);
-            let total = n_ext + layer_len(li);
-
-            // ext スロット初期化（leaf_embeds から取得）
-            for i in 0..n_ext {
-                let sig = i as Sig + 1;
-                node_sigs_all[li][k][i] = sig;
-                let emb = sw.get_or_init_leaf(sig);
-                ext_embeds_all[li][k][i] = emb;
-            }
-
-            // active ノードをボトムアップに処理
-            // node_embeds[abs] = 計算済み埋め込み（ext スロットは ext_embeds から参照）
-            let mut node_embeds: Vec<Option<Array1<f64>>> = vec![None; total];
-            for i in 0..n_ext {
-                node_embeds[i] = Some(ext_embeds_all[li][k][i].clone());
-            }
-
-            for &abs in active {
-                if abs < n_ext { continue; }
-
-                let node_sig = compute_node_sig_recursive(
-                    abs, li, c, &node_sigs_all[li][k], &data.all_sigs, n_ext,
-                );
-                node_sigs_all[li][k][abs] = node_sig;
-
-                let i = abs - n_ext;
-                let c0 = c.conn[i][0] as usize;
-                let c1 = c.conn[i][1] as usize;
-
-                // embed_cache ヒット: backward が不要なら NodeFwdEntry は作らない
-                if let Some(cached) = embed_cache.get(&node_sig) {
-                    node_embeds[abs] = Some(cached.clone());
-                    if need_backward_cache {
-                        // backward のために NodeFwdEntry を構築する
-                        // （中間値は再計算するが、embed_cache にヒットした場合のみ）
-                        let h_left  = node_embeds[c0].as_ref().map(|v| v.clone()).unwrap_or_else(|| Array1::zeros(SURR_EMBED_DIM));
-                        let h_right = node_embeds[c1].as_ref().map(|v| v.clone()).unwrap_or_else(|| Array1::zeros(SURR_EMBED_DIM));
-                        let (inp, pre1, _) = sw.mlp_forward(&h_left, &h_right);
-                        fwd_entries[li][k][abs] = Some(NodeFwdEntry {
-                            node_sig, concat_inp: inp, pre_swish: pre1,
-                            h_out: cached.clone(), c0, c1,
-                        });
-                    }
-                    continue;
-                }
-
-                let h_left  = node_embeds[c0].as_ref().map(|v| v.clone()).unwrap_or_else(|| Array1::zeros(SURR_EMBED_DIM));
-                let h_right = node_embeds[c1].as_ref().map(|v| v.clone()).unwrap_or_else(|| Array1::zeros(SURR_EMBED_DIM));
-                let (inp, pre1, h_out) = sw.mlp_forward(&h_left, &h_right);
-                embed_cache.insert(node_sig, h_out.clone());
-                node_embeds[abs] = Some(h_out.clone());
-
-                if need_backward_cache {
-                    fwd_entries[li][k][abs] = Some(NodeFwdEntry {
-                        node_sig, concat_inp: inp, pre_swish: pre1,
-                        h_out, c0, c1,
-                    });
-                }
-            }
-
-            let out = node_embeds[total - 1].clone().unwrap_or_else(|| Array1::zeros(SURR_EMBED_DIM));
-            layer_outs.push(out);
-        }
-        chrom_out_embeds.push(layer_outs);
-    }
-
-    let top_embed = chrom_out_embeds[N_LAYERS - 1][0].clone();
-    ForwardCache { fwd_entries, ext_embeds: ext_embeds_all, node_sigs: node_sigs_all, top_embed }
-}
-
-// ─── バックワード（ForwardCache を受け取り再走査なし）────────────────────────
-//
-// 改善点:
-//   - genome_forward_with_cache の ForwardCache を受け取るため、フォワードの再走査が不要。
-//   - d_node を Option<Array1> ではなく Array1 の Vec で管理し、
-//     初期化済みかどうかは別の bool 配列で管理する（clone/unwrap を削減）。
-
-fn genome_backward_from_cache(
-    genome: &Genome,
-    data: &GenomeData,
-    fwd: &ForwardCache,
-    sw: &SurrogateWeights,
-    d_out_top: &Array1<f64>,
-    dw1_acc: &mut Array2<f64>,
-    db1_acc: &mut Array1<f64>,
-    dw2_acc: &mut Array2<f64>,
-    db2_acc: &mut Array1<f64>,
-    d_leaf_acc: &mut std::collections::HashMap<u64, Array1<f64>>,
-) {
-    // d_node[li][k][abs]: そのノードへの勾配（ゼロ初期化）
-    // d_node_active[li][k][abs]: 勾配が書き込まれたか
-    let mut d_node: Vec<Vec<Vec<Array1<f64>>>> = (0..N_LAYERS).map(|li| {
-        (0..genome.layers[li].len()).map(|_k| {
-            let total = layer_n_ext(li) + layer_len(li);
-            vec![Array1::zeros(SURR_EMBED_DIM); total]
-        }).collect()
-    }).collect();
-    let mut d_node_active: Vec<Vec<Vec<bool>>> = (0..N_LAYERS).map(|li| {
-        (0..genome.layers[li].len()).map(|_k| {
-            let total = layer_n_ext(li) + layer_len(li);
-            vec![false; total]
-        }).collect()
-    }).collect();
-
-    // top 層最終ノードへの勾配を設定
-    {
-        let top_li = N_LAYERS - 1;
-        let total_top = layer_n_ext(top_li) + layer_len(top_li);
-        d_node[top_li][0][total_top - 1] = d_out_top.clone();
-        d_node_active[top_li][0][total_top - 1] = true;
-    }
-
-    for li in (0..N_LAYERS).rev() {
-        for k in 0..genome.layers[li].len() {
-            let c = &genome.layers[li][k];
-            let active = &data.all_acts[li][k];
-            let n_ext = layer_n_ext(li);
-
-            for &abs in active.iter().rev() {
-                if abs < n_ext { continue; }
-                if !d_node_active[li][k][abs] { continue; }
-
-                let fw = match &fwd.fwd_entries[li][k][abs] {
-                    Some(f) => f,
-                    None => continue,
-                };
-                let c0 = fw.c0;
-                let c1 = fw.c1;
-
-                // d_out を一時コピー（後で d_node[li][k][abs] を書き換えるため）
-                let d_out = d_node[li][k][abs].clone();
-
-                // Linear(m→n) バックワード
-                let act1: Array1<f64> = fw.pre_swish.mapv(swish);
-                let d_act1 = sw.w2.t().dot(&d_out);
-                for r in 0..SURR_EMBED_DIM {
-                    for col in 0..SURR_HIDDEN_DIM {
-                        dw2_acc[[r, col]] += d_out[r] * act1[col];
-                    }
-                }
-                *db2_acc += &d_out;
-
-                // Swish バックワード
-                let d_pre1: Array1<f64> = d_act1 * fw.pre_swish.mapv(swish_grad);
-
-                // Linear(2n→m) バックワード
-                let d_inp = sw.w1.t().dot(&d_pre1);
-                for r in 0..SURR_HIDDEN_DIM {
-                    for col in 0..2*SURR_EMBED_DIM {
-                        dw1_acc[[r, col]] += d_pre1[r] * fw.concat_inp[col];
-                    }
-                }
-                *db1_acc += &d_pre1;
-
-                let d_left  = d_inp.slice(ndarray::s![..SURR_EMBED_DIM]).to_owned();
-                let d_right = d_inp.slice(ndarray::s![SURR_EMBED_DIM..]).to_owned();
-
-                // c0 への勾配の伝播
-                if c0 < n_ext {
-                    let sig = fwd.node_sigs[li][k][c0];
-                    let e = d_leaf_acc.entry(sig).or_insert_with(|| Array1::zeros(SURR_EMBED_DIM));
-                    *e += &d_left;
-                } else {
-                    d_node[li][k][c0] += &d_left;
-                    d_node_active[li][k][c0] = true;
-                }
-
-                // c1 への勾配の伝播
-                if c1 < n_ext {
-                    let sig = fwd.node_sigs[li][k][c1];
-                    let e = d_leaf_acc.entry(sig).or_insert_with(|| Array1::zeros(SURR_EMBED_DIM));
-                    *e += &d_right;
-                } else {
-                    d_node[li][k][c1] += &d_right;
-                    d_node_active[li][k][c1] = true;
-                }
-
-                // ADF 呼び出しノードの場合、参照先 ADF Chromosome の出力ノードにも勾配を流す
-                let f = c.func[abs - n_ext] as usize;
-                if f != 0 && li > 0 {
-                    let sub_li = li - 1;
-                    let sub_idx = (f - 1).min(layer_n_adf(sub_li) - 1);
-                    let sub_total = layer_n_ext(sub_li) + layer_len(sub_li);
-                    d_node[sub_li][sub_idx][sub_total - 1] += &d_out;
-                    d_node_active[sub_li][sub_idx][sub_total - 1] = true;
-                }
-            }
-
-            // ext スロットへの勾配を d_leaf_acc に集約
-            for i in 0..n_ext {
-                if d_node_active[li][k][i] {
-                    let sig = fwd.node_sigs[li][k][i];
-                    let e = d_leaf_acc.entry(sig).or_insert_with(|| Array1::zeros(SURR_EMBED_DIM));
-                    *e += &d_node[li][k][i];
-                }
-            }
-        }
-    }
-}
-
-// ─── 訓練ステップ（フォワード1回 + バックワード1回）─────────────────────────
-//
-// 改善点:
-//   - genome_forward_with_cache(need_backward_cache=true) でフォワードを1回走査し
-//     ForwardCache を生成。
-//   - genome_backward_from_cache でそのキャッシュを使ってバックワードを実行。
-//   - フォワードの再走査を完全に排除。
-//   - embed_cache は Muon 更新後にクリアする（重みが変わったため）。
-
-fn surrogate_train_step(
-    sw: &mut SurrogateWeights,
-    genome: &Genome,
-    data: &GenomeData,
-    actual_loss: f64,
-    embed_cache: &mut std::collections::HashMap<Sig, Array1<f64>>,
-) -> f64 {
-    // ─── フォワード（中間値キャッシュ付き）──────────────────────────────────
-    let fwd = genome_forward_with_cache(genome, data, sw, embed_cache, true);
-    let pred = sw.predict_from_embed(&fwd.top_embed);
-    let err = pred - actual_loss;
-    let mse = err * err;
-
-    // ─── 出力層への勾配 ──────────────────────────────────────────────────
-    let d_h_final = &sw.w_out * (2.0 * err);
-    let d_w_out_grad = &fwd.top_embed * (2.0 * err);
-    let d_b_out_grad = 2.0 * err;
-
-    // w_out 更新
-    sw.m_w_out = &sw.m_w_out * sw.momentum + &d_w_out_grad * (1.0 - sw.momentum);
-    sw.w_out = &sw.w_out - &sw.m_w_out * sw.lr;
-    sw.m_b_out = sw.m_b_out * sw.momentum + d_b_out_grad * (1.0 - sw.momentum);
-    sw.b_out -= sw.m_b_out * sw.lr;
-
-    // ─── バックワード（ForwardCache を使用、再走査なし）──────────────────
-    let mut dw1_acc: Array2<f64> = Array2::zeros(sw.w1.dim());
-    let mut db1_acc: Array1<f64> = Array1::zeros(sw.b1.len());
-    let mut dw2_acc: Array2<f64> = Array2::zeros(sw.w2.dim());
-    let mut db2_acc: Array1<f64> = Array1::zeros(sw.b2.len());
-    let mut d_leaf_acc: std::collections::HashMap<u64, Array1<f64>> = std::collections::HashMap::new();
-
-    genome_backward_from_cache(
-        genome, data, &fwd, sw,
-        &d_h_final,
-        &mut dw1_acc, &mut db1_acc, &mut dw2_acc, &mut db2_acc,
-        &mut d_leaf_acc,
-    );
-
-    // ─── Muon 更新 ───────────────────────────────────────────────────────
-    {
-        let orth = newton_schulz_orthogonalize(&dw1_acc, 5);
-        sw.m_w1 = &sw.m_w1 * sw.momentum + &orth * (1.0 - sw.momentum);
-        sw.w1 = &sw.w1 - &sw.m_w1 * sw.lr;
-    }
-    {
-        sw.m_b1 = &sw.m_b1 * sw.momentum + &db1_acc * (1.0 - sw.momentum);
-        sw.b1 = &sw.b1 - &sw.m_b1 * sw.lr;
-    }
-    {
-        let orth = newton_schulz_orthogonalize(&dw2_acc, 5);
-        sw.m_w2 = &sw.m_w2 * sw.momentum + &orth * (1.0 - sw.momentum);
-        sw.w2 = &sw.w2 - &sw.m_w2 * sw.lr;
-    }
-    {
-        sw.m_b2 = &sw.m_b2 * sw.momentum + &db2_acc * (1.0 - sw.momentum);
-        sw.b2 = &sw.b2 - &sw.m_b2 * sw.lr;
-    }
-    // leaf 埋め込み更新
-    for (sig, d_emb) in d_leaf_acc {
-        if let Some(emb) = sw.leaf_embeds.get_mut(&sig) {
-            let mom = sw.m_leaf.entry(sig).or_insert_with(|| Array1::zeros(SURR_EMBED_DIM));
-            *mom = &*mom * sw.momentum + &d_emb * (1.0 - sw.momentum);
-            *emb = &*emb - &*mom * sw.lr;
-        }
-    }
-
-    // embed_cache クリア（重みが変わったため）
-    embed_cache.clear();
-
-    mse
-}
-
-// ─── surrogate 予測（GenomeData を受け取るバージョン）────────────────────────
-//
-// 改善点:
-//   - GenomeData を引数として受け取ることで、active_and_sig の再計算を排除。
-//   - surrogate 評価フェーズでは呼び出し元が GenomeData を事前に計算して渡す。
-
-fn surrogate_predict_with_data(
-    genome: &Genome,
-    data: &GenomeData,
-    sw: &mut SurrogateWeights,
-    embed_cache: &mut std::collections::HashMap<Sig, Array1<f64>>,
-) -> f64 {
-    // need_backward_cache=false: 推論のみなので NodeFwdEntry は作らない
-    let fwd = genome_forward_with_cache(genome, data, sw, embed_cache, false);
-    sw.predict_from_embed(&fwd.top_embed)
-}
-
-// ─── バリデーション相関（GenomeData を再利用）────────────────────────────────
-
-fn update_val_correlation(
-    sw: &mut SurrogateWeights,
-    embed_cache: &mut std::collections::HashMap<Sig, Array1<f64>>,
-) {
-    if sw.held_out_buffer.len() < 8 { return; }
-    let n_val = (sw.held_out_buffer.len() / 4).max(4).min(sw.held_out_buffer.len());
-    let val_data: Vec<(u64, f64, Genome)> = sw.held_out_buffer[sw.held_out_buffer.len() - n_val..].to_vec();
-    let mut preds: Vec<f64> = Vec::with_capacity(val_data.len());
-    let mut trues: Vec<f64> = Vec::with_capacity(val_data.len());
-    for (_, loss, g) in &val_data {
-        // GenomeData を1回だけ計算して surrogate_predict_with_data に渡す
-        let gd = GenomeData::new(g);
-        preds.push(surrogate_predict_with_data(g, &gd, sw, embed_cache));
-        trues.push(*loss);
-    }
-    let corr = pearson_1d(&preds, &trues).abs();
-    sw.val_correlation = sw.val_correlation * 0.7 + corr * 0.3;
-}
-
-fn update_surrogate_multiplier(sw: &mut SurrogateWeights) {
-    if sw.val_correlation > SURR_PROMOTE_THRESH {
-        sw.surrogate_multiplier = (sw.surrogate_multiplier * 1.2).min(SURR_MAX_MULTIPLIER);
-        eprintln!("  [surrogate] promoted: multiplier → {:.2}", sw.surrogate_multiplier);
-    } else if sw.val_correlation < SURR_DEMOTE_THRESH {
-        sw.surrogate_multiplier = (sw.surrogate_multiplier * 0.8).max(0.1);
-        eprintln!("  [surrogate] demoted:  multiplier → {:.2}", sw.surrogate_multiplier);
-    }
-}
-
 // ─── Evaluator ────────────────────────────────────────────────────────────────
 
 struct Evaluator {
     node_cache: DashMap<Sig, ArcVec>,
     adf_cache: DashMap<AdfKey, (Sig, ArcVec)>,
+    /// 固定データセット運用では fitness_cache はゲノムが同一なら永続的に有効。
+    /// 世代をまたいで保持し、新規ゲノムのみ計算する。
     fitness_cache: DashMap<u64, Score>,
     score_cache: DashMap<(Sig, Sig), Score>,
 }
@@ -1054,13 +519,21 @@ impl Evaluator {
             score_cache: DashMap::with_capacity(1 << 17),
         }
     }
+
+    /// 固定データセット運用向けリセット。
+    /// - node_cache: メモリ節約のため世代ごとにクリア（再計算コストは小さい）。
+    /// - fitness_cache / adf_cache / score_cache:
+    ///   データセットが変わらないため保持。同一ゲノムは再評価不要。
+    ///   ただし adf_cache がメモリ上限を超えたら解放する。
     fn reset_generation(&self) {
         self.node_cache.clear();
         if self.adf_cache.len() > ADF_CACHE_MAX {
             self.adf_cache.clear();
             self.score_cache.clear();
+            // fitness_cache は adf_cache に依存しないので保持してよい
         }
     }
+
     fn get_node_score(&self, batch_sig: Sig, node_sig: Sig, val: &ArcVec, target: &[Complex<f64>],
         p_buf: &mut [f64], t_buf: &mut [f64], order_buf: &mut [usize], rank_buf: &mut [i64]) -> Score
     {
@@ -1120,6 +593,12 @@ fn score_and_acc_into(pred: &[Complex<f64>], target: &[Complex<f64>],
 
 // ─── 汎用 ADF 実行 ────────────────────────────────────────────────────────────
 
+/// ADF を実行する。
+///
+/// `x_sig` / `x_arc` はトップ層の入力 x（ext[0]）をそのまま伝播させたもの。
+/// ADF 内部のスロット 3 (`X_GLOBAL_SIG_SLOT`) に配置され、
+/// ノードの conn がスロット 3 を指せば x_global を直接参照できる（カンニング）。
+/// 再帰呼び出しでも同じ x_sig/x_arc を渡すことで全層で共有される。
 fn exec_adf(
     layer_idx: usize, c: &Chromosome, c_sig: Sig, active: &[usize],
     in0_sig: Sig, in0: &ArcVec, in1_sig: Sig, in1: &ArcVec, one: &ArcVec,
@@ -1127,15 +606,16 @@ fn exec_adf(
     genome: &Genome, all_sigs: &[Vec<Sig>], all_acts: &[Vec<Vec<usize>>],
     batch_sig: Sig, ev: &Evaluator,
 ) -> (Sig, ArcVec) {
+    // x_sig をキーに含めることで、同一構造でも x が変われば別エントリになる
     let key: AdfKey = (batch_sig, c_sig, in0_sig, in1_sig, x_sig);
     if let Some(v) = ev.adf_cache.get(&key) { return (v.0, Arc::clone(&v.1)); }
-    let n_ext = N_INPUTS_ADF;
+    let n_ext = N_INPUTS_ADF; // = 4: [in0, in1, one, x_global]
     let total = n_ext + layer_len(layer_idx);
     let mut buf = NodeBuf::new(total);
-    buf.set(0, in0_sig, Arc::clone(in0));
-    buf.set(1, in1_sig, Arc::clone(in1));
-    buf.set(2, ONE_SIG, Arc::clone(one));
-    buf.set(3, x_sig,   Arc::clone(x_arc));
+    buf.set(0, in0_sig,  Arc::clone(in0));
+    buf.set(1, in1_sig,  Arc::clone(in1));
+    buf.set(2, ONE_SIG,  Arc::clone(one));
+    buf.set(3, x_sig,    Arc::clone(x_arc)); // ← x_global スロット
     for &abs in active {
         if abs < n_ext { continue; }
         let i = abs - n_ext;
@@ -1153,7 +633,8 @@ fn exec_adf(
             exec_adf(
                 sub_li, &genome.layers[sub_li][sub_idx], all_sigs[sub_li][sub_idx],
                 &all_acts[sub_li][sub_idx], s0, buf.val(c0), s1, buf.val(c1), one,
-                x_sig, x_arc, genome, all_sigs, all_acts, batch_sig, ev,
+                x_sig, x_arc, // ← 再帰先にも x を伝播
+                genome, all_sigs, all_acts, batch_sig, ev,
             )
         };
         buf.set(abs, sig, val);
@@ -1178,8 +659,10 @@ fn exec_top(
     let mut buf = NodeBuf::new(total);
     for i in 0..n_ext { buf.set(i, i as Sig + 1, Arc::from(ext[i].as_slice())); }
     let one_arc: ArcVec = Arc::from(ext[1].as_slice());
+    // x_global: トップ層の ext[0]（入力 x）を ADF に渡すための Arc と Sig
+    // トップ層では buf.set(0, 1, ...) としているので x_sig = 1
     let x_arc: ArcVec = Arc::from(ext[0].as_slice());
-    let x_sig: Sig = 1;
+    let x_sig: Sig = 1; // ext[0] に割り当てた固定 Sig
     let mut sum_score = 0.0; let mut count = 0;
     for &abs in top_active {
         if abs < n_ext { continue; }
@@ -1197,7 +680,8 @@ fn exec_top(
             exec_adf(
                 sub_li, &genome.layers[sub_li][sub_idx], all_sigs[sub_li][sub_idx],
                 &all_acts[sub_li][sub_idx], s0, buf.val(c0), s1, buf.val(c1), &one_arc,
-                x_sig, &x_arc, genome, all_sigs, all_acts, batch_sig, ev,
+                x_sig, &x_arc, // ← x_global を ADF に注入
+                genome, all_sigs, all_acts, batch_sig, ev,
             )
         };
         let (s, _) = ev.get_node_score(batch_sig, sig, &val, target, p_buf, t_buf, order_buf, rank_buf);
@@ -1221,7 +705,10 @@ fn eval(g: &Genome, ds: &Dataset, ev: &Evaluator, inter_weight: f64) -> (f64, f6
     let top_active = &all_acts[top_li][0];
     let genome_base = genome_key(&all_sigs);
     let top_sig = all_sigs[top_li][0];
-    let gkey = make_sig(make_sig(genome_base, ds.batch_sig, 0), inter_weight.to_bits(), 1);
+    // 固定データセット: batch_sig は不変なのでキャッシュキーとして安全に使える。
+    // inter_weight もキーに含める（世代が異なると値が変わるため）。
+    let gkey = make_sig(make_sig(genome_base, ds.batch_sig, 0),
+                        inter_weight.to_bits(), 1);
     if let Some(v) = ev.fitness_cache.get(&gkey) { return *v; }
     let mut p_buf = vec![0.0f64; VEC_LEN];
     let mut t_buf = vec![0.0f64; VEC_LEN];
@@ -1232,7 +719,7 @@ fn eval(g: &Genome, ds: &Dataset, ev: &Evaluator, inter_weight: f64) -> (f64, f6
         let (pred, out_sig, sum_score, count) = exec_top(
             g, top_active, &all_sigs, &all_acts, inputs, target, ds.batch_sig, ev,
             &mut p_buf, &mut t_buf, &mut order_buf, &mut rank_buf);
-        let (_final_s, final_a) = ev.get_node_score(ds.batch_sig, out_sig, &pred, target,
+        let (final_s, final_a) = ev.get_node_score(ds.batch_sig, out_sig, &pred, target,
             &mut p_buf, &mut t_buf, &mut order_buf, &mut rank_buf);
         let avg_inter = if count > 0 { (sum_score / count as f64).powf(1.0 / E) } else { 0.0 };
         let combined = avg_inter;
@@ -1245,174 +732,2077 @@ fn eval(g: &Genome, ds: &Dataset, ev: &Evaluator, inter_weight: f64) -> (f64, f6
     ev.fitness_cache.insert(gkey, res); res
 }
 
+// ============================================================
+// learned mutation model (from main(3).rs)
+// ============================================================
+
+// ============================================================
+// math helpers
+// ============================================================
+
+fn gelu_scalar(x: f32) -> f32 {
+    0.5 * x * (1.0 + (0.7978845608 * (x + 0.044715 * x.powi(3))).tanh())
+}
+
+fn gelu_derivative_scalar(x: f32) -> f32 {
+    let u = 0.7978845608 * (x + 0.044715 * x.powi(3));
+    let t = u.tanh();
+    let sech2 = 1.0 - t * t;
+    0.5 * (1.0 + t) + 0.5 * x * sech2 * 0.7978845608 * (1.0 + 3.0 * 0.044715 * x * x)
+}
+
+fn sigmoid_scalar(x: f32) -> f32 {
+    if x >= 0.0 {
+        let z = (-x).exp();
+        1.0 / (1.0 + z)
+    } else {
+        let z = x.exp();
+        z / (1.0 + z)
+    }
+}
+
+fn softmax_rows(x: &Array2<f32>) -> Array2<f32> {
+    let mut out = x.clone();
+    for mut row in out.axis_iter_mut(Axis(0)) {
+        let maxv = row.iter().fold(f32::NEG_INFINITY, |a, &b| a.max(b));
+        row.mapv_inplace(|v| (v - maxv).exp());
+        let sum = row.sum();
+        row.mapv_inplace(|v| v / sum);
+    }
+    out
+}
+
+// ============================================================
+// optimizer helpers: Muon for 2D, AdamW for 1D
+// ============================================================
+
+#[derive(Clone, Copy)]
+struct OptimHyper {
+    // Muon for 2D matrix parameters
+    lr_matrix: f32,
+    muon_weight_decay: f32,
+    muon_momentum: f32,
+    muon_ns_steps: usize,
+    muon_nesterov: bool,
+
+    // AdamW for 1D vector parameters
+    lr_vector: f32,
+    adamw_beta1: f32,
+    adamw_beta2: f32,
+    adamw_eps: f32,
+    adamw_weight_decay: f32,
+}
+
+fn fro_norm(x: &Array2<f32>) -> f32 {
+    x.iter().map(|v| v * v).sum::<f32>().sqrt()
+}
+
+fn zeropower_via_newtonschulz5(g: &Array2<f32>, steps: usize) -> Array2<f32> {
+    let (orig_r, orig_c) = g.dim();
+    let mut x = if orig_r > orig_c {
+        g.t().to_owned()
+    } else {
+        g.clone()
+    };
+
+    let norm = fro_norm(&x);
+    if norm > 0.0 {
+        x.mapv_inplace(|v| v / (norm + 1e-7));
+    }
+
+    let a = 3.4445_f32;
+    let b = -4.7750_f32;
+    let c = 2.0315_f32;
+
+    for _ in 0..steps {
+        let xx_t = x.dot(&x.t());
+        let xx_t2 = xx_t.dot(&xx_t);
+        let bmat = xx_t.mapv(|v| b * v) + xx_t2.mapv(|v| c * v);
+        x = x.mapv(|v| a * v) + bmat.dot(&x);
+    }
+
+    let mut out = if orig_r > orig_c { x.t().to_owned() } else { x };
+    let scale = (1.0_f32).max(orig_r as f32 / orig_c as f32).sqrt();
+    out.mapv_inplace(|v| v * scale);
+    out
+}
+
+fn muon_update_2d(
+    grad: &Array2<f32>,
+    momentum_buf: &mut Array2<f32>,
+    beta: f32,
+    ns_steps: usize,
+    nesterov: bool,
+) -> Array2<f32> {
+    *momentum_buf = momentum_buf.mapv(|v| beta * v) + grad.mapv(|v| (1.0 - beta) * v);
+
+    let raw = if nesterov {
+        grad.mapv(|v| (1.0 - beta) * v) + momentum_buf.mapv(|v| beta * v)
+    } else {
+        momentum_buf.clone()
+    };
+
+    zeropower_via_newtonschulz5(&raw, ns_steps)
+}
+
+fn adamw_update_1d(
+    param: &mut Array1<f32>,
+    grad: &Array1<f32>,
+    m: &mut Array1<f32>,
+    v: &mut Array1<f32>,
+    step: &mut usize,
+    hp: OptimHyper,
+) {
+    *step += 1;
+    let t = *step as i32;
+
+    param.mapv_inplace(|x| x * (1.0 - hp.lr_vector * hp.adamw_weight_decay));
+
+    *m = m.mapv(|x| x * hp.adamw_beta1) + grad.mapv(|g| (1.0 - hp.adamw_beta1) * g);
+    *v = v.mapv(|x| x * hp.adamw_beta2) + grad.mapv(|g| (1.0 - hp.adamw_beta2) * g * g);
+
+    let m_hat = m.mapv(|x| x / (1.0 - hp.adamw_beta1.powi(t)));
+    let v_hat = v.mapv(|x| x / (1.0 - hp.adamw_beta2.powi(t)));
+
+    for i in 0..param.len() {
+        param[i] -= hp.lr_vector * m_hat[i] / (v_hat[i].sqrt() + hp.adamw_eps);
+    }
+}
+
+// ============================================================
+// trainable parameter wrappers
+// ============================================================
+
+#[derive(Clone)]
+struct MatrixParam {
+    w: Array2<f32>,
+    gw: Array2<f32>,
+    mom: Array2<f32>,
+}
+
+impl MatrixParam {
+    fn new(rng: &mut StdRng, rows: usize, cols: usize, scale: f32) -> Self {
+        let mut w = Array2::<f32>::zeros((rows, cols));
+        for i in 0..rows {
+            for j in 0..cols {
+                let z: f32 = StandardNormal.sample(rng);
+                w[[i, j]] = z * scale;
+            }
+        }
+        Self {
+            w,
+            gw: Array2::zeros((rows, cols)),
+            mom: Array2::zeros((rows, cols)),
+        }
+    }
+
+    fn zeros(rows: usize, cols: usize) -> Self {
+        Self {
+            w: Array2::zeros((rows, cols)),
+            gw: Array2::zeros((rows, cols)),
+            mom: Array2::zeros((rows, cols)),
+        }
+    }
+
+    fn zero_grad(&mut self) {
+        self.gw.fill(0.0);
+    }
+
+    fn scale_grad(&mut self, s: f32) {
+        self.gw.mapv_inplace(|v| v * s);
+    }
+
+    fn step_muon(&mut self, hp: OptimHyper) {
+        let upd = muon_update_2d(
+            &self.gw,
+            &mut self.mom,
+            hp.muon_momentum,
+            hp.muon_ns_steps,
+            hp.muon_nesterov,
+        );
+        self.w
+            .mapv_inplace(|v| v * (1.0 - hp.lr_matrix * hp.muon_weight_decay));
+        self.w -= &upd.mapv(|v| hp.lr_matrix * v);
+    }
+}
+
+#[derive(Clone)]
+struct VectorParam {
+    w: Array1<f32>,
+    gw: Array1<f32>,
+    m: Array1<f32>,
+    v: Array1<f32>,
+    step: usize,
+}
+
+impl VectorParam {
+    fn new(size: usize) -> Self {
+        Self {
+            w: Array1::zeros(size),
+            gw: Array1::zeros(size),
+            m: Array1::zeros(size),
+            v: Array1::zeros(size),
+            step: 0,
+        }
+    }
+
+    fn zero_grad(&mut self) {
+        self.gw.fill(0.0);
+    }
+
+    fn scale_grad(&mut self, s: f32) {
+        self.gw.mapv_inplace(|v| v * s);
+    }
+
+    fn step_adamw(&mut self, hp: OptimHyper) {
+        adamw_update_1d(
+            &mut self.w,
+            &self.gw,
+            &mut self.m,
+            &mut self.v,
+            &mut self.step,
+            hp,
+        );
+    }
+}
+
+// ============================================================
+// Linear layer
+// ============================================================
+
+#[derive(Clone)]
+struct Linear {
+    w: MatrixParam, // [in_dim, out_dim]
+    b: VectorParam, // [out_dim]
+}
+
+#[derive(Clone)]
+struct LinearCache {
+    x: Array2<f32>, // [batch, in_dim]
+}
+
+impl Linear {
+    fn new(rng: &mut StdRng, in_dim: usize, out_dim: usize, scale: f32) -> Self {
+        Self {
+            w: MatrixParam::new(rng, in_dim, out_dim, scale),
+            b: VectorParam::new(out_dim),
+        }
+    }
+
+    fn zero_grad(&mut self) {
+        self.w.zero_grad();
+        self.b.zero_grad();
+    }
+
+    fn scale_grad(&mut self, s: f32) {
+        self.w.scale_grad(s);
+        self.b.scale_grad(s);
+    }
+
+    fn step(&mut self, hp: OptimHyper) {
+        self.w.step_muon(hp);
+        self.b.step_adamw(hp);
+    }
+
+    fn forward(&self, x: &Array2<f32>) -> (Array2<f32>, LinearCache) {
+        let y = x.dot(&self.w.w) + &self.b.w;
+        (y, LinearCache { x: x.clone() })
+    }
+
+    fn backward(&mut self, cache: &LinearCache, dy: &Array2<f32>) -> Array2<f32> {
+        self.w.gw += &cache.x.t().dot(dy);
+        self.b.gw += &dy.sum_axis(Axis(0));
+        dy.dot(&self.w.w.t())
+    }
+}
+
+// ============================================================
+// Bilinear map: Y = L X R^T
+// ============================================================
+
+#[derive(Clone)]
+struct BilinearMap {
+    l: MatrixParam, // [out_r, in_r]
+    r: MatrixParam, // [out_c, in_c]
+}
+
+#[derive(Clone)]
+struct BilinearCache {
+    x: Array2<f32>,  // [in_r, in_c]
+    xr: Array2<f32>, // [in_r, out_c]
+}
+
+impl BilinearMap {
+    fn new(
+        rng: &mut StdRng,
+        in_r: usize,
+        in_c: usize,
+        out_r: usize,
+        out_c: usize,
+        scale: f32,
+    ) -> Self {
+        Self {
+            l: MatrixParam::new(rng, out_r, in_r, scale),
+            r: MatrixParam::new(rng, out_c, in_c, scale),
+        }
+    }
+
+    fn zero_grad(&mut self) {
+        self.l.zero_grad();
+        self.r.zero_grad();
+    }
+
+    fn scale_grad(&mut self, s: f32) {
+        self.l.scale_grad(s);
+        self.r.scale_grad(s);
+    }
+
+    fn step(&mut self, hp: OptimHyper) {
+        self.l.step_muon(hp);
+        self.r.step_muon(hp);
+    }
+
+    fn forward(&self, x: &Array2<f32>) -> (Array2<f32>, BilinearCache) {
+        let xr = x.dot(&self.r.w.t());
+        let y = self.l.w.dot(&xr);
+        (y, BilinearCache { x: x.clone(), xr })
+    }
+
+    fn backward(&mut self, cache: &BilinearCache, dy: &Array2<f32>) -> Array2<f32> {
+        self.l.gw += &dy.dot(&cache.xr.t());
+        let dxr = self.l.w.t().dot(dy);
+        self.r.gw += &dxr.t().dot(&cache.x);
+        dxr.dot(&self.r.w)
+    }
+}
+
+// ============================================================
+// condition embedding
+// ============================================================
+
+#[derive(Clone)]
+enum CondEncodingKind {
+    RawVector,
+    SinCosScalar,
+}
+
+#[derive(Clone)]
+struct CondEmbedding {
+    kind: CondEncodingKind,
+    dim: usize,
+    max_period: f32,
+}
+
+#[derive(Clone)]
+struct CondEmbeddingCache {
+    cond: Array1<f32>,
+    emb: Array1<f32>,
+}
+
+impl CondEmbedding {
+    fn new_raw_vec(dim: usize) -> Self {
+        assert!(dim >= 1);
+        Self {
+            kind: CondEncodingKind::RawVector,
+            dim,
+            max_period: 10000.0,
+        }
+    }
+
+    fn new_sincos(dim: usize, max_period: f32) -> Self {
+        assert!(dim >= 2);
+        Self {
+            kind: CondEncodingKind::SinCosScalar,
+            dim,
+            max_period,
+        }
+    }
+
+    fn output_dim(&self) -> usize {
+        self.dim
+    }
+
+    fn forward(&self, cond: &Array1<f32>) -> (Array1<f32>, CondEmbeddingCache) {
+        let emb = match self.kind {
+            CondEncodingKind::RawVector => {
+                assert_eq!(cond.len(), self.dim);
+                cond.clone()
+            }
+            CondEncodingKind::SinCosScalar => {
+                assert!(
+                    !cond.is_empty(),
+                    "SinCosScalar condition embedding expects at least one scalar input"
+                );
+                let scalar = cond[0];
+                let half = self.dim / 2;
+                let mut out = Array1::<f32>::zeros(self.dim);
+
+                for i in 0..half {
+                    let frac = i as f32 / half as f32;
+                    let freq = self.max_period.powf(-frac);
+                    let x = scalar * freq;
+                    out[i] = x.sin();
+                    out[half + i] = x.cos();
+                }
+
+                if self.dim % 2 == 1 {
+                    out[self.dim - 1] = 0.0;
+                }
+                out
+            }
+        };
+
+        (emb.clone(), CondEmbeddingCache { cond: cond.clone(), emb })
+    }
+
+    fn backward(&self, cache: &CondEmbeddingCache, demb: &Array1<f32>) -> Array1<f32> {
+        match self.kind {
+            CondEncodingKind::RawVector => {
+                assert_eq!(demb.len(), cache.cond.len());
+                demb.clone()
+            }
+            CondEncodingKind::SinCosScalar => {
+                let mut dcond = Array1::<f32>::zeros(cache.cond.len());
+                let scalar = cache.cond[0];
+                let half = self.dim / 2;
+                let mut grad0 = 0.0;
+                for i in 0..half {
+                    let frac = i as f32 / half as f32;
+                    let freq = self.max_period.powf(-frac);
+                    let x = scalar * freq;
+                    grad0 += demb[i] * x.cos() * freq;
+                    grad0 += demb[half + i] * (-x.sin()) * freq;
+                }
+                dcond[0] = grad0;
+                dcond
+            }
+        }
+    }
+}
+
+// ============================================================
+// per-block condition projection
+// cond_emb -> hidden -> cond_vec
+// ============================================================
+
+#[derive(Clone)]
+struct CondProjector {
+    fc1: Linear,
+    fc2: Linear,
+}
+
+#[derive(Clone)]
+struct CondProjectorCache {
+    z1: Array2<f32>, // [1, hidden]
+    fc1_cache: LinearCache,
+    fc2_cache: LinearCache,
+}
+
+impl CondProjector {
+    fn new(rng: &mut StdRng, in_dim: usize, hidden_dim: usize, out_dim: usize, scale: f32) -> Self {
+        Self {
+            fc1: Linear::new(rng, in_dim, hidden_dim, scale),
+            fc2: Linear::new(rng, hidden_dim, out_dim, scale),
+        }
+    }
+
+    fn zero_grad(&mut self) {
+        self.fc1.zero_grad();
+        self.fc2.zero_grad();
+    }
+
+    fn scale_grad(&mut self, s: f32) {
+        self.fc1.scale_grad(s);
+        self.fc2.scale_grad(s);
+    }
+
+    fn step(&mut self, hp: OptimHyper) {
+        self.fc1.step(hp);
+        self.fc2.step(hp);
+    }
+
+    fn forward(&self, emb: &Array1<f32>) -> (Array1<f32>, CondProjectorCache) {
+        let x = emb.clone().insert_axis(Axis(0)); // [1, in_dim]
+        let (z1, fc1_cache) = self.fc1.forward(&x);
+        let a1 = z1.mapv(gelu_scalar);
+        let (y, fc2_cache) = self.fc2.forward(&a1);
+        (
+            y.row(0).to_owned(),
+            CondProjectorCache {
+                z1,
+                fc1_cache,
+                fc2_cache,
+            },
+        )
+    }
+
+    fn backward(&mut self, cache: &CondProjectorCache, dy: &Array1<f32>) -> Array1<f32> {
+        let dy2 = dy.clone().insert_axis(Axis(0)); // [1, out_dim]
+        let da1 = self.fc2.backward(&cache.fc2_cache, &dy2);
+
+        let mut dz1 = da1.clone();
+        for ((i, j), v) in dz1.indexed_iter_mut() {
+            *v *= gelu_derivative_scalar(cache.z1[[i, j]]);
+        }
+
+        let dx = self.fc1.backward(&cache.fc1_cache, &dz1);
+        dx.row(0).to_owned()
+    }
+}
+
+// ============================================================
+// AdaLN with vector condition
+// y = LN(x) * (1 + gamma(cond_vec)) + beta(cond_vec)
+// ============================================================
+
+#[derive(Clone)]
+struct AdaLn {
+    eps: f32,
+    cond_dim: usize,
+
+    gamma_w: MatrixParam, // [channels, cond_dim]
+    gamma_b: VectorParam, // [channels]
+    beta_w: MatrixParam,  // [channels, cond_dim]
+    beta_b: VectorParam,  // [channels]
+}
+
+#[derive(Clone)]
+struct AdaLnCache {
+    xhat: Array2<f32>,
+    inv_std: Array1<f32>,
+    gamma: Array1<f32>,
+    cond_vec: Array1<f32>,
+}
+
+impl AdaLn {
+    fn new(channels: usize, cond_dim: usize) -> Self {
+        Self {
+            eps: 1e-5,
+            cond_dim,
+            gamma_w: MatrixParam::zeros(channels, cond_dim),
+            gamma_b: VectorParam::new(channels),
+            beta_w: MatrixParam::zeros(channels, cond_dim),
+            beta_b: VectorParam::new(channels),
+        }
+    }
+
+    fn zero_grad(&mut self) {
+        self.gamma_w.zero_grad();
+        self.gamma_b.zero_grad();
+        self.beta_w.zero_grad();
+        self.beta_b.zero_grad();
+    }
+
+    fn scale_grad(&mut self, s: f32) {
+        self.gamma_w.scale_grad(s);
+        self.gamma_b.scale_grad(s);
+        self.beta_w.scale_grad(s);
+        self.beta_b.scale_grad(s);
+    }
+
+    fn step(&mut self, hp: OptimHyper) {
+        self.gamma_w.step_muon(hp);
+        self.gamma_b.step_adamw(hp);
+        self.beta_w.step_muon(hp);
+        self.beta_b.step_adamw(hp);
+    }
+
+    fn forward(&self, x: &Array2<f32>, cond_vec: &Array1<f32>) -> (Array2<f32>, AdaLnCache) {
+        assert_eq!(cond_vec.len(), self.cond_dim);
+
+        let t = x.nrows();
+        let c = x.ncols();
+
+        let mut xhat = Array2::<f32>::zeros((t, c));
+        let mut inv_std = Array1::<f32>::zeros(t);
+
+        for i in 0..t {
+            let row = x.slice(s![i, ..]);
+            let mu = row.sum() / c as f32;
+            let var = row
+                .iter()
+                .map(|&v| {
+                    let d = v - mu;
+                    d * d
+                })
+                .sum::<f32>()
+                / c as f32;
+            let istd = 1.0 / (var + self.eps).sqrt();
+            inv_std[i] = istd;
+
+            for j in 0..c {
+                xhat[[i, j]] = (x[[i, j]] - mu) * istd;
+            }
+        }
+
+        let gamma = self.gamma_w.w.dot(cond_vec) + &self.gamma_b.w;
+        let beta = self.beta_w.w.dot(cond_vec) + &self.beta_b.w;
+
+        let mut y = Array2::<f32>::zeros((t, c));
+        for i in 0..t {
+            for j in 0..c {
+                y[[i, j]] = xhat[[i, j]] * (1.0 + gamma[j]) + beta[j];
+            }
+        }
+
+        (
+            y,
+            AdaLnCache {
+                xhat,
+                inv_std,
+                gamma,
+                cond_vec: cond_vec.clone(),
+            },
+        )
+    }
+
+    fn backward(&mut self, cache: &AdaLnCache, dy: &Array2<f32>) -> (Array2<f32>, Array1<f32>) {
+        let t = dy.nrows();
+        let c = dy.ncols();
+
+        let mut dgamma = Array1::<f32>::zeros(c);
+        let mut dbeta = Array1::<f32>::zeros(c);
+        let mut dxhat = Array2::<f32>::zeros((t, c));
+
+        for i in 0..t {
+            for j in 0..c {
+                dgamma[j] += dy[[i, j]] * cache.xhat[[i, j]];
+                dbeta[j] += dy[[i, j]];
+                dxhat[[i, j]] = dy[[i, j]] * (1.0 + cache.gamma[j]);
+            }
+        }
+
+        self.gamma_w.gw += &dgamma
+            .view()
+            .insert_axis(Axis(1))
+            .dot(&cache.cond_vec.view().insert_axis(Axis(0)));
+        self.gamma_b.gw += &dgamma;
+
+        self.beta_w.gw += &dbeta
+            .view()
+            .insert_axis(Axis(1))
+            .dot(&cache.cond_vec.view().insert_axis(Axis(0)));
+        self.beta_b.gw += &dbeta;
+
+        let dcond_vec = self.gamma_w.w.t().dot(&dgamma) + self.beta_w.w.t().dot(&dbeta);
+
+        let mut dx = Array2::<f32>::zeros((t, c));
+        for i in 0..t {
+            let xhat_row = cache.xhat.slice(s![i, ..]);
+            let dxhat_row = dxhat.slice(s![i, ..]);
+
+            let sum1 = dxhat_row.sum();
+            let sum2 = dxhat_row
+                .iter()
+                .zip(xhat_row.iter())
+                .map(|(&a, &b)| a * b)
+                .sum::<f32>();
+
+            for j in 0..c {
+                dx[[i, j]] = (1.0 / c as f32)
+                    * cache.inv_std[i]
+                    * ((c as f32) * dxhat[[i, j]] - sum1 - xhat_row[j] * sum2);
+            }
+        }
+
+        (dx, dcond_vec)
+    }
+}
+
+// ============================================================
+// MLP
+// ============================================================
+
+#[derive(Clone)]
+struct Mlp2D {
+    fc1: Linear,
+    fc2: Linear,
+}
+
+#[derive(Clone)]
+struct Mlp2DCache {
+    z1: Array2<f32>,
+    fc1_cache: LinearCache,
+    fc2_cache: LinearCache,
+}
+
+impl Mlp2D {
+    fn new(rng: &mut StdRng, in_dim: usize, hidden_dim: usize, scale: f32) -> Self {
+        Self {
+            fc1: Linear::new(rng, in_dim, hidden_dim, scale),
+            fc2: Linear::new(rng, hidden_dim, in_dim, scale),
+        }
+    }
+
+    fn zero_grad(&mut self) {
+        self.fc1.zero_grad();
+        self.fc2.zero_grad();
+    }
+
+    fn scale_grad(&mut self, s: f32) {
+        self.fc1.scale_grad(s);
+        self.fc2.scale_grad(s);
+    }
+
+    fn step(&mut self, hp: OptimHyper) {
+        self.fc1.step(hp);
+        self.fc2.step(hp);
+    }
+
+    fn forward(&self, x: &Array2<f32>) -> (Array2<f32>, Mlp2DCache) {
+        let (z1, fc1_cache) = self.fc1.forward(x);
+        let a1 = z1.mapv(gelu_scalar);
+        let (y, fc2_cache) = self.fc2.forward(&a1);
+        (
+            y,
+            Mlp2DCache {
+                z1,
+                fc1_cache,
+                fc2_cache,
+            },
+        )
+    }
+
+    fn backward(&mut self, cache: &Mlp2DCache, dy: &Array2<f32>) -> Array2<f32> {
+        let da1 = self.fc2.backward(&cache.fc2_cache, dy);
+        let mut dz1 = da1.clone();
+        for ((i, j), v) in dz1.indexed_iter_mut() {
+            *v *= gelu_derivative_scalar(cache.z1[[i, j]]);
+        }
+        self.fc1.backward(&cache.fc1_cache, &dz1)
+    }
+}
+
+// ============================================================
+// single-head attention
+// ============================================================
+
+#[derive(Clone)]
+struct SelfAttention {
+    wq: Linear,
+    wk: Linear,
+    wv: Linear,
+    wo: Linear,
+    scale: f32,
+}
+
+#[derive(Clone)]
+struct SelfAttentionCache {
+    q: Array2<f32>,
+    k: Array2<f32>,
+    v: Array2<f32>,
+    attn: Array2<f32>,
+    q_cache: LinearCache,
+    k_cache: LinearCache,
+    v_cache: LinearCache,
+    o_cache: LinearCache,
+}
+
+impl SelfAttention {
+    fn new(rng: &mut StdRng, channels: usize, scale: f32) -> Self {
+        Self {
+            wq: Linear::new(rng, channels, channels, scale),
+            wk: Linear::new(rng, channels, channels, scale),
+            wv: Linear::new(rng, channels, channels, scale),
+            wo: Linear::new(rng, channels, channels, scale),
+            scale: (channels as f32).sqrt(),
+        }
+    }
+
+    fn zero_grad(&mut self) {
+        self.wq.zero_grad();
+        self.wk.zero_grad();
+        self.wv.zero_grad();
+        self.wo.zero_grad();
+    }
+
+    fn scale_grad(&mut self, s: f32) {
+        self.wq.scale_grad(s);
+        self.wk.scale_grad(s);
+        self.wv.scale_grad(s);
+        self.wo.scale_grad(s);
+    }
+
+    fn step(&mut self, hp: OptimHyper) {
+        self.wq.step(hp);
+        self.wk.step(hp);
+        self.wv.step(hp);
+        self.wo.step(hp);
+    }
+
+    fn forward(&self, x: &Array2<f32>) -> (Array2<f32>, SelfAttentionCache) {
+        let (q, q_cache) = self.wq.forward(x);
+        let (k, k_cache) = self.wk.forward(x);
+        let (v, v_cache) = self.wv.forward(x);
+
+        let scores = q.dot(&k.t()) / self.scale;
+        let attn = softmax_rows(&scores);
+        let ctx = attn.dot(&v);
+        let (y, o_cache) = self.wo.forward(&ctx);
+
+        (
+            y,
+            SelfAttentionCache {
+                q,
+                k,
+                v,
+                attn,
+                q_cache,
+                k_cache,
+                v_cache,
+                o_cache,
+            },
+        )
+    }
+
+    fn backward(&mut self, cache: &SelfAttentionCache, dy: &Array2<f32>) -> Array2<f32> {
+        let dctx = self.wo.backward(&cache.o_cache, dy);
+
+        let dattn = dctx.dot(&cache.v.t());
+        let dv = cache.attn.t().dot(&dctx);
+
+        let t = cache.attn.nrows();
+        let mut dscores = Array2::<f32>::zeros((t, t));
+
+        for i in 0..t {
+            let a = cache.attn.slice(s![i, ..]);
+            let da = dattn.slice(s![i, ..]);
+            let dot = a
+                .iter()
+                .zip(da.iter())
+                .map(|(&ai, &dai)| ai * dai)
+                .sum::<f32>();
+
+            for j in 0..t {
+                dscores[[i, j]] = a[j] * (da[j] - dot);
+            }
+        }
+
+        let dq = dscores.dot(&cache.k) / self.scale;
+        let dk = dscores.t().dot(&cache.q) / self.scale;
+
+        let dxq = self.wq.backward(&cache.q_cache, &dq);
+        let dxk = self.wk.backward(&cache.k_cache, &dk);
+        let dxv = self.wv.backward(&cache.v_cache, &dv);
+
+        dxq + dxk + dxv
+    }
+}
+
+// ============================================================
+// Mixer block
+// ============================================================
+
+#[derive(Clone)]
+struct MixerBlock {
+    cond_proj: CondProjector,
+    ln_attn: AdaLn,
+    attn: SelfAttention,
+    ln_tok: AdaLn,
+    tok_mlp: Mlp2D,
+    ln_ch: AdaLn,
+    ch_mlp: Mlp2D,
+}
+
+#[derive(Clone)]
+struct MixerBlockCache {
+    cond_proj_cache: CondProjectorCache,
+    ln_attn_cache: AdaLnCache,
+    attn_cache: SelfAttentionCache,
+    ln_tok_cache: AdaLnCache,
+    tok_mlp_cache: Mlp2DCache,
+    ln_ch_cache: AdaLnCache,
+    ch_mlp_cache: Mlp2DCache,
+}
+
+impl MixerBlock {
+    fn new(
+        rng: &mut StdRng,
+        tokens: usize,
+        channels: usize,
+        token_hidden: usize,
+        channel_hidden: usize,
+        cond_emb_dim: usize,
+        cond_proj_hidden: usize,
+        cond_vec_dim: usize,
+        scale: f32,
+    ) -> Self {
+        Self {
+            cond_proj: CondProjector::new(rng, cond_emb_dim, cond_proj_hidden, cond_vec_dim, scale),
+            ln_attn: AdaLn::new(channels, cond_vec_dim),
+            attn: SelfAttention::new(rng, channels, scale),
+            ln_tok: AdaLn::new(channels, cond_vec_dim),
+            tok_mlp: Mlp2D::new(rng, tokens, token_hidden, scale),
+            ln_ch: AdaLn::new(channels, cond_vec_dim),
+            ch_mlp: Mlp2D::new(rng, channels, channel_hidden, scale),
+        }
+    }
+
+    fn zero_grad(&mut self) {
+        self.cond_proj.zero_grad();
+        self.ln_attn.zero_grad();
+        self.attn.zero_grad();
+        self.ln_tok.zero_grad();
+        self.tok_mlp.zero_grad();
+        self.ln_ch.zero_grad();
+        self.ch_mlp.zero_grad();
+    }
+
+    fn scale_grad(&mut self, s: f32) {
+        self.cond_proj.scale_grad(s);
+        self.ln_attn.scale_grad(s);
+        self.attn.scale_grad(s);
+        self.ln_tok.scale_grad(s);
+        self.tok_mlp.scale_grad(s);
+        self.ln_ch.scale_grad(s);
+        self.ch_mlp.scale_grad(s);
+    }
+
+    fn step(&mut self, hp: OptimHyper) {
+        self.cond_proj.step(hp);
+        self.ln_attn.step(hp);
+        self.attn.step(hp);
+        self.ln_tok.step(hp);
+        self.tok_mlp.step(hp);
+        self.ln_ch.step(hp);
+        self.ch_mlp.step(hp);
+    }
+
+    fn forward(&self, x: &Array2<f32>, cond_emb: &Array1<f32>) -> (Array2<f32>, MixerBlockCache) {
+        let (cond_vec, cond_proj_cache) = self.cond_proj.forward(cond_emb);
+
+        let (attn_norm, ln_attn_cache) = self.ln_attn.forward(x, &cond_vec);
+        let (attn_out, attn_cache) = self.attn.forward(&attn_norm);
+        let x1 = x + &attn_out;
+
+        let (tok_norm, ln_tok_cache) = self.ln_tok.forward(&x1, &cond_vec);
+        let tok_in = tok_norm.t().to_owned();
+        let (tok_out_t, tok_mlp_cache) = self.tok_mlp.forward(&tok_in);
+        let tok_out = tok_out_t.t().to_owned();
+        let x2 = &x1 + &tok_out;
+
+        let (ch_norm, ln_ch_cache) = self.ln_ch.forward(&x2, &cond_vec);
+        let (ch_out, ch_mlp_cache) = self.ch_mlp.forward(&ch_norm);
+        let y = &x2 + &ch_out;
+
+        (
+            y,
+            MixerBlockCache {
+                cond_proj_cache,
+                ln_attn_cache,
+                attn_cache,
+                ln_tok_cache,
+                tok_mlp_cache,
+                ln_ch_cache,
+                ch_mlp_cache,
+            },
+        )
+    }
+
+    fn backward(
+        &mut self,
+        cache: &MixerBlockCache,
+        dy: &Array2<f32>,
+    ) -> (Array2<f32>, Array1<f32>) {
+        let cond_vec_dim = cache.ln_attn_cache.cond_vec.len();
+        let mut dcond_vec = Array1::<f32>::zeros(cond_vec_dim);
+
+        let dch_out = dy.clone();
+        let mut dx2 = dy.clone();
+        let dch_norm = self.ch_mlp.backward(&cache.ch_mlp_cache, &dch_out);
+        let (dx2_from_ch, dc3) = self.ln_ch.backward(&cache.ln_ch_cache, &dch_norm);
+        dcond_vec += &dc3;
+        dx2 += &dx2_from_ch;
+
+        let dtok_out = dx2.clone();
+        let mut dx1 = dx2.clone();
+        let dtok_out_t = dtok_out.t().to_owned();
+        let dtok_in = self.tok_mlp.backward(&cache.tok_mlp_cache, &dtok_out_t);
+        let dtok_norm = dtok_in.t().to_owned();
+        let (dx1_from_tok, dc2) = self.ln_tok.backward(&cache.ln_tok_cache, &dtok_norm);
+        dcond_vec += &dc2;
+        dx1 += &dx1_from_tok;
+
+        let dattn_out = dx1.clone();
+        let mut dx0 = dx1.clone();
+        let dattn_norm = self.attn.backward(&cache.attn_cache, &dattn_out);
+        let (dx0_from_attn, dc1) = self.ln_attn.backward(&cache.ln_attn_cache, &dattn_norm);
+        dcond_vec += &dc1;
+        dx0 += &dx0_from_attn;
+
+        let dcond_emb = self.cond_proj.backward(&cache.cond_proj_cache, &dcond_vec);
+        (dx0, dcond_emb)
+    }
+}
+
+
+// ============================================================
+// sample structs
+// ============================================================
+
+#[derive(Clone)]
+struct Sample {
+    a_mats: Vec<Array2<f32>>, // each is [A, 2*(A+N_INPUTS_ADF)]
+    b_mat: Array2<f32>,       // [B, 2*(B+N_INPUTS_MAIN)]
+    cond: Array1<f32>,
+}
+
+#[derive(Clone)]
+struct Targets {
+    a_targets: Vec<Array2<f32>>, // each is [A, 2*(A+N_INPUTS_ADF)]
+    b_target: Array2<f32>,       // [B, 2*(B+N_INPUTS_MAIN)]
+}
+
+struct ModelOutput {
+    a_logits: Vec<Array2<f32>>,
+    b_logits: Array2<f32>,
+}
+
+struct ForwardCache {
+    enc_a_caches: Vec<BilinearCache>,
+    enc_b_cache: BilinearCache,
+    cond_cache: CondEmbeddingCache,
+    block_caches: Vec<MixerBlockCache>,
+    dec_a_caches: Vec<BilinearCache>,
+    dec_b_cache: BilinearCache,
+}
+
+// ============================================================
+// full model
+// ============================================================
+
+struct MixerModel {
+    num_a: usize,
+    a_rows: usize,
+    a_cols: usize,
+    b_rows: usize,
+    b_cols: usize,
+    d1: usize,
+    d2: usize,
+
+    enc_a: BilinearMap,
+    dec_a: BilinearMap,
+    enc_b: BilinearMap,
+    dec_b: BilinearMap,
+
+    cond_embed: CondEmbedding,
+    blocks: Vec<MixerBlock>,
+}
+
+impl MixerModel {
+    #[allow(clippy::too_many_arguments)]
+    fn new(
+        rng: &mut StdRng,
+        num_a: usize,
+        a_rows: usize,
+        a_cols: usize,
+        b_rows: usize,
+        b_cols: usize,
+        d1: usize,
+        d2: usize,
+        num_blocks: usize,
+        token_hidden: usize,
+        channel_hidden: usize,
+        cond_embed: CondEmbedding,
+        cond_proj_hidden: usize,
+        cond_vec_dim: usize,
+    ) -> Self {
+        let scale_a = (2.0 / (a_rows + d1 + a_cols + d2) as f32).sqrt();
+        let scale_b = (2.0 / (b_rows + d1 + b_cols + d2) as f32).sqrt();
+        let scale_inner = 0.05;
+
+        let enc_a = BilinearMap::new(rng, a_rows, a_cols, d1, d2, scale_a);
+        let dec_a = BilinearMap::new(rng, d1, d2, a_rows, a_cols, scale_a);
+        let enc_b = BilinearMap::new(rng, b_rows, b_cols, d1, d2, scale_b);
+        let dec_b = BilinearMap::new(rng, d1, d2, b_rows, b_cols, scale_b);
+
+        let tokens = (num_a + 1) * d1;
+        let cond_emb_dim = cond_embed.output_dim();
+
+        let mut blocks = Vec::new();
+        for _ in 0..num_blocks {
+            blocks.push(MixerBlock::new(
+                rng,
+                tokens,
+                d2,
+                token_hidden,
+                channel_hidden,
+                cond_emb_dim,
+                cond_proj_hidden,
+                cond_vec_dim,
+                scale_inner,
+            ));
+        }
+
+        Self {
+            num_a,
+            a_rows,
+            a_cols,
+            b_rows,
+            b_cols,
+            d1,
+            d2,
+            enc_a,
+            dec_a,
+            enc_b,
+            dec_b,
+            cond_embed,
+            blocks,
+        }
+    }
+
+    fn zero_grad(&mut self) {
+        self.enc_a.zero_grad();
+        self.dec_a.zero_grad();
+        self.enc_b.zero_grad();
+        self.dec_b.zero_grad();
+        for b in &mut self.blocks {
+            b.zero_grad();
+        }
+    }
+
+    fn scale_gradients(&mut self, s: f32) {
+        self.enc_a.scale_grad(s);
+        self.dec_a.scale_grad(s);
+        self.enc_b.scale_grad(s);
+        self.dec_b.scale_grad(s);
+        for b in &mut self.blocks {
+            b.scale_grad(s);
+        }
+    }
+
+    fn step(&mut self, hp: OptimHyper) {
+        self.enc_a.step(hp);
+        self.dec_a.step(hp);
+        self.enc_b.step(hp);
+        self.dec_b.step(hp);
+        for b in &mut self.blocks {
+            b.step(hp);
+        }
+    }
+
+    fn forward(&self, sample: &Sample) -> (ModelOutput, ForwardCache) {
+        assert_eq!(sample.a_mats.len(), self.num_a);
+
+        let mut parts: Vec<Array2<f32>> = Vec::new();
+        let mut enc_a_caches = Vec::new();
+
+        for x in &sample.a_mats {
+            let (blk, cache) = self.enc_a.forward(x);
+            parts.push(blk);
+            enc_a_caches.push(cache);
+        }
+
+        let (b_blk, enc_b_cache) = self.enc_b.forward(&sample.b_mat);
+        parts.push(b_blk);
+
+        let total_tokens = (self.num_a + 1) * self.d1;
+        let mut z = Array2::<f32>::zeros((total_tokens, self.d2));
+        for (i, part) in parts.iter().enumerate() {
+            let start = i * self.d1;
+            let end = start + self.d1;
+            z.slice_mut(s![start..end, ..]).assign(part);
+        }
+
+        let (cond_emb, cond_cache) = self.cond_embed.forward(&sample.cond);
+
+        let mut block_caches = Vec::new();
+        for block in &self.blocks {
+            let (next, cache) = block.forward(&z, &cond_emb);
+            z = next;
+            block_caches.push(cache);
+        }
+
+        let mut a_logits = Vec::new();
+        let mut dec_a_caches = Vec::new();
+
+        for i in 0..self.num_a {
+            let start = i * self.d1;
+            let end = start + self.d1;
+            let blk = z.slice(s![start..end, ..]).to_owned();
+            let (mat, cache) = self.dec_a.forward(&blk);
+            a_logits.push(mat);
+            dec_a_caches.push(cache);
+        }
+
+        let start = self.num_a * self.d1;
+        let end = start + self.d1;
+        let blk_b = z.slice(s![start..end, ..]).to_owned();
+        let (b_logits, dec_b_cache) = self.dec_b.forward(&blk_b);
+
+        (
+            ModelOutput { a_logits, b_logits },
+            ForwardCache {
+                enc_a_caches,
+                enc_b_cache,
+                cond_cache,
+                block_caches,
+                dec_a_caches,
+                dec_b_cache,
+            },
+        )
+    }
+
+    fn bce_with_logits_loss(logits: &Array2<f32>, targets: &Array2<f32>) -> (f32, Array2<f32>) {
+        let mut loss = 0.0;
+        let mut grad = Array2::<f32>::zeros(logits.raw_dim());
+        let n = logits.len() as f32;
+
+        for ((i, j), &z) in logits.indexed_iter() {
+            let t = targets[[i, j]];
+            loss += z.max(0.0) - z * t + (1.0 + (-z.abs()).exp()).ln();
+            grad[[i, j]] = (sigmoid_scalar(z) - t) / n;
+        }
+
+        (loss / n, grad)
+    }
+
+    fn loss_and_backward_accumulate(
+        &mut self,
+        sample: &Sample,
+        target: &Targets,
+    ) -> (f32, ModelOutput) {
+        let (output, cache) = self.forward(sample);
+
+        let mut total_loss = 0.0;
+        let mut dz = Array2::<f32>::zeros(((self.num_a + 1) * self.d1, self.d2));
+
+        for i in 0..self.num_a {
+            let (loss_i, dlogits) =
+                Self::bce_with_logits_loss(&output.a_logits[i], &target.a_targets[i]);
+            total_loss += loss_i;
+
+            let dblk = self.dec_a.backward(&cache.dec_a_caches[i], &dlogits);
+            let start = i * self.d1;
+            let end = start + self.d1;
+            let mut sl = dz.slice_mut(s![start..end, ..]);
+            sl += &dblk;
+        }
+
+        let (loss_b, dlogits_b) = Self::bce_with_logits_loss(&output.b_logits, &target.b_target);
+        total_loss += loss_b;
+
+        let dblk_b = self.dec_b.backward(&cache.dec_b_cache, &dlogits_b);
+        let start_b = self.num_a * self.d1;
+        let end_b = start_b + self.d1;
+        {
+            let mut sl = dz.slice_mut(s![start_b..end_b, ..]);
+            sl += &dblk_b;
+        }
+
+        let mut dcond_emb = Array1::<f32>::zeros(self.cond_embed.output_dim());
+
+        for i in (0..self.blocks.len()).rev() {
+            let (next_dz, dc) = self.blocks[i].backward(&cache.block_caches[i], &dz);
+            dz = next_dz;
+            dcond_emb += &dc;
+        }
+
+        let _dcond_vec = self.cond_embed.backward(&cache.cond_cache, &dcond_emb);
+
+        for i in 0..self.num_a {
+            let start = i * self.d1;
+            let end = start + self.d1;
+            let dblk = dz.slice(s![start..end, ..]).to_owned();
+            let _dx = self.enc_a.backward(&cache.enc_a_caches[i], &dblk);
+        }
+
+        let dblk_b2 = dz.slice(s![start_b..end_b, ..]).to_owned();
+        let _dx_b = self.enc_b.backward(&cache.enc_b_cache, &dblk_b2);
+
+        let denom = (self.num_a + 1) as f32;
+        (total_loss / denom, output)
+    }
+
+    fn train_minibatch_step(&mut self, batch: &[(Sample, Targets)], hp: OptimHyper) -> f32 {
+        self.zero_grad();
+
+        let mut loss_sum = 0.0;
+        for (sample, target) in batch {
+            let (loss, _) = self.loss_and_backward_accumulate(sample, target);
+            loss_sum += loss;
+        }
+
+        let inv_bs = 1.0 / batch.len() as f32;
+        self.scale_gradients(inv_bs);
+        self.step(hp);
+
+        loss_sum * inv_bs
+    }
+
+    fn predict(&self, sample: &Sample) -> ModelOutput {
+        self.forward(sample).0
+    }
+
+    fn predict_probs(&self, sample: &Sample) -> (Vec<Array2<f32>>, Array2<f32>) {
+        let out = self.predict(sample);
+        let as_ = out
+            .a_logits
+            .into_iter()
+            .map(|x| x.mapv(sigmoid_scalar))
+            .collect::<Vec<_>>();
+        let b = out.b_logits.mapv(sigmoid_scalar);
+        (as_, b)
+    }
+}
+
+// ============================================================
+// hybrid controller glue
+// ============================================================
+
+#[derive(Debug, Clone)]
+pub struct NearestBetterResult {
+    /// ans[i] = score が自分より高く、かつハミング距離最小の個体 index
+    /// 候補が無ければ None
+    pub ans: Vec<Option<usize>>,
+}
+
+#[inline]
+fn freq_bucket(f: usize) -> u8 {
+    if f == 0 {
+        0
+    } else {
+        (usize::BITS - f.leading_zeros()) as u8
+    }
+}
+
+/// main(2).rs の pruning / cached order を、そのまま
+/// 「各座標ごとに語彙サイズが違う」一般形へ拡張した版。
+///
+/// arrs[k][i] は 0..alphabet_sizes[i]-1 にある必要がある。
+pub fn nearest_better_hamming_pruned_generalized(
+    arrs: &[Vec<usize>],
+    scores: &[f64],
+    alphabet_sizes: &[usize],
+    max_cache_size: usize,
+) -> NearestBetterResult {
+    use std::collections::HashMap;
+
+    let n = arrs.len();
+    assert_eq!(n, scores.len(), "arrs.len() must equal scores.len()");
+    if n == 0 {
+        return NearestBetterResult { ans: vec![] };
+    }
+
+    let l = arrs[0].len();
+    assert_eq!(l, alphabet_sizes.len(), "alphabet_sizes.len() must equal code length");
+    for a in arrs.iter() {
+        assert_eq!(a.len(), l, "all arrays must have the same length");
+    }
+    for x in arrs.iter() {
+        for (i, &v) in x.iter().enumerate() {
+            assert!(
+                v < alphabet_sizes[i],
+                "arr value out of range: x[{}]={}, expected 0..{}",
+                i,
+                v,
+                alphabet_sizes[i]
+            );
+        }
+    }
+
+    let mut order: Vec<usize> = (0..n).collect();
+    order.sort_by(|&i, &j| {
+        scores[j]
+            .partial_cmp(&scores[i])
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+
+    let mut ans: Vec<Option<usize>> = vec![None; n];
+
+    let mut postings: Vec<Vec<Vec<usize>>> = alphabet_sizes
+        .iter()
+        .map(|&k| vec![Vec::<usize>::new(); k])
+        .collect();
+    let mut freqs: Vec<Vec<usize>> = alphabet_sizes
+        .iter()
+        .map(|&k| vec![0usize; k])
+        .collect();
+
+    let mut count: Vec<usize> = vec![0; n];
+    let mut seen_ver: Vec<u32> = vec![0; n];
+    let mut active_mark: Vec<u32> = vec![0; n];
+    let mut query_ver: u32 = 0;
+
+    let mut order_cache: HashMap<Vec<u8>, Vec<usize>> = HashMap::new();
+
+    let get_coord_order = |x: &[usize],
+                           freqs: &Vec<Vec<usize>>,
+                           order_cache: &mut HashMap<Vec<u8>, Vec<usize>>|
+     -> Vec<usize> {
+        let mut signature = Vec::with_capacity(l);
+        for i in 0..l {
+            signature.push(freq_bucket(freqs[i][x[i]]));
+        }
+
+        if let Some(cached) = order_cache.get(&signature) {
+            return cached.clone();
+        }
+
+        let mut coords: Vec<usize> = (0..l).collect();
+        coords.sort_by_key(|&i| (signature[i], freqs[i][x[i]], i));
+
+        if order_cache.len() >= max_cache_size {
+            order_cache.clear();
+        }
+        order_cache.insert(signature, coords.clone());
+        coords
+    };
+
+    let query_one = |x: &[usize],
+                     postings: &Vec<Vec<Vec<usize>>>,
+                     freqs: &Vec<Vec<usize>>,
+                     order_cache: &mut HashMap<Vec<u8>, Vec<usize>>,
+                     count: &mut Vec<usize>,
+                     seen_ver: &mut Vec<u32>,
+                     active_mark: &mut Vec<u32>,
+                     query_ver: &mut u32|
+     -> Option<usize> {
+        *query_ver += 1;
+        let ver = *query_ver;
+        let coords = get_coord_order(x, freqs, order_cache);
+
+        let mut best_id: Option<usize> = None;
+        let mut best_match: usize = 0;
+        let mut active: Vec<usize> = Vec::new();
+
+        for (step, &i) in coords.iter().enumerate() {
+            let plist = &postings[i][x[i]];
+            let mut improved = false;
+
+            for &j in plist.iter() {
+                if seen_ver[j] != ver {
+                    seen_ver[j] = ver;
+                    count[j] = 0;
+                    if active_mark[j] != ver {
+                        active_mark[j] = ver;
+                        active.push(j);
+                    }
+                }
+
+                count[j] += 1;
+                if count[j] > best_match {
+                    best_match = count[j];
+                    best_id = Some(j);
+                    improved = true;
+                }
+            }
+
+            if best_match == l {
+                break;
+            }
+
+            let rem = l - (step + 1);
+            if improved {
+                let mut new_active = Vec::with_capacity(active.len());
+                for &j in active.iter() {
+                    if count[j] + rem >= best_match {
+                        new_active.push(j);
+                    }
+                }
+                active = new_active;
+                if best_id.is_some() && active.is_empty() {
+                    break;
+                }
+            }
+        }
+
+        best_id
+    };
+
+    let mut p = 0;
+    while p < n {
+        let s = scores[order[p]];
+        let mut q = p + 1;
+        while q < n && scores[order[q]] == s {
+            q += 1;
+        }
+
+        let group = &order[p..q];
+        for &idx in group.iter() {
+            ans[idx] = query_one(
+                &arrs[idx],
+                &postings,
+                &freqs,
+                &mut order_cache,
+                &mut count,
+                &mut seen_ver,
+                &mut active_mark,
+                &mut query_ver,
+            );
+        }
+
+        for &idx in group.iter() {
+            let x = &arrs[idx];
+            for i in 0..l {
+                let v = x[i];
+                postings[i][v].push(idx);
+                freqs[i][v] += 1;
+            }
+        }
+
+        p = q;
+    }
+
+    NearestBetterResult { ans }
+}
+
+#[derive(Clone, Debug)]
+pub struct HybridMutationConfig {
+    pub learned_mutation_prob: f64,
+    pub train_every_generations: usize,
+    pub train_epochs_per_generation: usize,
+    pub batch_size: usize,
+    pub nearest_better_cache_size: usize,
+    pub train_population_subset: usize,
+    pub max_teacher_pairs: usize,
+    pub max_minibatches_per_generation: usize,
+}
+
+impl Default for HybridMutationConfig {
+    fn default() -> Self {
+        Self {
+            learned_mutation_prob: 0.15,
+            train_every_generations: 1,
+            train_epochs_per_generation: 1,
+            batch_size: 8,
+            nearest_better_cache_size: 1 << 14,
+            train_population_subset: 256,
+            max_teacher_pairs: 256,
+            max_minibatches_per_generation: 16,
+        }
+    }
+}
+
+#[derive(Clone)]
+struct ChromosomeRef {
+    layer_idx: usize,
+    chrom_idx: usize,
+}
+
+/// learned mutator では connection topology のみを学習し、
+/// func スロットは classical mutation に残す。
+#[derive(Clone)]
+pub struct GenomeCodec {
+    adf_order: Vec<ChromosomeRef>,
+    adf_len: usize,
+    top_len: usize,
+    adf_domain_cap: usize,
+    top_domain_cap: usize,
+    alphabet_sizes: Vec<usize>,
+}
+
+impl GenomeCodec {
+    pub fn new() -> Self {
+        let mut adf_order = Vec::new();
+        let mut alphabet_sizes = Vec::new();
+
+        let top_layer = N_LAYERS - 1;
+        let top_len = layer_len(top_layer);
+        let top_domain_cap = N_INPUTS_MAIN + top_len;
+
+        let adf_len = if N_LAYERS >= 2 { layer_len(0) } else { 0 };
+        let adf_domain_cap = if N_LAYERS >= 2 { N_INPUTS_ADF + adf_len } else { 0 };
+
+        for li in 0..top_layer {
+            let count = layer_n_adf(li);
+            let len = layer_len(li);
+            let n_ext = layer_n_ext(li);
+            assert_eq!(len, adf_len, "all non-top chromosomes must share the same length");
+            for ci in 0..count {
+                adf_order.push(ChromosomeRef { layer_idx: li, chrom_idx: ci });
+                for i in 0..len {
+                    alphabet_sizes.push(n_ext + i);
+                    alphabet_sizes.push(n_ext + i);
+                }
+            }
+        }
+
+        for i in 0..top_len {
+            alphabet_sizes.push(N_INPUTS_MAIN + i);
+            alphabet_sizes.push(N_INPUTS_MAIN + i);
+        }
+
+        Self {
+            adf_order,
+            adf_len,
+            top_len,
+            adf_domain_cap,
+            top_domain_cap,
+            alphabet_sizes,
+        }
+    }
+
+    pub fn num_adf_mats(&self) -> usize {
+        self.adf_order.len()
+    }
+
+    pub fn adf_shape(&self) -> (usize, usize) {
+        (self.adf_len, 2 * self.adf_domain_cap)
+    }
+
+    pub fn top_shape(&self) -> (usize, usize) {
+        (self.top_len, 2 * self.top_domain_cap)
+    }
+
+    pub fn alphabet_sizes(&self) -> &[usize] {
+        &self.alphabet_sizes
+    }
+
+    pub fn flatten_discrete(&self, g: &Genome) -> Vec<usize> {
+        let mut out = Vec::with_capacity(self.alphabet_sizes.len());
+        for r in &self.adf_order {
+            let c = &g.layers[r.layer_idx][r.chrom_idx];
+            let len = layer_len(r.layer_idx);
+            for i in 0..len {
+                out.push(c.conn[i][0] as usize);
+                out.push(c.conn[i][1] as usize);
+            }
+        }
+
+        let top = &g.layers[N_LAYERS - 1][0];
+        for i in 0..self.top_len {
+            out.push(top.conn[i][0] as usize);
+            out.push(top.conn[i][1] as usize);
+        }
+        out
+    }
+
+    fn encode_chromosome(c: &Chromosome, len: usize, domain_cap: usize) -> Array2<f32> {
+        let mut mat = Array2::<f32>::zeros((len, 2 * domain_cap));
+        for i in 0..len {
+            let c0 = c.conn[i][0] as usize;
+            let c1 = c.conn[i][1] as usize;
+            debug_assert!(c0 < domain_cap);
+            debug_assert!(c1 < domain_cap);
+            mat[[i, c0]] = 1.0;
+            mat[[i, domain_cap + c1]] = 1.0;
+        }
+        mat
+    }
+
+    pub fn encode_sample(&self, g: &Genome, loss_cond: f32) -> Sample {
+        let mut a_mats = Vec::with_capacity(self.adf_order.len());
+        for r in &self.adf_order {
+            let c = &g.layers[r.layer_idx][r.chrom_idx];
+            a_mats.push(Self::encode_chromosome(c, self.adf_len, self.adf_domain_cap));
+        }
+        let top = &g.layers[N_LAYERS - 1][0];
+        let b_mat = Self::encode_chromosome(top, self.top_len, self.top_domain_cap);
+        Sample { a_mats, b_mat, cond: Array1::from_vec(vec![loss_cond]) }
+    }
+
+    pub fn encode_target(&self, g: &Genome) -> Targets {
+        let sample = self.encode_sample(g, 0.0);
+        Targets {
+            a_targets: sample.a_mats,
+            b_target: sample.b_mat,
+        }
+    }
+
+    fn argmax_range(row: ndarray::ArrayView1<'_, f32>, start: usize, len: usize) -> usize {
+        let mut best_idx = start;
+        let mut best_val = f32::NEG_INFINITY;
+        for j in start..(start + len) {
+            let v = row[j];
+            if v > best_val {
+                best_val = v;
+                best_idx = j;
+            }
+        }
+        best_idx - start
+    }
+
+    fn decode_chromosome_into(
+        c: &mut Chromosome,
+        logits: &Array2<f32>,
+        len: usize,
+        domain_cap: usize,
+        n_ext: usize,
+    ) {
+        for i in 0..len {
+            let valid_conn = n_ext + i;
+            let row = logits.index_axis(Axis(0), i);
+            c.conn[i][0] = Self::argmax_range(row.view(), 0, valid_conn) as u16;
+            c.conn[i][1] = Self::argmax_range(row.view(), domain_cap, valid_conn) as u16;
+        }
+    }
+
+    pub fn decode_output(&self, template: &Genome, out: &ModelOutput) -> Genome {
+        let mut g = template.clone();
+
+        for (mat_idx, r) in self.adf_order.iter().enumerate() {
+            let li = r.layer_idx;
+            let c = &mut g.layers[li][r.chrom_idx];
+            Self::decode_chromosome_into(
+                c,
+                &out.a_logits[mat_idx],
+                self.adf_len,
+                self.adf_domain_cap,
+                layer_n_ext(li),
+            );
+        }
+
+        let top = &mut g.layers[N_LAYERS - 1][0];
+        Self::decode_chromosome_into(
+            top,
+            &out.b_logits,
+            self.top_len,
+            self.top_domain_cap,
+            N_INPUTS_MAIN,
+        );
+        g
+    }
+}
+
+pub struct HybridMutationController {
+    pub codec: GenomeCodec,
+    pub model: MixerModel,
+    pub optim: OptimHyper,
+    pub cfg: HybridMutationConfig,
+    trained_pairs_last: usize,
+}
+
+impl HybridMutationController {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        rng: &mut rand::rngs::StdRng,
+        cfg: HybridMutationConfig,
+        d1: usize,
+        d2: usize,
+        num_blocks: usize,
+        token_hidden: usize,
+        channel_hidden: usize,
+        cond_embed: CondEmbedding,
+        cond_proj_hidden: usize,
+        cond_vec_dim: usize,
+        optim: OptimHyper,
+    ) -> Self {
+        let codec = GenomeCodec::new();
+        let (a_rows, a_cols) = codec.adf_shape();
+        let (b_rows, b_cols) = codec.top_shape();
+        let model = MixerModel::new(
+            rng,
+            codec.num_adf_mats(),
+            a_rows,
+            a_cols,
+            b_rows,
+            b_cols,
+            d1,
+            d2,
+            num_blocks,
+            token_hidden,
+            channel_hidden,
+            cond_embed,
+            cond_proj_hidden,
+            cond_vec_dim,
+        );
+        Self {
+            codec,
+            model,
+            optim,
+            cfg,
+            trained_pairs_last: 0,
+        }
+    }
+
+    pub fn trained_pairs_last(&self) -> usize {
+        self.trained_pairs_last
+    }
+
+    fn loss_stats(losses: &[f64]) -> (f32, f32) {
+        if losses.is_empty() {
+            return (0.0, 1.0);
+        }
+        let mean = losses.iter().sum::<f64>() / losses.len() as f64;
+        let var = losses
+            .iter()
+            .map(|&x| {
+                let d = x - mean;
+                d * d
+            })
+            .sum::<f64>()
+            / losses.len() as f64;
+        let std = var.sqrt().max(1e-8);
+        (mean as f32, std as f32)
+    }
+
+    pub fn normalize_loss(loss: f64, mean: f32, std: f32) -> f32 {
+        (((loss as f32) - mean) / std).tanh()
+    }
+
+    pub fn build_teacher_pairs(
+        &self,
+        genomes: &[Genome],
+        losses: &[f64],
+        rng: &mut rand::rngs::StdRng,
+    ) -> Vec<(Sample, Targets)> {
+        if genomes.is_empty() {
+            return Vec::new();
+        }
+
+        let subset_cap = self.cfg.train_population_subset.max(2).min(genomes.len());
+        let elite_take = (subset_cap / 2).max(1).min(genomes.len());
+        let mut idxs: Vec<usize> = (0..elite_take).collect();
+        if subset_cap > elite_take {
+            let mut tail: Vec<usize> = (elite_take..genomes.len()).collect();
+            tail.shuffle(rng);
+            tail.truncate(subset_cap - elite_take);
+            idxs.extend(tail);
+            idxs.sort_unstable();
+        }
+
+        let sub_genomes: Vec<Genome> = idxs.iter().map(|&i| genomes[i].clone()).collect();
+        let sub_losses: Vec<f64> = idxs.iter().map(|&i| losses[i]).collect();
+        let codes: Vec<Vec<usize>> = sub_genomes
+            .iter()
+            .map(|g| self.codec.flatten_discrete(g))
+            .collect();
+        let scores: Vec<f64> = sub_losses.iter().map(|&x| -x).collect();
+
+        let nb = nearest_better_hamming_pruned_generalized(
+            &codes,
+            &scores,
+            self.codec.alphabet_sizes(),
+            self.cfg.nearest_better_cache_size,
+        );
+
+        let (loss_mean, loss_std) = Self::loss_stats(&sub_losses);
+
+        let best_loss = sub_losses
+            .iter()
+            .copied()
+            .fold(f64::INFINITY, f64::min);
+
+        let mut out = Vec::new();
+        for (i, maybe_j) in nb.ans.into_iter().enumerate() {
+            if (sub_losses[i] - best_loss).abs() <= 1e-15 {
+                continue;
+            }
+            if let Some(j) = maybe_j {
+                if j == i {
+                    continue;
+                }
+                if codes[i] == codes[j] {
+                    continue;
+                }
+                let loss_cond = Self::normalize_loss(sub_losses[i], loss_mean, loss_std);
+                out.push((
+                    self.codec.encode_sample(&sub_genomes[i], loss_cond),
+                    self.codec.encode_target(&sub_genomes[j]),
+                ));
+            }
+        }
+        if out.len() > self.cfg.max_teacher_pairs {
+            out.shuffle(rng);
+            out.truncate(self.cfg.max_teacher_pairs);
+        }
+        out
+    }
+
+    pub fn train_on_population(
+        &mut self,
+        genomes: &[Genome],
+        losses: &[f64],
+        rng: &mut rand::rngs::StdRng,
+    ) {
+
+        let mut pairs = self.build_teacher_pairs(genomes, losses, rng);
+        self.trained_pairs_last = pairs.len();
+        if pairs.is_empty() {
+            return;
+        }
+
+        let mut steps = 0usize;
+        let max_steps = self.cfg.max_minibatches_per_generation.max(1);
+        for epoch in 0..self.cfg.train_epochs_per_generation {
+            pairs.shuffle(rng);
+            for batch in pairs.chunks(self.cfg.batch_size.max(1)) {
+                self.model.train_minibatch_step(batch, self.optim);
+                steps += 1;
+                if steps % TRAIN_PROGRESS_EVERY == 0 || steps == max_steps {
+                    println!(
+                        "CMAES_STAGE stage=train_progress epoch={} step={} max_steps={} pairs={}",
+                        epoch,
+                        steps,
+                        max_steps,
+                        pairs.len(),
+                    );
+                }
+                if steps >= max_steps {
+                    return;
+                }
+            }
+        }
+    }
+
+    pub fn propose_from_model(&self, parent: &Genome, loss_cond: f32) -> Genome {
+        let sample = self.codec.encode_sample(parent, loss_cond);
+        let out = self.model.predict(&sample);
+        self.codec.decode_output(parent, &out)
+    }
+
+    pub fn maybe_mutate_with_model(
+        &self,
+        rng: &mut rand::rngs::SmallRng,
+        parent: &Genome,
+        fallback: Genome,
+        loss_cond: f32,
+    ) -> Genome {
+        if rng.gen::<f64>() < self.cfg.learned_mutation_prob {
+            self.propose_from_model(parent, loss_cond)
+        } else {
+            fallback
+        }
+    }
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 fn main() {
-    assert_eq!(LAYER_LEN.len(), N_LAYERS);
-    assert_eq!(N_ADF_PER_LAYER.len(), N_LAYERS - 1);
-    assert!(N_LAYERS >= 1);
+    assert_eq!(LAYER_LEN.len(), N_LAYERS, "LAYER_LEN の要素数は N_LAYERS に合わせてください");
+    assert_eq!(N_ADF_PER_LAYER.len(), N_LAYERS - 1, "N_ADF_PER_LAYER の要素数は N_LAYERS-1 に合わせてください");
+    assert!(N_LAYERS >= 1, "N_LAYERS は 1 以上にしてください");
 
     eprintln!(
-        "ADF-CGP+Surrogate  N_LAYERS={N_LAYERS}  LAYER_LEN={:?}  POP={POP_SIZE}  SURR_EMBED={SURR_EMBED_DIM}  SURR_HIDDEN={SURR_HIDDEN_DIM}  SURR_LR={SURR_LR}  SURR_RATIO={SURR_RATIO_INIT}",
-        LAYER_LEN,
+        "ADF-CGP  N_LAYERS={N_LAYERS}  N_ADF_PER_LAYER={:?}  LAYER_LEN={:?}  POP={POP_SIZE}  BATCHES={N_BATCHES}  MUT_STOP_PROB={MUT_STOP_PROB}  MUT_MAX_TARGETS={MUT_MAX_TARGETS}  LEARNED_MUT_PROB={LEARNED_MUTATION_PROB}",
+        N_ADF_PER_LAYER, LAYER_LEN,
     );
 
     let mut rng = SmallRng::seed_from_u64(42);
+    let mut mlp_rng = StdRng::seed_from_u64(123456789);
+
     let ds = Dataset::new_fixed(&mut rng);
     let mut pop: Vec<Genome> = (0..POP_SIZE).map(|_| Genome::random(&mut rng)).collect();
     let evaluator = Evaluator::new();
 
-    let mut sw = SurrogateWeights::new(SURR_LR);
-    let mut embed_cache: std::collections::HashMap<Sig, ndarray::Array1<f64>> =
-        std::collections::HashMap::new();
-    let mut surr_step_accumulator: f64 = 0.0;
-    let mut n_real_evals: usize = 0;
+    let hybrid_cfg = HybridMutationConfig {
+        learned_mutation_prob: LEARNED_MUTATION_PROB,
+        train_every_generations: MIXER_TRAIN_EVERY,
+        train_epochs_per_generation: MIXER_TRAIN_EPOCHS,
+        batch_size: MIXER_BATCH_SIZE,
+        nearest_better_cache_size: NEAREST_BETTER_CACHE_SIZE,
+        train_population_subset: MIXER_TRAIN_POP_SUBSET,
+        max_teacher_pairs: MIXER_MAX_TEACHER_PAIRS,
+        max_minibatches_per_generation: MIXER_MAX_MINIBATCHES,
+    };
+
+    let mixer_optim = OptimHyper {
+        lr_matrix: MIXER_LR_MATRIX,
+        muon_weight_decay: MUON_WEIGHT_DECAY,
+        muon_momentum: MUON_MOMENTUM,
+        muon_ns_steps: MUON_NS_STEPS,
+        muon_nesterov: MUON_NESTEROV,
+        lr_vector: MIXER_LR_VECTOR,
+        adamw_beta1: ADAMW_BETA1,
+        adamw_beta2: ADAMW_BETA2,
+        adamw_eps: ADAMW_EPS,
+        adamw_weight_decay: ADAMW_WEIGHT_DECAY,
+    };
+
+    let cond_embed = CondEmbedding::new_raw_vec(1);
+    let mut learned_mutator = HybridMutationController::new(
+        &mut mlp_rng,
+        hybrid_cfg,
+        MIXER_D1,
+        MIXER_D2,
+        MIXER_BLOCKS,
+        MIXER_TOKEN_HIDDEN,
+        MIXER_CHANNEL_HIDDEN,
+        cond_embed,
+        MIXER_COND_PROJ_HIDDEN,
+        MIXER_COND_VEC_DIM,
+        mixer_optim,
+    );
 
     for gen in 0..N_GEN {
+        println!("CMAES_STAGE gen={} stage=eval_begin", gen);
         evaluator.reset_generation();
         let inter_weight = INTER_WEIGHT_MAX * (gen as f64 / CURRICULUM_RAMP_GENS as f64).min(1.0);
 
-        // ─── 実評価フェーズ ────────────────────────────────────────────────────
-        let mut scored: Vec<(f64, f64, Genome)> = pop
-            .par_iter()
-            .map(|g| { let (l, a) = eval(g, &ds, &evaluator, inter_weight); (l, a, g.clone()) })
-            .collect();
+        let eval_chunk = EVAL_PROGRESS_CHUNK.max(1);
+        let mut scored: Vec<(f64, f64, Genome)> = Vec::with_capacity(pop.len());
+        for (chunk_idx, chunk) in pop.chunks(eval_chunk).enumerate() {
+            let mut part: Vec<(f64, f64, Genome)> = chunk
+                .par_iter()
+                .map(|g| { let (l, a) = eval(g, &ds, &evaluator, inter_weight); (l, a, g.clone()) })
+                .collect();
+            scored.append(&mut part);
+        }
         scored.sort_unstable_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
 
+        let losses: Vec<f64> = scored.iter().map(|x| x.0).collect();
+        let genomes_for_training: Vec<Genome> = scored.iter().map(|x| x.2.clone()).collect();
         println!(
-            "CMAES_ACC gen={} loss={:.10} acc={:.10} surr_mult={:.3} surr_corr={:.3}",
-            gen, scored[0].0, scored[0].1, sw.surrogate_multiplier, sw.val_correlation,
+            "CMAES_ACC gen={} loss={:.10} acc={:.10}",
+            gen, scored[0].0, scored[0].1
         );
-
-        // ─── Surrogate 訓練フェーズ ────────────────────────────────────────────
-        // elite を 訓練用 / held-out 用に 3:1 で分割
-        let n_train_elites = (ELITE * 3 / 4).max(1);
-        let _n_held_out    = ELITE - n_train_elites;
-        let mut surr_mse_sum = 0.0f64;
-
-        // 訓練用 elites: GenomeData を1回計算してフォワード+バックワードに渡す
-        for k in 0..n_train_elites.min(scored.len()) {
-            let actual_loss = scored[k].0;
-            let gd = GenomeData::new(&scored[k].2);
-            let mse = surrogate_train_step(&mut sw, &scored[k].2, &gd, actual_loss, &mut embed_cache);
-            surr_mse_sum += mse;
-        }
-        n_real_evals += n_train_elites;
-
-        // held-out バッファに追加
-        for k in n_train_elites..ELITE.min(scored.len()) {
-            let gk = GenomeData::new(&scored[k].2).genome_key;
-            sw.held_out_buffer.push((gk, scored[k].0, scored[k].2.clone()));
-            if sw.held_out_buffer.len() > 500 {
-                sw.held_out_buffer.drain(..50);
-            }
-        }
-
-        // held-out セットでバリデーション相関を更新
-        update_val_correlation(&mut sw, &mut embed_cache);
-        update_surrogate_multiplier(&mut sw);
-
-        eprintln!(
-            "  [surrogate] gen={} train_mse_avg={:.6} val_corr={:.4} n_real={} mult={:.2}",
-            gen,
-            surr_mse_sum / n_train_elites as f64,
-            sw.val_correlation,
-            n_real_evals,
-            sw.surrogate_multiplier,
-        );
-
-        // ─── 次世代生成 ───────────────────────────────────────────────────────
-        let elites: Vec<Genome> = scored[..ELITE].iter().map(|x| x.2.clone()).collect();
-        let mut next = elites.clone();
-
-        surr_step_accumulator += SURR_RATIO_INIT * sw.surrogate_multiplier;
-        let actual_surr_steps = surr_step_accumulator as usize;
-        surr_step_accumulator -= actual_surr_steps as f64;
-
-        if sw.val_correlation > 0.3 && actual_surr_steps > 0 {
-            for _surr_gen in 0..actual_surr_steps {
-                // surrogate 評価フェーズ: embed_cache を世代内で共有する
-                // (重みは変わっていないため、サブツリーの共有が有効)
-                // embed_cache は前の学習ステップで clear 済み
-                let mut surr_candidates: Vec<Genome> = Vec::with_capacity(POP_SIZE);
-                for _ in 0..(POP_SIZE - ELITE) {
-                    let p1 = &scored[rng.gen_range(0..ELITE)].2;
-                    let p2 = &scored[rng.gen_range(0..ELITE)].2;
-                    let child = match rng.gen_range(0..3u8) {
-                        0 => p1.mix(&mut rng, p2),
-                        1 => p1.mutate(&mut rng),
-                        _ => p1.mix(&mut rng, p2).mutate(&mut rng),
-                    };
-                    surr_candidates.push(child);
-                }
-
-                // GenomeData を各候補について1回だけ計算し surrogate_predict_with_data に渡す
-                // embed_cache はこのフェーズ全体で共有される（重みは変化しない）
-                let mut surr_all: Vec<(f64, Genome)> = surr_candidates
-                    .into_iter()
-                    .map(|g| {
-                        let gd = GenomeData::new(&g);
-                        let s = surrogate_predict_with_data(&g, &gd, &mut sw, &mut embed_cache);
-                        (s, g)
-                    })
-                    .collect();
-                let mut elite_scored: Vec<(f64, Genome)> = next.iter()
-                    .map(|g| {
-                        let gd = GenomeData::new(g);
-                        let s = surrogate_predict_with_data(g, &gd, &mut sw, &mut embed_cache);
-                        (s, g.clone())
-                    })
-                    .collect();
-                surr_all.append(&mut elite_scored);
-                surr_all.sort_unstable_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
-                next = surr_all.into_iter().take(POP_SIZE).map(|x| x.1).collect();
-
-                // surr_gen をまたぐ場合は embed_cache をクリア（重みは変化していないが
-                // 次の surr_gen では異なる候補群なのでキャッシュの意義は薄い）
-                // 注: 重みは変化しないため実はクリア不要だが、メモリ節約のため行う
-                // embed_cache.clear();  // コメントアウト: 重みが変わらないなら保持した方が速い
-            }
-            pop = next;
+        if MIXER_TRAIN_EVERY > 0 && gen % MIXER_TRAIN_EVERY == 0 {
+            println!("CMAES_STAGE gen={} stage=train_begin", gen);
+            learned_mutator.train_on_population(
+                &genomes_for_training,
+                &losses,
+                &mut mlp_rng,
+            );
+            println!(
+                "CMAES_STAGE gen={} stage=train_end teacher_pairs={} subset={} max_pairs={} max_steps={}",
+                gen,
+                learned_mutator.trained_pairs_last(),
+                MIXER_TRAIN_POP_SUBSET,
+                MIXER_MAX_TEACHER_PAIRS,
+                MIXER_MAX_MINIBATCHES,
+            );
         } else {
-            while next.len() < POP_SIZE {
-                let p1 = &scored[rng.gen_range(0..ELITE)].2;
-                let p2 = &scored[rng.gen_range(0..ELITE)].2;
-                let child = match rng.gen_range(0..3u8) {
-                    0 => p1.mix(&mut rng, p2),
-                    1 => p1.mutate(&mut rng),
-                    _ => p1.mix(&mut rng, p2).mutate(&mut rng),
-                };
-                next.push(child);
-            }
-            pop = next;
+            learned_mutator.trained_pairs_last = 0;
         }
+
+        let elites: Vec<Genome> = scored[..ELITE].iter().map(|x| x.2.clone()).collect();
+        let (loss_mean, loss_std) = HybridMutationController::loss_stats(&losses);
+        let mut next = elites;
+
+        while next.len() < POP_SIZE {
+            let i1 = rng.gen_range(0..ELITE);
+            let i2 = rng.gen_range(0..ELITE);
+            let p1 = &scored[i1].2;
+            let p2 = &scored[i2].2;
+            let p1_loss = scored[i1].0;
+
+            let classical = match rng.gen_range(0..3u8) {
+                0 => p1.mix(&mut rng, p2),
+                1 => p1.mutate(&mut rng),
+                _ => p1.mix(&mut rng, p2).mutate(&mut rng),
+            };
+
+            let loss_cond = HybridMutationController::normalize_loss(p1_loss, loss_mean, loss_std);
+            let child = learned_mutator.maybe_mutate_with_model(
+                &mut rng,
+                p1,
+                classical,
+                loss_cond,
+            );
+
+            next.push(child);
+        }
+        pop = next;
     }
 }
 
-/// 1D ピアソン相関
-fn pearson_1d(x: &[f64], y: &[f64]) -> f64 {
-    let n = x.len() as f64;
-    if n < 2.0 { return 0.0; }
-    let mx = x.iter().sum::<f64>() / n;
-    let my = y.iter().sum::<f64>() / n;
-    let (mut num, mut dx, mut dy) = (0.0f64, 0.0f64, 0.0f64);
-    for (&xi, &yi) in x.iter().zip(y) {
-        let a = xi - mx; let b = yi - my;
-        num += a * b; dx += a * a; dy += b * b;
-    }
-    if dx < 1e-14 || dy < 1e-14 { 0.0 } else { num / (dx.sqrt() * dy.sqrt()) }
-}
 """
 
 
 def generate_rust_source(params: dict) -> str:
+    """パラメータ辞書から Rust ソースを生成する"""
     n = params["N_LAYERS"]
     llen = params["LAYER_LEN"]
     llen2 = params["LAYER_LEN_LAST"]
     nadf = params["N_ADF_PER_LAYER"]
 
     layer_len_arr = ", ".join([str(llen)] * (n - 1) + [str(llen2)])
-    n_adf_arr = "" if n == 1 else ", ".join([str(nadf)] * (n - 1))
+
+    if n == 1:
+        n_adf_arr = ""
+    else:
+        n_adf_arr = ", ".join([str(nadf)] * (n - 1))
 
     elite = params["ELITE"]
     pop_size = params["POP_SIZE"]
@@ -1435,14 +2825,32 @@ def generate_rust_source(params: dict) -> str:
         HILO=f"{params['HILO']:.8f}",
         P=f"{params['P']:.8f}",
         MUT_STOP_PROB=f"{params['MUT_STOP_PROB']:.8f}",
-        MUT_MAX_TARGETS=params["MUT_MAX_TARGETS"],
-        SURR_EMBED_DIM=params["SURR_EMBED_DIM"],
-        SURR_HIDDEN_DIM=params["SURR_HIDDEN_DIM"],
-        SURR_LR=f"{params['SURR_LR']:.8f}",
-        SURR_RATIO=f"{params['SURR_RATIO']:.8f}",
-        SURR_PROMOTE_THRESH=f"{params['SURR_PROMOTE_THRESH']:.8f}",
-        SURR_DEMOTE_THRESH=f"{params['SURR_DEMOTE_RATIO'] * params['SURR_PROMOTE_THRESH']:.8f}",
-        SURR_MAX_MULTIPLIER=f"{params['SURR_MAX_MULTIPLIER']:.8f}",
+        MUT_MAX_TARGETS=int(params["MUT_MAX_TARGETS"]),
+        LEARNED_MUTATION_PROB=f"{params['LEARNED_MUTATION_PROB']:.8f}",
+        NEAREST_BETTER_CACHE_SIZE=int(params["NEAREST_BETTER_CACHE_SIZE"]),
+        MIXER_D1=int(params["MIXER_D1"]),
+        MIXER_D2=int(params["MIXER_D2"]),
+        MIXER_BLOCKS=int(params["MIXER_BLOCKS"]),
+        MIXER_TOKEN_HIDDEN=int(params["MIXER_TOKEN_HIDDEN"]),
+        MIXER_CHANNEL_HIDDEN=int(params["MIXER_CHANNEL_HIDDEN"]),
+        MIXER_COND_PROJ_HIDDEN=int(params["MIXER_COND_PROJ_HIDDEN"]),
+        MIXER_COND_VEC_DIM=int(params["MIXER_COND_VEC_DIM"]),
+        MIXER_TRAIN_EVERY=int(params["MIXER_TRAIN_EVERY"]),
+        MIXER_TRAIN_EPOCHS=int(params["MIXER_TRAIN_EPOCHS"]),
+        MIXER_BATCH_SIZE=int(params["MIXER_BATCH_SIZE"]),
+        MIXER_TRAIN_POP_SUBSET=int(params["MIXER_TRAIN_POP_SUBSET"]),
+        MIXER_MAX_TEACHER_PAIRS=int(params["MIXER_MAX_TEACHER_PAIRS"]),
+        MIXER_MAX_MINIBATCHES=int(params["MIXER_MAX_MINIBATCHES"]),
+        MIXER_LR_MATRIX=f"{params['MIXER_LR_MATRIX']:.8f}",
+        MIXER_LR_VECTOR=f"{params['MIXER_LR_VECTOR']:.8f}",
+        MUON_WEIGHT_DECAY=f"{params['MUON_WEIGHT_DECAY']:.8f}",
+        MUON_MOMENTUM=f"{params['MUON_MOMENTUM']:.8f}",
+        MUON_NS_STEPS=int(params["MUON_NS_STEPS"]),
+        MUON_NESTEROV='true' if params["MUON_NESTEROV"] else 'false',
+        ADAMW_BETA1=f"{params['ADAMW_BETA1']:.8f}",
+        ADAMW_BETA2=f"{params['ADAMW_BETA2']:.8f}",
+        ADAMW_EPS=f"{params['ADAMW_EPS']:.12f}",
+        ADAMW_WEIGHT_DECAY=f"{params['ADAMW_WEIGHT_DECAY']:.8f}",
         BODY=RUST_BODY,
     )
     return src
@@ -1450,14 +2858,22 @@ def generate_rust_source(params: dict) -> str:
 
 # ─── ビルド & 実行 ────────────────────────────────────────────────────────────
 
-def build_and_run(params: dict, project_dir: str, eval_time: int, trial_idx: int, out_dir: str) -> float:
+def build_and_run(
+    params: dict,
+    project_dir: str,
+    eval_time: int,
+    trial_idx: int,
+    out_dir: str,
+) -> float:
     src = generate_rust_source(params)
     src_path = os.path.join(project_dir, "src", "main.rs")
+
     with open(src_path, "w", encoding="utf-8") as f:
         f.write(src)
 
     log_dir = os.path.join(out_dir, f"trial_{trial_idx:04d}")
     os.makedirs(log_dir, exist_ok=True)
+
     with open(os.path.join(log_dir, "params.json"), "w") as f:
         json.dump(params, f, indent=2)
 
@@ -1465,7 +2881,10 @@ def build_and_run(params: dict, project_dir: str, eval_time: int, trial_idx: int
     build_start = time.time()
     build_result = subprocess.run(
         ["cargo", "build", "--release"],
-        cwd=project_dir, capture_output=True, text=True, timeout=300,
+        cwd=project_dir,
+        capture_output=True,
+        text=True,
+        timeout=300,
     )
     build_elapsed = time.time() - build_start
 
@@ -1478,63 +2897,68 @@ def build_and_run(params: dict, project_dir: str, eval_time: int, trial_idx: int
 
     print(f"  [trial {trial_idx}] Build OK ({build_elapsed:.1f}s). Running {eval_time}s ...", flush=True)
 
-    bin_name = None
     cargo_toml = os.path.join(project_dir, "Cargo.toml")
+    bin_name = None
     try:
         import tomllib
+    except ImportError:
+        tomllib = None
+
+    if tomllib and os.path.exists(cargo_toml):
         with open(cargo_toml, "rb") as f:
             toml_data = tomllib.load(f)
         bin_name = toml_data.get("package", {}).get("name", None)
-    except Exception:
-        pass
     if bin_name is None:
-        for line in open(cargo_toml):
-            m = re.match(r'\s*name\s*=\s*"([^"]+)"', line)
-            if m:
-                bin_name = m.group(1)
-                break
+        if os.path.exists(cargo_toml):
+            for line in open(cargo_toml):
+                m = re.match(r'\s*name\s*=\s*"([^"]+)"', line)
+                if m:
+                    bin_name = m.group(1)
+                    break
     if bin_name is None:
         bin_name = os.path.basename(project_dir)
 
     binary = os.path.join(project_dir, "target", "release", bin_name)
+
     run_proc = subprocess.Popen(
-        [binary], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, cwd=project_dir,
+        [binary],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        cwd=project_dir,
     )
 
     import select as _select
     lines = []
     deadline = time.time() + eval_time
     last_output_time = time.time()
-    SILENCE_TIMEOUT = 20.0
+    SILENCE_TIMEOUT = 15.0
     timed_out_by_silence = False
 
     try:
-        while True:
-            now = time.time()
-            if now >= deadline:
+        while time.time() < deadline:
+            remaining = min(deadline - time.time(), SILENCE_TIMEOUT - (time.time() - last_output_time))
+            if remaining <= 0:
+                if time.time() - last_output_time >= SILENCE_TIMEOUT:
+                    timed_out_by_silence = True
                 break
-            if now - last_output_time >= SILENCE_TIMEOUT:
-                timed_out_by_silence = True
-                break
-
-            time_to_deadline = deadline - now
-            time_to_silence   = SILENCE_TIMEOUT - (now - last_output_time)
-            wait = min(time_to_deadline, time_to_silence, 1.0)
-
-            ready, _, _ = _select.select([run_proc.stdout], [], [], wait)
+            ready, _, _ = _select.select([run_proc.stdout], [], [], max(remaining, 0.0))
             if not ready:
+                if time.time() - last_output_time >= SILENCE_TIMEOUT:
+                    timed_out_by_silence = True
+                    break
                 continue
             line = run_proc.stdout.readline()
             if not line:
                 break
             last_output_time = time.time()
             lines.append(line.rstrip())
-            if "CMAES_ACC" in line:
+            if "CMAES_ACC" in line or "CMAES_STAGE" in line:
                 print(f"    {line.rstrip()}", flush=True)
     finally:
         run_proc.terminate()
         try:
-            run_proc.wait(timeout=20)
+            run_proc.wait(timeout=15)
         except subprocess.TimeoutExpired:
             run_proc.kill()
 
@@ -1557,11 +2981,12 @@ def build_and_run(params: dict, project_dir: str, eval_time: int, trial_idx: int
                 i += 1
             except ValueError:
                 pass
-    best_acc = 1.0 - math.exp(best_acc / i) if i > 0 else 0.0
+    best_acc = 1.0 - math.exp(best_acc / i)
 
     print(f"  [trial {trial_idx}] acc = {best_acc:.6f}")
     with open(os.path.join(log_dir, "result.json"), "w") as f:
         json.dump({"acc": best_acc, **params}, f, indent=2)
+
     return best_acc
 
 
@@ -1573,7 +2998,7 @@ class CMAESSearcher:
         self.eval_time = eval_time
         self.budget = budget
         self.out_dir = out_dir
-        self.history = []
+        self.history: list[dict] = []
         self.trial_idx = 0
 
         os.makedirs(out_dir, exist_ok=True)
@@ -1581,10 +3006,11 @@ class CMAESSearcher:
         x0 = initial_x()
         sigma0 = initial_sigma()
 
-        bounds_lo, bounds_hi = [], []
+        bounds_lo = []
+        bounds_hi = []
         for name, lo, hi, init, is_int, log_scale in PARAM_DEFS:
             if log_scale:
-                bounds_lo.append(math.log(max(lo, 1e-9)))
+                bounds_lo.append(math.log(lo))
                 bounds_hi.append(math.log(hi))
             else:
                 bounds_lo.append(float(lo))
@@ -1595,14 +3021,13 @@ class CMAESSearcher:
         opts["maxfevals"] = budget
         opts["verbose"] = -9
         opts["tolx"] = 1e-4
-        opts["popsize"] = 32
+        #opts["popsize"] = 30
         opts["tolfun"] = 1e-4
 
         self.es = cma.CMAEvolutionStrategy(x0, sigma0, opts)
         print(f"CMA-ES initialized: dim={len(x0)}, sigma0={sigma0:.3f}, budget={budget}")
-        print(f"Params: {[p[0] for p in PARAM_DEFS]}")
 
-    def objective(self, x: list) -> float:
+    def objective(self, x: list[float]) -> float:
         params = decode(x)
         print(f"\n{'='*60}")
         print(f"Trial {self.trial_idx}: {params}")
@@ -1610,9 +3035,10 @@ class CMAESSearcher:
         self.trial_idx += 1
 
         if acc is None:
+            fitness = 0.0
             self.history.append({"trial": self.trial_idx - 1, "acc": None, "invalid": True, **params})
             self._save_history()
-            return 0.0
+            return fitness
 
         EPS = 1e-24
         fitness = math.log(max(1.0 - acc, EPS))
@@ -1622,7 +3048,7 @@ class CMAESSearcher:
 
     def run(self):
         print("\n" + "="*60)
-        print("Starting CMA-ES hyperparameter search (with Surrogate Model)")
+        print("Starting CMA-ES hyperparameter search")
         print("="*60)
 
         global_best_fitness = float("inf")
@@ -1677,9 +3103,10 @@ edition = "2021"
 [dependencies]
 ahash = "0.8"
 dashmap = "5"
-ndarray = { version = "0.15", features = ["rayon"] }
+ndarray = "0.15"
 num-complex = "0.4"
 rand = { version = "0.8", features = ["small_rng"] }
+rand_distr = "0.4"
 rayon = "1"
 
 [profile.release]
@@ -1698,16 +3125,6 @@ def setup_project(project_dir: str, src_rs_path: Optional[str] = None):
         print(f"Creating new Cargo project at {project_dir}")
         with open(cargo_toml, "w") as f:
             f.write(CARGO_TOML_TEMPLATE)
-    else:
-        content = open(cargo_toml).read()
-        if "ndarray" not in content:
-            print("Adding ndarray to Cargo.toml ...")
-            content = content.replace(
-                '[dependencies]',
-                '[dependencies]\nndarray = { version = "0.15", features = ["rayon"] }'
-            )
-            with open(cargo_toml, "w") as f:
-                f.write(content)
 
     src_dest = os.path.join(src_dir, "main.rs")
     if src_rs_path and os.path.exists(src_rs_path):
@@ -1724,19 +3141,22 @@ def setup_project(project_dir: str, src_rs_path: Optional[str] = None):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="CMA-ES hyperparameter search for ADF-CGP (with Surrogate Model)",
+        description="CMA-ES hyperparameter search for ADF-CGP",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=textwrap.dedent("""\
         例:
+          # カレントディレクトリが Cargo プロジェクトの場合
           python3 cmaes_search.py --project . --budget 30 --time 30
+
+          # ソースファイルを指定して新規プロジェクト作成
           python3 cmaes_search.py --project ./adf_cgp_proj --src main.rs --budget 30 --time 30
         """),
     )
     parser.add_argument("--project", default=".", help="Cargo プロジェクトのルートディレクトリ")
-    parser.add_argument("--src", default=None, help="元の main.rs パス")
-    parser.add_argument("--out", default=DEFAULT_OUT, help="結果出力ディレクトリ")
-    parser.add_argument("--budget", type=int, default=DEFAULT_BUDGET)
-    parser.add_argument("--time", type=int, default=DEFAULT_TIME)
+    parser.add_argument("--src", default=None, help="元の main.rs パス (省略時はプロジェクト内のものを使用)")
+    parser.add_argument("--out", default="cmaes_results", help="結果出力ディレクトリ")
+    parser.add_argument("--budget", type=int, default=DEFAULT_BUDGET, help="CMA-ES 最大評価回数")
+    parser.add_argument("--time", type=int, default=DEFAULT_TIME, help="各評価の実行秒数")
     args = parser.parse_args()
 
     project_dir = os.path.abspath(args.project)
@@ -1760,3 +3180,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    

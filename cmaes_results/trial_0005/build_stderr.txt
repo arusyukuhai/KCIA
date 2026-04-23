@@ -1,29 +1,86 @@
    Compiling cgp_lcm v0.1.0 (/Users/al/Documents/GitHub/KCIA)
-warning: unused import: `Axis`
- --> src/main.rs:4:31
-  |
-4 | use ndarray::{Array1, Array2, Axis};
-  |                               ^^^^
-  |
-  = note: `#[warn(unused_imports)]` on by default
+error[E0252]: the name `Array1` is defined multiple times
+    --> src/main.rs:1896:15
+     |
+4    | use ndarray::{s, Array1, Array2, Axis};
+     |                  ------ previous import of the type `Array1` here
+...
+1896 | use ndarray::{Array1, Array2, Axis};
+     |               ^^^^^^--
+     |               |
+     |               `Array1` reimported here
+     |               help: remove unnecessary import
+     |
+     = note: `Array1` must be defined only once in the type namespace of this module
 
-error[E0277]: the trait bound `Option<_>: Clone` is not satisfied
-   --> src/main.rs:562:18
-    |
-562 |             vec![None; layer_n_ext(li) + layer_len(li)]
-    |             -----^^^^----------------------------------
-    |             |    |
-    |             |    the trait `Clone` is not implemented for `Option<_>`
-    |             required by a bound introduced by this call
-    |
-    = note: required for `Option<NodeFwdEntry>` to implement `Clone`
-note: required by a bound in `from_elem`
-   --> /private/tmp/rust-20250809-8203-kg86o9/rustc-1.89.0-src/library/alloc/src/vec/mod.rs:3251:1
-help: consider borrowing here
-    |
-562 |             vec![&None; layer_n_ext(li) + layer_len(li)]
-    |                  +
+error[E0252]: the name `Array2` is defined multiple times
+    --> src/main.rs:1896:23
+     |
+4    | use ndarray::{s, Array1, Array2, Axis};
+     |                          ------ previous import of the type `Array2` here
+...
+1896 | use ndarray::{Array1, Array2, Axis};
+     |                       ^^^^^^--
+     |                       |
+     |                       `Array2` reimported here
+     |                       help: remove unnecessary import
+     |
+     = note: `Array2` must be defined only once in the type namespace of this module
 
-For more information about this error, try `rustc --explain E0277`.
-warning: `cgp_lcm` (bin "cgp_lcm") generated 1 warning
-error: could not compile `cgp_lcm` (bin "cgp_lcm") due to 1 previous error; 1 warning emitted
+error[E0252]: the name `Axis` is defined multiple times
+    --> src/main.rs:1896:31
+     |
+4    | use ndarray::{s, Array1, Array2, Axis};
+     |                                  ---- previous import of the type `Axis` here
+...
+1896 | use ndarray::{Array1, Array2, Axis};
+     |                               ^^^^ `Axis` reimported here
+     |
+     = note: `Axis` must be defined only once in the type namespace of this module
+
+error[E0252]: the name `SliceRandom` is defined multiple times
+    --> src/main.rs:1897:5
+     |
+7    | use rand::seq::SliceRandom;
+     |     ---------------------- previous import of the trait `SliceRandom` here
+...
+1897 | use rand::seq::SliceRandom;
+     |     ^^^^^^^^^^^^^^^^^^^^^^ `SliceRandom` reimported here
+     |
+     = note: `SliceRandom` must be defined only once in the type namespace of this module
+
+warning: unused imports: `Array1`, `Array2`, and `Axis`
+    --> src/main.rs:1896:15
+     |
+1896 | use ndarray::{Array1, Array2, Axis};
+     |               ^^^^^^  ^^^^^^  ^^^^
+     |
+     = note: `#[warn(unused_imports)]` on by default
+
+warning: unused import: `rand::seq::SliceRandom`
+    --> src/main.rs:1897:5
+     |
+1897 | use rand::seq::SliceRandom;
+     |     ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: variable does not need to be mutable
+   --> src/main.rs:181:13
+    |
+181 |         let mut n_mut = (rng.gen::<f64>() * MUT_STOP_PROB).exp() as usize + 1;
+    |             ----^^^^^
+    |             |
+    |             help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` on by default
+
+warning: unused variable: `final_s`
+   --> src/main.rs:565:14
+    |
+565 |         let (final_s, final_a) = ev.get_node_score(ds.batch_sig, out_sig, &pred, target,
+    |              ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_final_s`
+    |
+    = note: `#[warn(unused_variables)]` on by default
+
+For more information about this error, try `rustc --explain E0252`.
+warning: `cgp_lcm` (bin "cgp_lcm") generated 4 warnings
+error: could not compile `cgp_lcm` (bin "cgp_lcm") due to 4 previous errors; 4 warnings emitted
