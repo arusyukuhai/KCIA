@@ -94,7 +94,7 @@ PARAM_DEFS = [
     ("MIXER_CHANNEL_HIDDEN",     16.0,     512.0,     128.0,    True,   True),
     ("MIXER_COND_PROJ_HIDDEN",    4.0,     256.0,      32.0,    True,   True),
     ("MIXER_COND_VEC_DIM",        2.0,     128.0,      32.0,    True,   True),
-    ("MIXER_WARMUP_GENERATIONS", 1,    64,     8    ,    True,   True),
+    ("MIXER_WARMUP_GENERATIONS", 1,    16,     1    ,    True,   True),
     ("MIXER_TRAIN_EVERY",         1.0,       8.0,       1.0,    True,   True),
     ("MIXER_TRAIN_EPOCHS",        1.0,       8.0,       1.0,    True,   True),
     ("MIXER_BATCH_SIZE",          1.0,      64.0,       8.0,    True,   True),
