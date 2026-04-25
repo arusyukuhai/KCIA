@@ -1,25 +1,4 @@
 CMAES_STAGE gen=0 stage=eval_begin
-CMAES_STAGE gen=0 stage=eval_progress chunk=0 done=32/567
-CMAES_STAGE gen=0 stage=eval_progress chunk=1 done=64/567
-CMAES_STAGE gen=0 stage=eval_progress chunk=2 done=96/567
-CMAES_STAGE gen=0 stage=eval_progress chunk=3 done=128/567
-CMAES_STAGE gen=0 stage=eval_progress chunk=4 done=160/567
-CMAES_STAGE gen=0 stage=eval_progress chunk=5 done=192/567
-CMAES_STAGE gen=0 stage=eval_progress chunk=6 done=224/567
-CMAES_STAGE gen=0 stage=eval_progress chunk=7 done=256/567
-CMAES_STAGE gen=0 stage=eval_progress chunk=8 done=288/567
-CMAES_STAGE gen=0 stage=eval_progress chunk=9 done=320/567
-CMAES_STAGE gen=0 stage=eval_progress chunk=10 done=352/567
-CMAES_STAGE gen=0 stage=eval_progress chunk=11 done=384/567
-CMAES_STAGE gen=0 stage=eval_progress chunk=12 done=416/567
-CMAES_STAGE gen=0 stage=eval_progress chunk=13 done=448/567
-CMAES_STAGE gen=0 stage=eval_progress chunk=14 done=480/567
-CMAES_STAGE gen=0 stage=eval_progress chunk=15 done=512/567
-CMAES_STAGE gen=0 stage=eval_progress chunk=16 done=544/567
-CMAES_STAGE gen=0 stage=eval_progress chunk=17 done=567/567
-CMAES_ACC gen=0 loss=0.7295066725 acc=0.4144768768
-CMAES_STAGE gen=0 stage=warmup mixer_warmup_generations=1
-CMAES_STAGE gen=0 stage=offspring_begin children=462 model_active=false model_cap=0 model_kept=0 model_throttled=0
-CMAES_STAGE gen=0 stage=offspring_classical_done model_children=0 classical_children=462
-CMAES_STAGE gen=0 stage=offspring_end
-CMAES_STAGE gen=1 stage=eval_begin
+CMAES_STAGE gen=0 stage=eval_progress chunk=0 done=32/298
+CMAES_STAGE gen=0 stage=eval_progress chunk=1 done=64/298
+CMAES_STAGE gen=0 stage=eval_progress chunk=2 done=96/298

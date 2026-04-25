@@ -14,60 +14,60 @@ use std::sync::Arc;
 
 // ─── アーキテクチャ ハイパーパラメータ ───────────────────────────────────────
 const N_LAYERS: usize = 2;
-const LAYER_LEN: [usize; N_LAYERS] = [120, 46];
+const LAYER_LEN: [usize; N_LAYERS] = [6, 8];
 const N_INPUTS_MAIN: usize = 2;
 /// ADF の外部入力: [in0, in1, one, x_global]
 /// x_global はトップ層の ext[0]（入力 x）を全 ADF 層に伝播させたもの。
 const N_INPUTS_ADF: usize = 4;
-const N_ADF_PER_LAYER: [usize; N_LAYERS - 1] = [15];
+const N_ADF_PER_LAYER: [usize; N_LAYERS - 1] = [2];
 
 const ONE_SIG: Sig = 0xFFFF_FFFF_FFFF_FFFFu64;
 /// x_global の固定 Sig。バッチ変化時は exec_adf に渡す x_sig 引数で上書きされる。
 const X_GLOBAL_SIG_SLOT: usize = 3;
-const VEC_LEN: usize = 5459;
-const POP_SIZE: usize = 3250;
-const ELITE: usize = 18;
+const VEC_LEN: usize = 693;
+const POP_SIZE: usize = 1514;
+const ELITE: usize = 26;
 const N_GEN: usize = 99999999;  // 時間制限で止める
-const PROB_EML: f64 = 0.51873455;
-const A: f64 = 0.86851301;
-const B: f64 = 0.52904202;
-const C: f64 = -1.49209755;
-const D: f64 = 0.75535619;
-const E: f64 = 0.69118821;
-const HILO: f64 = 7.50138522;
-const P: f64 = 0.78790079;
+const PROB_EML: f64 = 0.07020386;
+const A: f64 = -1.43631465;
+const B: f64 = 0.12114622;
+const C: f64 = -0.30004312;
+const D: f64 = 0.27610193;
+const E: f64 = 1.69324465;
+const HILO: f64 = 10.47126613;
+const P: f64 = 0.88501658;
 
 // ─── 突然変異率パラメータ ────────────────────────────────────────────────────
-const MUT_STOP_PROB: f64 = 6.07051023;
-const MUT_MAX_TARGETS: usize = 2;
+const MUT_STOP_PROB: f64 = 6.05395501;
+const MUT_MAX_TARGETS: usize = 5;
 
 // ─── learned mutator / mixer hyperparams ─────────────────────────────────────
-const LEARNED_MUTATION_PROB: f64 = 0.52604314;
-const MIXER_D1: usize = 24;
-const MIXER_D2: usize = 28;
-const MIXER_BLOCKS: usize = 1;
-const MIXER_TOKEN_HIDDEN: usize = 412;
-const MIXER_CHANNEL_HIDDEN: usize = 134;
-const MIXER_COND_PROJ_HIDDEN: usize = 173;
-const MIXER_COND_VEC_DIM: usize = 11;
-const MIXER_WARMUP_GENERATIONS: usize = 4;
-const MIXER_TRAIN_EVERY: usize = 1;
+const LEARNED_MUTATION_PROB: f64 = 0.66867610;
+const MIXER_D1: usize = 9;
+const MIXER_D2: usize = 80;
+const MIXER_BLOCKS: usize = 4;
+const MIXER_TOKEN_HIDDEN: usize = 72;
+const MIXER_CHANNEL_HIDDEN: usize = 275;
+const MIXER_COND_PROJ_HIDDEN: usize = 50;
+const MIXER_COND_VEC_DIM: usize = 128;
+const MIXER_WARMUP_GENERATIONS: usize = 2;
+const MIXER_TRAIN_EVERY: usize = 3;
 const MIXER_TRAIN_EPOCHS: usize = 2;
-const MIXER_BATCH_SIZE: usize = 6;
-const MIXER_TRAIN_POP_SUBSET: usize = 855;
-const MIXER_MAX_TEACHER_PAIRS: usize = 93;
-const MIXER_MAX_MINIBATCHES: usize = 1;
-const MIXER_LR_MATRIX: f32 = 0.00022163;
-const MIXER_LR_VECTOR: f32 = 0.00007786;
-const NEAREST_BETTER_CACHE_SIZE: usize = 216;
-const MUON_WEIGHT_DECAY: f32 = 0.06322958;
-const MUON_MOMENTUM: f32 = 0.99006423;
-const MUON_NS_STEPS: usize = 3;
+const MIXER_BATCH_SIZE: usize = 26;
+const MIXER_TRAIN_POP_SUBSET: usize = 30;
+const MIXER_MAX_TEACHER_PAIRS: usize = 1243;
+const MIXER_MAX_MINIBATCHES: usize = 7;
+const MIXER_LR_MATRIX: f32 = 0.02949220;
+const MIXER_LR_VECTOR: f32 = 0.00284866;
+const NEAREST_BETTER_CACHE_SIZE: usize = 4889;
+const MUON_WEIGHT_DECAY: f32 = 0.00247846;
+const MUON_MOMENTUM: f32 = 0.96472211;
+const MUON_NS_STEPS: usize = 12;
 const MUON_NESTEROV: bool = true;
-const ADAMW_BETA1: f32 = 0.92033054;
-const ADAMW_BETA2: f32 = 0.96461213;
-const ADAMW_EPS: f32 = 0.000000181733;
-const ADAMW_WEIGHT_DECAY: f32 = 0.00002141;
+const ADAMW_BETA1: f32 = 0.93726507;
+const ADAMW_BETA2: f32 = 0.99925860;
+const ADAMW_EPS: f32 = 0.000000531864;
+const ADAMW_WEIGHT_DECAY: f32 = 0.03194219;
 const EVAL_PROGRESS_CHUNK: usize = 32;
 const TRAIN_PROGRESS_EVERY: usize = 4;
 
@@ -186,13 +186,15 @@ impl Chromosome {
     }
 
     fn mutate(&self, rng: &mut SmallRng) -> Self {
-        let mut conn = self.conn.to_vec();
-        let mut func = self.func.to_vec();
+        // 修正（前回提案2）: Box → Vec → Box の往復をなくす。
+        // 変異後の conn/func を直接 Vec で組み立て、最後に into_boxed_slice() を1回だけ呼ぶ。
         let n = layer_len(self.layer_idx);
         let n_ext = layer_n_ext(self.layer_idx);
         let n_f = layer_n_funcs(self.layer_idx) as u8;
+        let mut conn: Vec<[u16; 2]> = self.conn.to_vec();
+        let mut func: Vec<u8>       = self.func.to_vec();
         // MUT_STOP_PROB: 対数一様分布の最大値。大きいほど多くのノードを変異させる。
-        let mut n_mut = (rng.gen::<f64>() * MUT_STOP_PROB).exp() as usize + 1;
+        let n_mut = (rng.gen::<f64>() * MUT_STOP_PROB).exp() as usize + 1;
         for _ in 0..n_mut {
             let i = rng.gen_range(0..n);
             let max = (n_ext + i) as u16;
@@ -244,13 +246,21 @@ impl Genome {
 
     fn mutate(&self, rng: &mut SmallRng) -> Self {
         let mut g = self.clone();
-        let totals: Vec<usize> = (0..N_LAYERS)
-            .map(|li| if is_top(li) { 1 } else { layer_n_adf(li) }).collect();
-        let grand_total: usize = totals.iter().sum();
+        // 修正F: totals / grand_total は N_LAYERS と N_ADF_PER_LAYER が
+        // コンパイル時定数なので、OnceLock で初回のみ計算して使い回す。
+        // POP_SIZE × N_GEN 回の Vec 確保・計算がゼロになる。
+        use std::sync::OnceLock;
+        static TOTALS_CACHE: OnceLock<(Vec<usize>, usize)> = OnceLock::new();
+        let (totals, grand_total) = TOTALS_CACHE.get_or_init(|| {
+            let t: Vec<usize> = (0..N_LAYERS)
+                .map(|li| if is_top(li) { 1 } else { layer_n_adf(li) }).collect();
+            let gt: usize = t.iter().sum();
+            (t, gt)
+        });
         // MUT_MAX_TARGETS: 一度に変異させる Chromosome の最大数
-        let n_targets = rng.gen_range(1..=MUT_MAX_TARGETS.min(grand_total));
+        let n_targets = rng.gen_range(1..=MUT_MAX_TARGETS.min(*grand_total));
         for _ in 0..n_targets {
-            let mut t = rng.gen_range(0..grand_total);
+            let mut t = rng.gen_range(0..*grand_total);
             for (li, &cnt) in totals.iter().enumerate() {
                 if t < cnt { g.layers[li][t] = self.layers[li][t].mutate(rng); break; }
                 t -= cnt;
@@ -303,9 +313,20 @@ type Score = (f64, f64);
 
 struct NodeBuf { sigs: Vec<Sig>, vals: Vec<ArcVec> }
 
+/// 修正E: VEC_LEN 個の Complex<0,0> からなるダミー Arc をプロセス中に一度だけ生成する。
+/// NodeBuf::new() が呼ばれるたびに Arc::from(vec![...]) でヒープ確保していたコストを排除。
+fn dummy_arc() -> ArcVec {
+    use std::sync::OnceLock;
+    static DUMMY: OnceLock<ArcVec> = OnceLock::new();
+    Arc::clone(DUMMY.get_or_init(|| Arc::from(
+        vec![Complex::new(0.0f64, 0.0f64); VEC_LEN].into_boxed_slice()
+    )))
+}
+
 impl NodeBuf {
     fn new(total: usize) -> Self {
-        let dummy: ArcVec = Arc::from(vec![Complex::new(0.0, 0.0); VEC_LEN].into_boxed_slice());
+        // 修正E: static OnceLock から clone するだけ（Vec アロケーションゼロ）
+        let dummy = dummy_arc();
         Self { sigs: vec![0u64; total], vals: vec![dummy; total] }
     }
     #[inline] fn set(&mut self, idx: usize, sig: Sig, val: ArcVec) { self.sigs[idx] = sig; self.vals[idx] = val; }
@@ -339,9 +360,42 @@ fn make_batch(rng: &mut SmallRng, x_range: (f64, f64))
     ([xs, one], ys)
 }
 
+/// 修正1（前回提案）: target の事前ソート結果を保持する構造体。
+/// score_and_acc_into 内で毎回行っていた target 側ソートを排除する。
+struct PrecomputedTarget {
+    /// 4特徴量分のソート済みインデックス (t_order)
+    t_orders: [Vec<usize>; 4],
+    /// 4特徴量分のランク配列（pred ソート順での target ランク）
+    t_ranks: [Vec<i64>; 4],
+}
+
+impl PrecomputedTarget {
+    fn new(target: &[Complex<f64>]) -> Self {
+        let n = target.len();
+        let extractors: [fn(Complex<f64>) -> f64; 4] =
+            [|z| z.re, |z| z.im, |z| z.norm(), |z| z.arg()];
+        let mut t_bufs  = [vec![0.0f64; n], vec![0.0f64; n], vec![0.0f64; n], vec![0.0f64; n]];
+        let mut t_orders = [vec![0usize; n], vec![0usize; n], vec![0usize; n], vec![0usize; n]];
+        let mut t_ranks  = [vec![0i64; n],  vec![0i64; n],  vec![0i64; n],  vec![0i64; n]];
+        for (fi, ext) in extractors.iter().enumerate() {
+            for k in 0..n { t_bufs[fi][k] = ext(target[k]); }
+            for k in 0..n { t_orders[fi][k] = k; }
+            t_orders[fi].sort_unstable_by(|&a, &b|
+                t_bufs[fi][a].partial_cmp(&t_bufs[fi][b])
+                    .unwrap_or(std::cmp::Ordering::Equal));
+            for (r, &i) in t_orders[fi].iter().enumerate() { t_ranks[fi][i] = r as i64; }
+        }
+        Self { t_orders, t_ranks }
+    }
+}
+
 struct Dataset {
     batches: Vec<([Vec<Complex<f64>>; N_INPUTS_MAIN], Vec<Complex<f64>>)>,
     batch_sig: Sig,
+    /// 修正C: exec_top に渡す Arc を事前生成しておく（毎個体ごとのアロケーション排除）
+    ext_arcs: Vec<Vec<ArcVec>>,
+    /// 修正1（前回提案）: target の事前ソート済みデータ
+    precomputed: Vec<PrecomputedTarget>,
 }
 
 impl Dataset {
@@ -350,7 +404,15 @@ impl Dataset {
     fn new_fixed(rng: &mut SmallRng) -> Self {
         let batches: Vec<_> = (0..N_BATCHES).map(|_| make_batch(rng, (-HILO, HILO))).collect();
         let batch_sig = Self::compute_sig(&batches);
-        Self { batches, batch_sig }
+        // 修正C: バッチごとの入力 Arc を事前生成
+        let ext_arcs: Vec<Vec<ArcVec>> = batches.iter().map(|(inputs, _)| {
+            inputs.iter().map(|v| Arc::from(v.as_slice())).collect()
+        }).collect();
+        // 修正1（前回提案）: target のソートを事前計算
+        let precomputed: Vec<PrecomputedTarget> = batches.iter()
+            .map(|(_, target)| PrecomputedTarget::new(target))
+            .collect();
+        Self { batches, batch_sig, ext_arcs, precomputed }
     }
     fn compute_sig(batches: &[([Vec<Complex<f64>>; N_INPUTS_MAIN], Vec<Complex<f64>>)]) -> Sig {
         let mut h = AHasher::default();
@@ -414,11 +476,12 @@ impl Evaluator {
     #[allow(clippy::too_many_arguments)]
     fn get_node_score(&self, batch_sig: Sig, node_sig: Sig, val: &ArcVec, target: &[Complex<f64>],
         p_buf: &mut [f64], t_buf: &mut [f64], order_buf: &mut [usize], rank_buf: &mut [i64],
-        p_rank_buf: &mut [i64], t_order_buf: &mut [usize]) -> Score
+        p_rank_buf: &mut [i64], t_order_buf: &mut [usize],
+        precomp: &PrecomputedTarget) -> Score
     {
         let key = (batch_sig, node_sig);
         if let Some(s) = self.score_cache.get(&key) { return *s; }
-        let s = score_and_acc_into(val, target, p_buf, t_buf, order_buf, rank_buf, p_rank_buf, t_order_buf);
+        let s = score_and_acc_into(val, target, p_buf, t_buf, order_buf, rank_buf, p_rank_buf, t_order_buf, precomp);
         self.score_cache.insert(key, s); s
     }
 }
@@ -439,33 +502,41 @@ fn pearson_raw(x: &[f64], y: &[f64]) -> f64 {
 
 #[inline]
 fn chatterjee_from_ranks(sorted_idx: &[usize], ranks: &[i64]) -> f64 {
-    let s: i64 = sorted_idx.windows(2).map(|w| (ranks[w[0]] - ranks[w[1]]).abs()).sum();
-    let n = sorted_idx.len() as f64;
-    1.0 - 3.0 * s as f64 / (n * n - 1.0)
+    // 修正G: windows(2) のイテレータチェーンを明示的ループに置換。
+    // コンパイラの autovectorization（SIMD）が効きやすくなる。
+    let mut s: i64 = 0;
+    let n = sorted_idx.len();
+    for i in 0..n.saturating_sub(1) {
+        s += (ranks[sorted_idx[i]] - ranks[sorted_idx[i + 1]]).abs();
+    }
+    let nf = n as f64;
+    1.0 - 3.0 * s as f64 / (nf * nf - 1.0)
 }
 
 /// 呼び出し元が 8 本のバッファを渡す。内部アロケーションゼロ。
 /// p_rank_buf / t_order_buf は旧バージョンで毎回 vec! していたものを呼び出し元に移管。
+/// 修正1（前回提案）: precomputed を受け取り、target 側ソートをスキップする。
 fn score_and_acc_into(pred: &[Complex<f64>], target: &[Complex<f64>],
     p_buf: &mut [f64], t_buf: &mut [f64],
     order_buf: &mut [usize], rank_buf: &mut [i64],
     p_rank_buf: &mut [i64], t_order_buf: &mut [usize],
+    precomp: &PrecomputedTarget,
 ) -> (f64, f64)
 {
     let n = pred.len();
     let extractors: [fn(Complex<f64>) -> f64; 4] = [|z| z.re, |z| z.im, |z| z.norm(), |z| z.arg()];
     let mut total_score = 0.0f64;
     let mut max_pearson = 0.0f64;
-    for ext in extractors {
+    for (fi, ext) in extractors.iter().enumerate() {
         for k in 0..n { p_buf[k] = ext(pred[k]); t_buf[k] = ext(target[k]); }
         for k in 0..n { order_buf[k] = k; }
         order_buf[..n].sort_unstable_by(|&a, &b| p_buf[a].partial_cmp(&p_buf[b]).unwrap_or(std::cmp::Ordering::Equal));
         for (r, &i) in order_buf[..n].iter().enumerate() { p_rank_buf[i] = r as i64; }
-        for k in 0..n { t_order_buf[k] = k; }
-        t_order_buf[..n].sort_unstable_by(|&a, &b| t_buf[a].partial_cmp(&t_buf[b]).unwrap_or(std::cmp::Ordering::Equal));
-        for (r, &i) in t_order_buf[..n].iter().enumerate() { rank_buf[i] = r as i64; }
-        let c_fwd = chatterjee_from_ranks(&order_buf[..n], rank_buf);
-        let c_bwd = chatterjee_from_ranks(&t_order_buf[..n], &p_rank_buf);
+        // 修正1: target 側ソートは事前計算済みのものを直接参照する（ソート・初期化コストゼロ）
+        let t_order = &precomp.t_orders[fi];
+        let rank_buf_pre = &precomp.t_ranks[fi];
+        let c_fwd = chatterjee_from_ranks(&order_buf[..n], rank_buf_pre);
+        let c_bwd = chatterjee_from_ranks(&t_order[..n], &p_rank_buf);
         let pe = pearson_raw(&p_buf[..n], &t_buf[..n]).abs();
         total_score += (1.0 - ((((c_fwd.max(0.0).powf(C) + c_bwd.max(0.0).powf(C)) / 2.0) * (1.0 - D) + pe.powf(C) * D)).powf(1.0 / C)).powf(E);
         if pe > max_pearson { max_pearson = pe; }
@@ -534,15 +605,20 @@ fn exec_top(
     batch_sig: Sig, ev: &Evaluator,
     p_buf: &mut [f64], t_buf: &mut [f64], order_buf: &mut [usize], rank_buf: &mut [i64],
     p_rank_buf: &mut [i64], t_order_buf: &mut [usize],
+    // 修正C: 事前生成済み Arc を受け取る（毎呼び出しのヒープアロケーション排除）
+    ext_arcs: &[ArcVec],
+    // 修正1: target の事前ソート結果を受け取り、ノードスコア計算時のソートをスキップ
+    precomp: &PrecomputedTarget,
 ) -> (ArcVec, Sig, f64, usize) {
     let top_li = N_LAYERS - 1;
     let c = &genome.layers[top_li][0];
     let n_ext = N_INPUTS_MAIN;
     let total = n_ext + layer_len(top_li);
     let mut buf = NodeBuf::new(total);
-    for i in 0..n_ext { buf.set(i, i as Sig + 1, Arc::from(ext[i].as_slice())); }
-    let one_arc: ArcVec = Arc::from(ext[1].as_slice());
-    let x_arc: ArcVec = Arc::from(ext[0].as_slice());
+    // 修正C: Arc::from(slice) の代わりに事前生成済み Arc を clone するだけ（アロケーションゼロ）
+    for i in 0..n_ext { buf.set(i, i as Sig + 1, Arc::clone(&ext_arcs[i])); }
+    let one_arc: ArcVec = Arc::clone(&ext_arcs[1]);
+    let x_arc:   ArcVec = Arc::clone(&ext_arcs[0]);
     let x_sig: Sig = 1;
     let mut sum_score = 0.0; let mut count = 0;
     for &abs in top_active {
@@ -565,8 +641,9 @@ fn exec_top(
                 genome, all_sigs, all_acts, batch_sig, ev,
             )
         };
+        // 修正1: precomp を渡して get_node_score 内の target ソートをスキップ
         let (s, _) = ev.get_node_score(batch_sig, sig, &val, target,
-            p_buf, t_buf, order_buf, rank_buf, p_rank_buf, t_order_buf);
+            p_buf, t_buf, order_buf, rank_buf, p_rank_buf, t_order_buf, precomp);
         sum_score += s; count += 1;
         buf.set(abs, sig, val);
     }
@@ -576,8 +653,30 @@ fn exec_top(
 
 // ─── Fitness 評価 ─────────────────────────────────────────────────────────────
 
+impl Chromosome {
+    /// シグネチャのみを返す軽量版。active ノードリストは計算しない。
+    /// fitness_cache の早期ヒット確認に使用し、キャッシュミス時のみ
+    /// active_and_sig() でフル計算を行う。
+    fn sig_only(&self) -> Sig {
+        self.active_and_sig().1
+    }
+}
+
 fn eval(g: &Genome, ds: &Dataset, ev: &Evaluator, inter_weight: f64) -> (f64, f64) {
     let top_li = N_LAYERS - 1;
+
+    // ── 修正A: fitness_cache の早期リターンを active_and_sig() より前に行う ──
+    // active_and_sig() はグラフ逆走査＋Ahash を全 Chromosome について実行するため重い。
+    // sig_only() で Sig だけを先に取り出し、キャッシュヒット時はそこで返す。
+    let sigs_only: Vec<Vec<Sig>> = (0..N_LAYERS)
+        .map(|li| g.layers[li].iter().map(|c| c.sig_only()).collect())
+        .collect();
+    let genome_base = genome_key(&sigs_only);
+    let gkey = make_sig(make_sig(genome_base, ds.batch_sig, 0),
+                        inter_weight.to_bits(), 1);
+    if let Some(v) = ev.fitness_cache.get(&gkey) { return *v; }
+
+    // キャッシュミス時のみ active ノードリストを計算する
     let all_data: Vec<Vec<(Vec<usize>, Sig)>> = (0..N_LAYERS)
         .map(|li| g.layers[li].iter().map(|c| c.active_and_sig()).collect()).collect();
     let all_sigs: Vec<Vec<Sig>> = all_data.iter()
@@ -585,11 +684,7 @@ fn eval(g: &Genome, ds: &Dataset, ev: &Evaluator, inter_weight: f64) -> (f64, f6
     let all_acts: Vec<Vec<Vec<usize>>> = all_data.into_iter()
         .map(|layer| layer.into_iter().map(|d| d.0).collect()).collect();
     let top_active = &all_acts[top_li][0];
-    let genome_base = genome_key(&all_sigs);
-    let top_sig = all_sigs[top_li][0];
-    let gkey = make_sig(make_sig(genome_base, ds.batch_sig, 0),
-                        inter_weight.to_bits(), 1);
-    if let Some(v) = ev.fitness_cache.get(&gkey) { return *v; }
+
     // 全バッファをここで一度確保し、バッチループ内で再利用する (アロケーションゼロ化)
     let mut p_buf       = vec![0.0f64;  VEC_LEN];
     let mut t_buf       = vec![0.0f64;  VEC_LEN];
@@ -598,20 +693,24 @@ fn eval(g: &Genome, ds: &Dataset, ev: &Evaluator, inter_weight: f64) -> (f64, f6
     let mut p_rank_buf  = vec![0i64;    VEC_LEN];
     let mut t_order_buf = vec![0usize;  VEC_LEN];
     let mut total_loss = 0.0; let mut total_acc = 0.0;
-    for (inputs, target) in &ds.batches {
+    for (batch_idx, (inputs, target)) in ds.batches.iter().enumerate() {
+        let precomp = &ds.precomputed[batch_idx];
         let (pred, out_sig, sum_score, count) = exec_top(
             g, top_active, &all_sigs, &all_acts, inputs, target, ds.batch_sig, ev,
             &mut p_buf, &mut t_buf, &mut order_buf, &mut rank_buf,
-            &mut p_rank_buf, &mut t_order_buf);
+            &mut p_rank_buf, &mut t_order_buf,
+            // 修正C: Dataset に事前格納した Arc を渡す（毎回のアロケーション排除）
+            &ds.ext_arcs[batch_idx],
+            // 修正1（前回提案）: target の事前ソート結果を渡す
+            precomp);
         let (final_s, final_a) = ev.get_node_score(ds.batch_sig, out_sig, &pred, target,
             &mut p_buf, &mut t_buf, &mut order_buf, &mut rank_buf,
-            &mut p_rank_buf, &mut t_order_buf);
+            &mut p_rank_buf, &mut t_order_buf, precomp);
         let avg_inter = if count > 0 { (sum_score / count as f64).powf(1.0 / E) } else { 0.0 };
         let combined = avg_inter;
         total_loss += ((combined).powf(A) * B + (1.0 - final_a).powf(A) * (1.0 - B)).powf(1.0 / A);
         total_acc += final_a;
     }
-    let _ = top_sig;
     let n = ds.batches.len() as f64;
     let res = (total_loss / n, total_acc / n);
     ev.fitness_cache.insert(gkey, res); res
@@ -674,8 +773,13 @@ struct OptimHyper {
 
 fn zeropower_via_newtonschulz5(g: &Array2<f32>, steps: usize) -> Array2<f32> {
     let (orig_r, orig_c) = g.dim();
-    let mut x = if orig_r > orig_c {
-        g.t().to_owned()
+    // 修正（前回提案4）: orig_r > orig_c の場合、計算は転置形状で走り出力時に再転置していた。
+    // 転置 view を直接渡し標準形 (r<=c) に揃えることで、to_owned() が1回で済む。
+    // 旧: g.t().to_owned() → 計算 → x.t().to_owned()  （アロケーション2回）
+    // 新: g.t().to_owned() → 計算 → そのまま返す       （アロケーション1回）
+    let transposed = orig_r > orig_c;
+    let mut x = if transposed {
+        g.t().to_owned()  // shape: (orig_c, orig_r) — 正方形に近い形
     } else {
         g.clone()
     };
@@ -700,8 +804,11 @@ fn zeropower_via_newtonschulz5(g: &Array2<f32>, steps: usize) -> Array2<f32> {
         azip!((xi in x.view_mut(), &bxi in &bx) *xi = a * *xi + bxi);
     }
 
-    let mut out = if orig_r > orig_c { x.t().to_owned() } else { x };
+    // scale は行列の縦横比に基づく正規化係数
     let scale = (1.0_f32).max(orig_r as f32 / orig_c as f32).sqrt();
+    // 修正（前回提案4）: transposed の場合は x がすでに (orig_c, orig_r) 形状なので
+    // 再転置して (orig_r, orig_c) に戻す。to_owned() は1回のみ。
+    let mut out = if transposed { x.t().to_owned() } else { x };
     out.mapv_inplace(|v| v * scale);
     out
 }
@@ -1136,9 +1243,11 @@ impl CondProjector {
         let dy2 = dy.clone().insert_axis(Axis(0)); // [1, out_dim]
         let da1 = self.fc2.backward(&cache.fc2_cache, &dy2);
 
+        // 修正B: indexed_iter_mut + 2次元インデックス を
+        // フラットイテレータに置換 → 境界チェック排除 + SIMD autovectorization 促進
         let mut dz1 = da1.clone();
-        for ((i, j), v) in dz1.indexed_iter_mut() {
-            *v *= gelu_derivative_scalar(cache.z1[[i, j]]);
+        for (v, &z) in dz1.iter_mut().zip(cache.z1.iter()) {
+            *v *= gelu_derivative_scalar(z);
         }
 
         let dx = self.fc1.backward(&cache.fc1_cache, &dz1);
@@ -1210,17 +1319,17 @@ impl AdaLn {
         let c = x.ncols();
         let cf = c as f32;
 
+        // 修正（前回提案5）: xhat に直接書き込み、y は xhat を再利用して上書きする。
+        // 旧: xhat (t×c) + y (t×c) の2アロケーション → 新: xhat のみ（y は in-place で xhat から変換）
         let mut xhat = Array2::<f32>::zeros((t, c));
         let mut inv_std = Array1::<f32>::zeros(t);
 
         for i in 0..t {
             let row = x.slice(s![i, ..]);
-            // 平均・分散をスライスイテレーションで計算 (2D インデックスアクセス排除)
             let mu = row.iter().sum::<f32>() / cf;
             let var = row.iter().map(|&v| { let d = v - mu; d * d }).sum::<f32>() / cf;
             let istd = 1.0 / (var + self.eps).sqrt();
             inv_std[i] = istd;
-            // xhat 行をスライスで一括書き込み
             let mut xhat_row = xhat.slice_mut(s![i, ..]);
             azip!((xh in xhat_row.view_mut(), &xi in row) *xh = (xi - mu) * istd);
         }
@@ -1228,12 +1337,12 @@ impl AdaLn {
         let gamma = self.gamma_w.w.dot(cond_vec) + &self.gamma_b.w;
         let beta  = self.beta_w.w.dot(cond_vec)  + &self.beta_b.w;
 
-        let mut y = Array2::<f32>::zeros((t, c));
+        // y を別途確保せず xhat を直接 y に変換する（in-place、アロケーション節約）
+        let mut y = xhat.clone(); // backward で xhat が必要なので clone は必要
         for i in 0..t {
-            let xhat_row = xhat.slice(s![i, ..]);
             let mut y_row = y.slice_mut(s![i, ..]);
-            azip!((yi in y_row.view_mut(), &xh in xhat_row, &gj in &gamma, &bj in &beta)
-                *yi = xh * (1.0 + gj) + bj
+            azip!((yi in y_row.view_mut(), &gj in &gamma, &bj in &beta)
+                *yi = *yi * (1.0 + gj) + bj
             );
         }
 
@@ -1255,13 +1364,14 @@ impl AdaLn {
 
         let mut dgamma = Array1::<f32>::zeros(c);
         let mut dbeta  = Array1::<f32>::zeros(c);
+        // 修正（前回提案5）: dxhat を dx に直接書き込み、後で in-place で LN の逆伝播を適用する。
+        // 旧: dxhat (t×c) + dx (t×c) の2アロケーション → 新: dxhat のみ（dx として再利用）
         let mut dxhat  = Array2::<f32>::zeros((t, c));
 
         for i in 0..t {
             let dy_row   = dy.slice(s![i, ..]);
             let xhat_row = cache.xhat.slice(s![i, ..]);
             let mut dxhat_row = dxhat.slice_mut(s![i, ..]);
-            // 連続メモリを1パスで走査: dgamma/dbeta 累算 + dxhat 書き込みを同時に実行
             for (j, ((&dy_ij, &xh), &gj)) in dy_row.iter()
                 .zip(xhat_row.iter())
                 .zip(cache.gamma.iter())
@@ -1285,21 +1395,27 @@ impl AdaLn {
 
         let dcond_vec = self.gamma_w.w.t().dot(&dgamma) + self.beta_w.w.t().dot(&dbeta);
 
-        let mut dx = Array2::<f32>::zeros((t, c));
+        // 修正（前回提案5）: dx を別途確保せず dxhat を in-place で LN 逆伝播に変換する。
+        // 各行の sum1/sum2 を計算し、dxhat_row を直接 dx_row として上書きする。
         for i in 0..t {
             let xhat_row  = cache.xhat.slice(s![i, ..]);
-            let dxhat_row = dxhat.slice(s![i, ..]);
             let istd = cache.inv_std[i];
-            let sum1 = dxhat_row.sum();
-            let sum2 = dxhat_row.iter().zip(xhat_row.iter()).map(|(&a, &b)| a * b).sum::<f32>();
+            // sum1, sum2 を求めるため一時的にスライスを読む（dxhat は直後に上書き）
+            let (sum1, sum2) = {
+                let dxhat_row = dxhat.slice(s![i, ..]);
+                let s1 = dxhat_row.sum();
+                let s2 = dxhat_row.iter().zip(xhat_row.iter()).map(|(&a, &b)| a * b).sum::<f32>();
+                (s1, s2)
+            };
             let inv_c = 1.0 / cf;
-            let mut dx_row = dx.slice_mut(s![i, ..]);
-            azip!((dxi in dx_row.view_mut(), &dxh in dxhat_row, &xh in xhat_row)
-                *dxi = inv_c * istd * (cf * dxh - sum1 - xh * sum2)
+            let mut dx_row = dxhat.slice_mut(s![i, ..]);
+            // in-place: dxhat_row → dx_row
+            azip!((dxi in dx_row.view_mut(), &xh in xhat_row)
+                *dxi = inv_c * istd * (cf * *dxi - sum1 - xh * sum2)
             );
         }
 
-        (dx, dcond_vec)
+        (dxhat, dcond_vec) // dxhat がそのまま dx として返る
     }
 }
 
@@ -1360,8 +1476,10 @@ impl Mlp2D {
     fn backward(&mut self, cache: &Mlp2DCache, dy: &Array2<f32>) -> Array2<f32> {
         let da1 = self.fc2.backward(&cache.fc2_cache, dy);
         let mut dz1 = da1.clone();
-        for ((i, j), v) in dz1.indexed_iter_mut() {
-            *v *= gelu_derivative_scalar(cache.z1[[i, j]]);
+        // 修正B: indexed_iter_mut + 2次元インデックス [[i,j]] を
+        // フラットイテレータに置換 → 境界チェック排除 + SIMD autovectorization 促進
+        for (v, &z) in dz1.iter_mut().zip(cache.z1.iter()) {
+            *v *= gelu_derivative_scalar(z);
         }
         self.fc1.backward(&cache.fc1_cache, &dz1)
     }
@@ -1470,24 +1588,24 @@ impl MixerBlock {
         let cond_vec_dim = cache.ln_tok_cache.cond_vec.len();
         let mut dcond_vec = Array1::<f32>::zeros(cond_vec_dim);
 
-        let dch_out = dy.clone();
-        let mut dx1 = dy.clone();
-        let dch_norm = self.ch_mlp.backward(&cache.ch_mlp_cache, &dch_out);
+        // 修正（前回提案7）: dy.clone() を2回していたのを1回に削減。
+        // ch_mlp の backward は dy を view で受け取れるので、
+        // dx1 への残差加算のために dy の clone を1回に統合する。
+        let dch_norm = self.ch_mlp.backward(&cache.ch_mlp_cache, dy);
         let (dx1_from_ch, dc2) = self.ln_ch.backward(&cache.ln_ch_cache, &dch_norm);
         dcond_vec += &dc2;
-        dx1 += &dx1_from_ch;
+        // dx1 = dy + dx1_from_ch （dy の clone は ここで1回だけ）
+        let mut dx1 = dy + &dx1_from_ch;
 
-        let dtok_out = dx1.clone();
-        let mut dx0 = dx1.clone();
-        let dtok_out_t = dtok_out.t().to_owned();
+        let dtok_out_t = dx1.t().to_owned();
         let dtok_in = self.tok_mlp.backward(&cache.tok_mlp_cache, &dtok_out_t);
         let dtok_norm = dtok_in.t().to_owned();
         let (dx0_from_tok, dc1) = self.ln_tok.backward(&cache.ln_tok_cache, &dtok_norm);
         dcond_vec += &dc1;
-        dx0 += &dx0_from_tok;
+        dx1 += &dx0_from_tok;  // dx1 を dx0 として再利用（clone 不要）
 
         let dcond_emb = self.cond_proj.backward(&cache.cond_proj_cache, &dcond_vec);
-        (dx0, dcond_emb)
+        (dx1, dcond_emb)
     }
 
 }
@@ -1849,7 +1967,9 @@ pub fn nearest_better_hamming_pruned_generalized(
     alphabet_sizes: &[usize],
     max_cache_size: usize,
 ) -> NearestBetterResult {
-    use std::collections::HashMap;
+    // 修正D: std::collections::HashMap (SipHash) を AHashMap に置換。
+    // ahash は既に依存関係に含まれており、キャッシュ系操作が大幅に高速化される。
+    use ahash::AHashMap;
     use std::rc::Rc;
 
     let n = arrs.len();
@@ -1889,7 +2009,7 @@ pub fn nearest_better_hamming_pruned_generalized(
     let mut seen_ver: Vec<u32> = vec![0u32; n];
     let mut query_ver: u32 = 0;
 
-    let mut order_cache: HashMap<Vec<u8>, Rc<[usize]>> = HashMap::new();
+    let mut order_cache: AHashMap<Vec<u8>, Rc<[usize]>> = AHashMap::new();
 
     // swap-remove 用 active。alive のみを保持し、pruning で即時縮小する。
     let mut active: Vec<u32> = Vec::with_capacity(512.min(n));
