@@ -98,8 +98,8 @@ PARAM_DEFS = [
     ("MIXER_TRAIN_EVERY",         1.0,       8.0,       1.0,    True,   True),
     ("MIXER_TRAIN_EPOCHS",        1.0,       8.0,       1.0,    True,   True),
     ("MIXER_BATCH_SIZE",          1.0,      64.0,       8.0,    True,   True),
-    ("MIXER_TRAIN_POP_SUBSET",    8.0,    256.0,     64.0,    True,   True),  # 2048→256
-    ("MIXER_MAX_TEACHER_PAIRS",   8.0,    4096.0,     256.0,    True,   True),
+    ("MIXER_TRAIN_POP_SUBSET",    8.0,    16384,     1024.0,    True,   True),  # 2048→256
+    ("MIXER_MAX_TEACHER_PAIRS",   8.0,    4096.0,     512.0,    True,   True),
     ("MIXER_MAX_MINIBATCHES",     1.0,     256.0,      16.0,    True,   True),
     ("MIXER_LR_MATRIX",       1.0e-4,     1.0e-1,     2.0e-2,   False,   True),
     ("MIXER_LR_VECTOR",       1.0e-5,     1.0e-2,     1.0e-3,   False,   True),
@@ -806,24 +806,6 @@ fn sigmoid_scalar(x: f32) -> f32 {
         let z = x.exp();
         z / (1.0 + z)
     }
-}
-
-fn softmax_rows(x: &Array2<f32>) -> Array2<f32> {
-    // clone() → 全要素上書きは無駄。zeros から直接書く。
-    let mut out = Array2::<f32>::zeros(x.raw_dim());
-    for (in_row, mut out_row) in x.axis_iter(Axis(0)).zip(out.axis_iter_mut(Axis(0))) {
-        let maxv = in_row.iter().fold(f32::NEG_INFINITY, |a, &b| a.max(b));
-        // exp を out_row に書き込みながら sum を累算 (中間 Vec なし)
-        let mut sum = 0.0f32;
-        for (&v, o) in in_row.iter().zip(out_row.iter_mut()) {
-            let e = (v - maxv).exp();
-            *o = e;
-            sum += e;
-        }
-        let inv_sum = 1.0 / sum;
-        out_row.mapv_inplace(|v| v * inv_sum);
-    }
-    out
 }
 
 fn fro_norm(x: &Array2<f32>) -> f32 {
@@ -1548,130 +1530,13 @@ impl Mlp2D {
 }
 
 // ============================================================
-// single-head attention
-// ============================================================
-
-#[derive(Clone)]
-struct SelfAttention {
-    wq: Linear,
-    wk: Linear,
-    wv: Linear,
-    wo: Linear,
-    scale: f32,
-}
-
-#[derive(Clone)]
-struct SelfAttentionCache {
-    q: Array2<f32>,
-    k: Array2<f32>,
-    v: Array2<f32>,
-    attn: Array2<f32>,
-    q_cache: LinearCache,
-    k_cache: LinearCache,
-    v_cache: LinearCache,
-    o_cache: LinearCache,
-}
-
-impl SelfAttention {
-    fn new(rng: &mut StdRng, channels: usize, scale: f32) -> Self {
-        Self {
-            wq: Linear::new(rng, channels, channels, scale),
-            wk: Linear::new(rng, channels, channels, scale),
-            wv: Linear::new(rng, channels, channels, scale),
-            wo: Linear::new(rng, channels, channels, scale),
-            scale: (channels as f32).sqrt(),
-        }
-    }
-
-    fn zero_grad(&mut self) {
-        self.wq.zero_grad();
-        self.wk.zero_grad();
-        self.wv.zero_grad();
-        self.wo.zero_grad();
-    }
-
-    fn scale_grad(&mut self, s: f32) {
-        self.wq.scale_grad(s);
-        self.wk.scale_grad(s);
-        self.wv.scale_grad(s);
-        self.wo.scale_grad(s);
-    }
-
-    fn step(&mut self, hp: OptimHyper) {
-        self.wq.step(hp);
-        self.wk.step(hp);
-        self.wv.step(hp);
-        self.wo.step(hp);
-    }
-
-    fn forward(&self, x: &Array2<f32>) -> (Array2<f32>, SelfAttentionCache) {
-        let (q, q_cache) = self.wq.forward(x);
-        let (k, k_cache) = self.wk.forward(x);
-        let (v, v_cache) = self.wv.forward(x);
-
-        let scores = q.dot(&k.t()) / self.scale;
-        let attn = softmax_rows(&scores);
-        let ctx = attn.dot(&v);
-        let (y, o_cache) = self.wo.forward(&ctx);
-
-        (
-            y,
-            SelfAttentionCache {
-                q,
-                k,
-                v,
-                attn,
-                q_cache,
-                k_cache,
-                v_cache,
-                o_cache,
-            },
-        )
-    }
-
-    fn backward(&mut self, cache: &SelfAttentionCache, dy: &Array2<f32>) -> Array2<f32> {
-        let dctx = self.wo.backward(&cache.o_cache, dy);
-
-        let dattn = dctx.dot(&cache.v.t());
-        let dv = cache.attn.t().dot(&dctx);
-
-        let t = cache.attn.nrows();
-        let mut dscores = Array2::<f32>::zeros((t, t));
-
-        for i in 0..t {
-            let a = cache.attn.slice(s![i, ..]);
-            let da = dattn.slice(s![i, ..]);
-            let dot = a
-                .iter()
-                .zip(da.iter())
-                .map(|(&ai, &dai)| ai * dai)
-                .sum::<f32>();
-
-            for j in 0..t {
-                dscores[[i, j]] = a[j] * (da[j] - dot);
-            }
-        }
-
-        let dq = dscores.dot(&cache.k) / self.scale;
-        let dk = dscores.t().dot(&cache.q) / self.scale;
-
-        let dxq = self.wq.backward(&cache.q_cache, &dq);
-        let dxk = self.wk.backward(&cache.k_cache, &dk);
-        let dxv = self.wv.backward(&cache.v_cache, &dv);
-
-        dxq + dxk + dxv
-    }
-}
-
-// ============================================================
 // Mixer block
 // ============================================================
 
 #[derive(Clone)]
 struct MixerBlock {
     cond_proj: CondProjector,
-    ln_attn: AdaLn,
-    attn: SelfAttention,
+    // Attention は完全削除。Mixer 本来の token-mixing MLP + channel-mixing MLP のみ使う。
     ln_tok: AdaLn,
     tok_mlp: Mlp2D,
     ln_ch: AdaLn,
@@ -1681,8 +1546,6 @@ struct MixerBlock {
 #[derive(Clone)]
 struct MixerBlockCache {
     cond_proj_cache: CondProjectorCache,
-    ln_attn_cache: AdaLnCache,
-    attn_cache: SelfAttentionCache,
     ln_tok_cache: AdaLnCache,
     tok_mlp_cache: Mlp2DCache,
     ln_ch_cache: AdaLnCache,
@@ -1703,8 +1566,6 @@ impl MixerBlock {
     ) -> Self {
         Self {
             cond_proj: CondProjector::new(rng, cond_emb_dim, cond_proj_hidden, cond_vec_dim, scale),
-            ln_attn: AdaLn::new(channels, cond_vec_dim),
-            attn: SelfAttention::new(rng, channels, scale),
             ln_tok: AdaLn::new(channels, cond_vec_dim),
             tok_mlp: Mlp2D::new(rng, tokens, token_hidden, scale),
             ln_ch: AdaLn::new(channels, cond_vec_dim),
@@ -1714,8 +1575,6 @@ impl MixerBlock {
 
     fn zero_grad(&mut self) {
         self.cond_proj.zero_grad();
-        self.ln_attn.zero_grad();
-        self.attn.zero_grad();
         self.ln_tok.zero_grad();
         self.tok_mlp.zero_grad();
         self.ln_ch.zero_grad();
@@ -1724,8 +1583,6 @@ impl MixerBlock {
 
     fn scale_grad(&mut self, s: f32) {
         self.cond_proj.scale_grad(s);
-        self.ln_attn.scale_grad(s);
-        self.attn.scale_grad(s);
         self.ln_tok.scale_grad(s);
         self.tok_mlp.scale_grad(s);
         self.ln_ch.scale_grad(s);
@@ -1734,8 +1591,6 @@ impl MixerBlock {
 
     fn step(&mut self, hp: OptimHyper) {
         self.cond_proj.step(hp);
-        self.ln_attn.step(hp);
-        self.attn.step(hp);
         self.ln_tok.step(hp);
         self.tok_mlp.step(hp);
         self.ln_ch.step(hp);
@@ -1745,26 +1600,22 @@ impl MixerBlock {
     fn forward(&self, x: &Array2<f32>, cond_emb: &Array1<f32>) -> (Array2<f32>, MixerBlockCache) {
         let (cond_vec, cond_proj_cache) = self.cond_proj.forward(cond_emb);
 
-        let (attn_norm, ln_attn_cache) = self.ln_attn.forward(x, &cond_vec);
-        let (attn_out, attn_cache) = self.attn.forward(&attn_norm);
-        let x1 = x + &attn_out;
-
-        let (tok_norm, ln_tok_cache) = self.ln_tok.forward(&x1, &cond_vec);
+        // Attention 経路は削除。O(T^2*C) の self-attention を走らせず、
+        // token MLP は transpose した [channels, tokens] に対してだけ適用する。
+        let (tok_norm, ln_tok_cache) = self.ln_tok.forward(x, &cond_vec);
         let tok_in = tok_norm.t().to_owned();
         let (tok_out_t, tok_mlp_cache) = self.tok_mlp.forward(&tok_in);
         let tok_out = tok_out_t.t().to_owned();
-        let x2 = &x1 + &tok_out;
+        let x1 = x + &tok_out;
 
-        let (ch_norm, ln_ch_cache) = self.ln_ch.forward(&x2, &cond_vec);
+        let (ch_norm, ln_ch_cache) = self.ln_ch.forward(&x1, &cond_vec);
         let (ch_out, ch_mlp_cache) = self.ch_mlp.forward(&ch_norm);
-        let y = &x2 + &ch_out;
+        let y = &x1 + &ch_out;
 
         (
             y,
             MixerBlockCache {
                 cond_proj_cache,
-                ln_attn_cache,
-                attn_cache,
                 ln_tok_cache,
                 tok_mlp_cache,
                 ln_ch_cache,
@@ -1778,35 +1629,29 @@ impl MixerBlock {
         cache: &MixerBlockCache,
         dy: &Array2<f32>,
     ) -> (Array2<f32>, Array1<f32>) {
-        let cond_vec_dim = cache.ln_attn_cache.cond_vec.len();
+        let cond_vec_dim = cache.ln_tok_cache.cond_vec.len();
         let mut dcond_vec = Array1::<f32>::zeros(cond_vec_dim);
 
         let dch_out = dy.clone();
-        let mut dx2 = dy.clone();
+        let mut dx1 = dy.clone();
         let dch_norm = self.ch_mlp.backward(&cache.ch_mlp_cache, &dch_out);
-        let (dx2_from_ch, dc3) = self.ln_ch.backward(&cache.ln_ch_cache, &dch_norm);
-        dcond_vec += &dc3;
-        dx2 += &dx2_from_ch;
+        let (dx1_from_ch, dc2) = self.ln_ch.backward(&cache.ln_ch_cache, &dch_norm);
+        dcond_vec += &dc2;
+        dx1 += &dx1_from_ch;
 
-        let dtok_out = dx2.clone();
-        let mut dx1 = dx2.clone();
+        let dtok_out = dx1.clone();
+        let mut dx0 = dx1.clone();
         let dtok_out_t = dtok_out.t().to_owned();
         let dtok_in = self.tok_mlp.backward(&cache.tok_mlp_cache, &dtok_out_t);
         let dtok_norm = dtok_in.t().to_owned();
-        let (dx1_from_tok, dc2) = self.ln_tok.backward(&cache.ln_tok_cache, &dtok_norm);
-        dcond_vec += &dc2;
-        dx1 += &dx1_from_tok;
-
-        let dattn_out = dx1.clone();
-        let mut dx0 = dx1.clone();
-        let dattn_norm = self.attn.backward(&cache.attn_cache, &dattn_out);
-        let (dx0_from_attn, dc1) = self.ln_attn.backward(&cache.ln_attn_cache, &dattn_norm);
+        let (dx0_from_tok, dc1) = self.ln_tok.backward(&cache.ln_tok_cache, &dtok_norm);
         dcond_vec += &dc1;
-        dx0 += &dx0_from_attn;
+        dx0 += &dx0_from_tok;
 
         let dcond_emb = self.cond_proj.backward(&cache.cond_proj_cache, &dcond_vec);
         (dx0, dcond_emb)
     }
+
 }
 
 
@@ -2636,18 +2481,25 @@ impl HybridMutationController {
             idxs
         };
 
-        let sub_genomes: Vec<Genome> = idxs.iter().map(|&i| genomes[i].clone()).collect();
+        // clone を排除: &Genome 参照スライスで全操作を行う。
+        // sub_genomes: Vec<Genome> → sub_genomes: Vec<&Genome> に変更し、
+        // encode_sample / encode_target / flatten_discrete はすべて &Genome を取るため
+        // cloneコストが O(subset × genome_size) から 0 に削減される。
+        let sub_genomes: Vec<&Genome> = idxs.iter().map(|&i| genomes[i]).collect();
         let sub_losses: Vec<f64> = idxs.iter().map(|&i| losses[i]).collect();
+        // self.codec を先に借用しておき、以降のクロージャが &self 全体をキャプチャしないようにする。
+        // flatten_discrete / encode_sample / encode_target は全て rayon 並列化可能。
+        let codec = &self.codec;
         let codes: Vec<Vec<usize>> = sub_genomes
-            .iter()
-            .map(|g| self.codec.flatten_discrete(g))
+            .par_iter()
+            .map(|g| codec.flatten_discrete(g))
             .collect();
         let scores: Vec<f64> = sub_losses.iter().map(|&x| -x).collect();
 
         let nb = nearest_better_hamming_pruned_generalized(
             &codes,
             &scores,
-            self.codec.alphabet_sizes(),
+            codec.alphabet_sizes(),
             self.cfg.nearest_better_cache_size,
         );
 
@@ -2658,25 +2510,28 @@ impl HybridMutationController {
             .copied()
             .fold(f64::INFINITY, f64::min);
 
-        let mut out = Vec::new();
-        for (i, maybe_j) in nb.ans.into_iter().enumerate() {
-            if (sub_losses[i] - best_loss).abs() <= 1e-15 {
-                continue;
-            }
-            if let Some(j) = maybe_j {
-                if j == i {
-                    continue;
-                }
-                if codes[i] == codes[j] {
-                    continue;
-                }
+        // ペア収集後にまとめて encode_sample/encode_target を rayon 並列実行する。
+        // 旧実装では直列ループ内で encode が走っていたが、各ペアは独立しているため
+        // par_iter で並列化することで encode コストを O(pairs) → O(pairs/cores) に削減。
+        let pair_indices: Vec<(usize, usize, f32)> = nb.ans.into_iter().enumerate()
+            .filter_map(|(i, maybe_j)| {
+                if (sub_losses[i] - best_loss).abs() <= 1e-15 { return None; }
+                let j = maybe_j?;
+                if j == i || codes[i] == codes[j] { return None; }
                 let loss_cond = Self::normalize_loss(sub_losses[i], loss_mean, loss_std);
-                out.push((
-                    self.codec.encode_sample(&sub_genomes[i], loss_cond),
-                    self.codec.encode_target(&sub_genomes[j]),
-                ));
-            }
-        }
+                Some((i, j, loss_cond))
+            })
+            .collect();
+
+        let mut out: Vec<(Sample, Targets)> = pair_indices
+            .par_iter()
+            .map(|&(i, j, loss_cond)| {
+                (
+                    codec.encode_sample(sub_genomes[i], loss_cond),
+                    codec.encode_target(sub_genomes[j]),
+                )
+            })
+            .collect();
         if out.len() > self.cfg.max_teacher_pairs {
             out.shuffle(rng);
             out.truncate(self.cfg.max_teacher_pairs);
@@ -2691,8 +2546,12 @@ impl HybridMutationController {
         rng: &mut rand::rngs::StdRng,
     ) {
 
+        // nearest_better + encode が重いため、開始・完了を個別にログする。
+        // Python 側でサイレンスタイムアウトが誤発火しないよう定期的に stdout を出す。
+        println_flush!("CMAES_STAGE stage=build_pairs_begin subset={}", genomes.len());
         let mut pairs = self.build_teacher_pairs(genomes, losses, rng);
         self.trained_pairs_last = pairs.len();
+        println_flush!("CMAES_STAGE stage=build_pairs_end pairs={}", pairs.len());
         if pairs.is_empty() {
             return;
         }
@@ -2704,7 +2563,8 @@ impl HybridMutationController {
             for batch in pairs.chunks(self.cfg.batch_size.max(1)) {
                 self.model.train_minibatch_step(batch, self.optim);
                 steps += 1;
-                if steps % TRAIN_PROGRESS_EVERY == 0 || steps == max_steps {
+                // steps==1 でも必ずログする（train_begin 後の最初の進捗を即時通知）
+                if steps == 1 || steps % TRAIN_PROGRESS_EVERY == 0 || steps == max_steps {
                     println_flush!(
                         "CMAES_STAGE stage=train_progress epoch={} step={} max_steps={} pairs={}",
                         epoch,
@@ -2742,49 +2602,57 @@ impl HybridMutationController {
 
     /// 次世代生成をバッチ化する。
     ///
-    /// `candidates` は `(parent_ref, classical_child, loss_cond, use_model)` のスライス。
-    /// use_model == true の個体のサンプルをまとめて `predict_batch` (rayon 並列) に投げ、
-    /// 結果を decode してから classical_child の代わりに差し込む。
-    /// 推論をバッチ化することで POP_SIZE 回の直列 MLP forward を 1 回の並列化に置換する。
+    /// 重要: use_model == true の個体では classical child を先に作らない。
+    /// 旧実装は mix/mutate した Genome を作ってからモデル出力で上書きしていたため、
+    /// train_end → 次世代 eval_begin の間に無駄な Genome clone / mutate / dealloc が発生していた。
     pub fn apply_model_batch(
         &self,
-        candidates: Vec<(Genome, bool, f32)>, // (classical, use_model, loss_cond)
+        candidates: Vec<(Option<Genome>, bool, f32)>, // (classical_if_needed, use_model, loss_cond)
         parents: &[&Genome],
     ) -> Vec<Genome> {
-        // use_model==true のインデックスだけサンプルを作成
         let model_indices: Vec<usize> = candidates
             .iter()
             .enumerate()
             .filter_map(|(i, (_, use_m, _))| if *use_m { Some(i) } else { None })
             .collect();
 
+        if model_indices.is_empty() {
+            return candidates.into_iter().map(|(g, _, _)| g.expect("classical child missing")).collect();
+        }
+
+        // encode_sample もかなり重いので並列化する。
         let samples: Vec<Sample> = model_indices
-            .iter()
+            .par_iter()
             .map(|&i| {
                 let (_, _, loss_cond) = &candidates[i];
                 self.codec.encode_sample(parents[i], *loss_cond)
             })
             .collect();
+        println_flush!("CMAES_STAGE stage=offspring_model_encode_done model_children={}", samples.len());
 
-        // 一括並列推論
         let outputs = self.model.predict_batch(&samples);
+        println_flush!("CMAES_STAGE stage=offspring_model_predict_done model_children={}", outputs.len());
 
-        // 結果をデコードして候補を確定
-        let mut decoded: std::collections::HashMap<usize, Genome> =
-            std::collections::HashMap::new();
-        for (out_idx, &cand_idx) in model_indices.iter().enumerate() {
-            let g = self.codec.decode_output(parents[cand_idx], &outputs[out_idx]);
-            decoded.insert(cand_idx, g);
+        // HashMap をやめ、index 対応の Vec<Option<Genome>> に直接格納する。
+        let mut decoded: Vec<Option<Genome>> = (0..candidates.len()).map(|_| None).collect();
+        let decoded_pairs: Vec<(usize, Genome)> = model_indices
+            .par_iter()
+            .zip(outputs.par_iter())
+            .map(|(&cand_idx, out)| (cand_idx, self.codec.decode_output(parents[cand_idx], out)))
+            .collect();
+        for (idx, g) in decoded_pairs {
+            decoded[idx] = Some(g);
         }
+        println_flush!("CMAES_STAGE stage=offspring_model_decode_done model_children={}", model_indices.len());
 
         candidates
             .into_iter()
             .enumerate()
             .map(|(i, (classical, use_m, _))| {
                 if use_m {
-                    decoded.remove(&i).unwrap()
+                    decoded[i].take().expect("model output missing")
                 } else {
-                    classical
+                    classical.expect("classical child missing")
                 }
             })
             .collect()
@@ -2890,6 +2758,26 @@ fn main() {
             "CMAES_ACC gen={} loss={:.10} acc={:.10}",
             gen, scored[0].0, scored[0].1
         );
+
+        // elites clone と loss_stats を train の前に前倒し計算。
+        // ─ これにより train_end 直後の直列ブロックが消え、
+        //   train_end → offspring_begin の間隔がほぼゼロになる。
+        // ─ scored への共有不変参照なのでトレーニングと並走しても安全。
+        let elites: Vec<Genome> = scored[..ELITE].iter().map(|x| x.2.clone()).collect();
+        let (loss_mean, loss_std) = HybridMutationController::loss_stats(&losses);
+
+        // specs（offspring 選択メタデータ）も train と並走して事前生成する。
+        // スペックはシードだけ確定させ、実際の Genome 生成は後段の rayon で行う。
+        let n_children_pre = POP_SIZE.saturating_sub(ELITE);
+        let mut spec_seeds: Vec<(usize, usize, u8)> = (0..n_children_pre)
+            .map(|_| {
+                let i1 = rng.gen_range(0..ELITE);
+                let i2 = rng.gen_range(0..ELITE);
+                let op = rng.gen_range(0..3u8);
+                (i1, i2, op)
+            })
+            .collect();
+
         let learned_mutator_active = gen >= MIXER_WARMUP_GENERATIONS;
         if learned_mutator_active && MIXER_TRAIN_EVERY > 0 && gen % MIXER_TRAIN_EVERY == 0 {
             println_flush!("CMAES_STAGE gen={} stage=train_begin", gen);
@@ -2920,25 +2808,24 @@ fn main() {
             }
         }
 
-        let elites: Vec<Genome> = scored[..ELITE].iter().map(|x| x.2.clone()).collect();
-        let (loss_mean, loss_std) = HybridMutationController::loss_stats(&losses);
-
         // ── 次世代生成（バッチ化）────────────────────────────────────────────
         //
         // 旧実装: POP_SIZE 回のループ内で maybe_mutate_with_model を直列呼び出し
         //         → 1 個体ずつ MLP forward が走り O(POP_SIZE × forward_cost)
         //
         // 新実装:
+        //   0. elites clone / loss_stats / spec_seeds (i1,i2,op) を train より前に前倒し
+        //      → train_end 直後の直列ブロックをほぼゼロにする
         //   1. classical 変異を rayon で並列生成（CPU バウンド部分を並列化）
-        //   2. use_model フラグを事前サンプリング
+        //   2. use_model フラグを事前サンプリング（train 後、乱数消費のみ）
         //   3. use_model==true の個体のみサンプルをまとめて predict_batch に投げる
         //      → MLP forward が rayon 並列になり O(forward_cost) に近づく
         //   4. 結果をマージして next 世代を構築
 
-        let n_children = POP_SIZE.saturating_sub(ELITE);
+        // n_children_pre / spec_seeds は train より前のブロックで確定済み。
+        // use_model フラグと loss_cond だけここで付与する（乱数消費が最小限）。
+        let n_children = n_children_pre;
 
-        // step1: 各子孫の (parent_idx1, parent_idx2, op, use_model, loss_cond) を決定
-        //        これはシードが必要なため直列で乱数を消費する
         struct ChildSpec {
             i1: usize,
             i2: usize,
@@ -2946,55 +2833,87 @@ fn main() {
             use_model: bool,
             loss_cond: f32,
         }
-        let specs: Vec<ChildSpec> = (0..n_children)
-            .map(|_| {
-                let i1 = rng.gen_range(0..ELITE);
-                let i2 = rng.gen_range(0..ELITE);
-                let op = rng.gen_range(0..3u8);
+        // step1: use_model フラグと loss_cond を付与（parent/op シードは前倒し済み）
+        let mut specs: Vec<ChildSpec> = spec_seeds
+            .into_iter()
+            .map(|(i1, i2, op)| {
                 let use_model = learned_mutator_active
                     && rng.gen::<f64>() < learned_mutator.cfg.learned_mutation_prob;
                 let loss_cond = HybridMutationController::normalize_loss(
                     scored[i1].0, loss_mean, loss_std,
                 );
-                // classical 変異に必要な各 Chromosome 単位の乱数シードも確定させる
-                // ために小さな seed を払い出す（SmallRng は Clone 不可なので u64 シード）
                 ChildSpec { i1, i2, op, use_model, loss_cond }
             })
             .collect();
 
+        // 推論子が POP_SIZE 比例で膨らむと、ここから offspring_end までで
+        // encode_sample / MLP forward / decode_output が支配的になる。
+        // 学習で使う上限より多いモデル子は費用対効果が悪いため、超過分は classical に戻す。
+        let max_model_children = if learned_mutator_active {
+            MIXER_MAX_TEACHER_PAIRS.min(MIXER_TRAIN_POP_SUBSET).min(n_children).max(1)
+        } else { 0 };
+        let mut kept_model_children = 0usize;
+        let mut throttled_model_children = 0usize;
+        for s in specs.iter_mut() {
+            if s.use_model {
+                if kept_model_children < max_model_children {
+                    kept_model_children += 1;
+                } else {
+                    s.use_model = false;
+                    throttled_model_children += 1;
+                }
+            }
+        }
+
+        println_flush!(
+            "CMAES_STAGE gen={} stage=offspring_begin children={} model_active={} model_cap={} model_kept={} model_throttled={}",
+            gen,
+            n_children,
+            learned_mutator_active,
+            max_model_children,
+            kept_model_children,
+            throttled_model_children,
+        );
+
         // step2: classical 変異を rayon で並列生成
-        //        Genome::mix / mutate は scored への共有参照のみ使うので Send+Sync 安全
-        let classical_children: Vec<Genome> = specs
+        //        ただし use_model==true の子は後でモデル出力に置換されるので、ここでは作らない。
+        //        旧実装では捨てる Genome を POP_SIZE * LEARNED_MUTATION_PROB 個ぶん生成していた。
+        let candidates: Vec<(Option<Genome>, bool, f32)> = specs
             .par_iter()
             .map(|s| {
-                // rayon スレッドごとに独立した SmallRng を使う
-                // シードを (gen, i1, i2, op の組み合わせ) でなく index から作ると
-                // 再現性は落ちるが実用上問題ない
+                if s.use_model {
+                    return (None, true, s.loss_cond);
+                }
                 let seed = s.i1 as u64 ^ ((s.i2 as u64) << 16) ^ ((s.op as u64) << 32);
                 let mut local_rng = SmallRng::seed_from_u64(seed);
                 let p1 = &scored[s.i1].2;
                 let p2 = &scored[s.i2].2;
-                match s.op {
+                let child = match s.op {
                     0 => p1.mix(&mut local_rng, p2),
                     1 => p1.mutate(&mut local_rng),
                     _ => p1.mix(&mut local_rng, p2).mutate(&mut local_rng),
-                }
+                };
+                (Some(child), false, s.loss_cond)
             })
             .collect();
 
-        // step3: use_model==true の子孫にモデル推論をバッチ適用
-        let candidates: Vec<(Genome, bool, f32)> = classical_children
-            .into_iter()
-            .zip(specs.iter())
-            .map(|(g, s)| (g, s.use_model, s.loss_cond))
-            .collect();
+        let model_count = candidates.iter().filter(|(_, use_m, _)| *use_m).count();
+        println_flush!(
+            "CMAES_STAGE gen={} stage=offspring_classical_done model_children={} classical_children={}",
+            gen,
+            model_count,
+            n_children.saturating_sub(model_count),
+        );
 
+        // step3: use_model==true の子孫にモデル推論をバッチ適用
         let parent_refs: Vec<&Genome> = specs.iter().map(|s| &scored[s.i1].2).collect();
         let model_children = if learned_mutator_active {
             learned_mutator.apply_model_batch(candidates, &parent_refs)
         } else {
-            candidates.into_iter().map(|(g, _, _)| g).collect()
+            candidates.into_iter().map(|(g, _, _)| g.expect("classical child missing")).collect()
         };
+
+        println_flush!("CMAES_STAGE gen={} stage=offspring_end", gen);
 
         let mut next = elites;
         next.extend(model_children);

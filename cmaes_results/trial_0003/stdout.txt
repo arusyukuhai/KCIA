@@ -1,20 +1,15 @@
 CMAES_STAGE gen=0 stage=eval_begin
-CMAES_STAGE gen=0 stage=eval_progress chunk=0 done=32/4616
-CMAES_STAGE gen=0 stage=eval_progress chunk=1 done=64/4616
-CMAES_STAGE gen=0 stage=eval_progress chunk=2 done=96/4616
-CMAES_STAGE gen=0 stage=eval_progress chunk=3 done=128/4616
-CMAES_STAGE gen=0 stage=eval_progress chunk=4 done=160/4616
-CMAES_STAGE gen=0 stage=eval_progress chunk=5 done=192/4616
-CMAES_STAGE gen=0 stage=eval_progress chunk=6 done=224/4616
-CMAES_STAGE gen=0 stage=eval_progress chunk=7 done=256/4616
-CMAES_STAGE gen=0 stage=eval_progress chunk=8 done=288/4616
-CMAES_STAGE gen=0 stage=eval_progress chunk=9 done=320/4616
-CMAES_STAGE gen=0 stage=eval_progress chunk=10 done=352/4616
-CMAES_STAGE gen=0 stage=eval_progress chunk=11 done=384/4616
-CMAES_STAGE gen=0 stage=eval_progress chunk=12 done=416/4616
-CMAES_STAGE gen=0 stage=eval_progress chunk=13 done=448/4616
-CMAES_STAGE gen=0 stage=eval_progress chunk=14 done=480/4616
-CMAES_STAGE gen=0 stage=eval_progress chunk=15 done=512/4616
-CMAES_STAGE gen=0 stage=eval_progress chunk=16 done=544/4616
-CMAES_STAGE gen=0 stage=eval_progress chunk=17 done=576/4616
-CMAES_STAGE gen=0 stage=eval_progress chunk=18 done=608/4616
+CMAES_STAGE gen=0 stage=eval_progress chunk=0 done=32/248
+CMAES_STAGE gen=0 stage=eval_progress chunk=1 done=64/248
+CMAES_STAGE gen=0 stage=eval_progress chunk=2 done=96/248
+CMAES_STAGE gen=0 stage=eval_progress chunk=3 done=128/248
+CMAES_STAGE gen=0 stage=eval_progress chunk=4 done=160/248
+CMAES_STAGE gen=0 stage=eval_progress chunk=5 done=192/248
+CMAES_STAGE gen=0 stage=eval_progress chunk=6 done=224/248
+CMAES_STAGE gen=0 stage=eval_progress chunk=7 done=248/248
+CMAES_ACC gen=0 loss=0.8279893640 acc=0.2857723266
+CMAES_STAGE gen=0 stage=warmup mixer_warmup_generations=1
+CMAES_STAGE gen=0 stage=offspring_begin children=237 model_active=false model_cap=0 model_kept=0 model_throttled=0
+CMAES_STAGE gen=0 stage=offspring_classical_done model_children=0 classical_children=237
+CMAES_STAGE gen=0 stage=offspring_end
+CMAES_STAGE gen=1 stage=eval_begin
