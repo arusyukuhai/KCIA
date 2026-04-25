@@ -1,1 +1,33 @@
 CMAES_STAGE gen=0 stage=eval_begin
+CMAES_STAGE gen=0 stage=eval_progress chunk=0 done=1/39
+CMAES_STAGE gen=0 stage=eval_progress chunk=1 done=33/39
+CMAES_STAGE gen=0 stage=eval_progress chunk=2 done=39/39
+CMAES_ACC gen=0 loss=0.8740588421 acc=0.2643710165
+CMAES_STAGE gen=0 stage=warmup mixer_warmup_generations=1
+CMAES_STAGE gen=0 stage=offspring_begin children=20 model_active=false model_cap=0 model_kept=0 model_throttled=0
+CMAES_STAGE gen=0 stage=offspring_classical_done model_children=0 classical_children=20
+CMAES_STAGE gen=0 stage=offspring_end
+CMAES_STAGE gen=1 stage=cleanup_prev_scored_begin
+CMAES_STAGE gen=1 stage=cleanup_prev_scored_end
+CMAES_STAGE gen=1 stage=eval_begin
+CMAES_STAGE gen=1 stage=eval_progress chunk=0 done=1/39
+CMAES_STAGE gen=1 stage=eval_progress chunk=1 done=33/39
+CMAES_STAGE gen=1 stage=eval_progress chunk=2 done=39/39
+CMAES_ACC gen=1 loss=0.8740588421 acc=0.2643710165
+CMAES_STAGE gen=1 stage=train_begin
+CMAES_STAGE stage=build_pairs_begin subset=39
+CMAES_STAGE stage=build_pairs_end pairs=37
+CMAES_STAGE stage=train_progress epoch=0 step=1 max_steps=110 pairs=37
+CMAES_STAGE stage=train_progress epoch=0 step=4 max_steps=110 pairs=37
+CMAES_STAGE stage=train_progress epoch=0 step=8 max_steps=110 pairs=37
+CMAES_STAGE stage=train_progress epoch=0 step=12 max_steps=110 pairs=37
+CMAES_STAGE stage=train_progress epoch=0 step=16 max_steps=110 pairs=37
+CMAES_STAGE stage=train_progress epoch=0 step=20 max_steps=110 pairs=37
+CMAES_STAGE stage=train_progress epoch=0 step=24 max_steps=110 pairs=37
+CMAES_STAGE stage=train_progress epoch=0 step=28 max_steps=110 pairs=37
+CMAES_STAGE stage=train_progress epoch=0 step=32 max_steps=110 pairs=37
+CMAES_STAGE stage=train_progress epoch=0 step=36 max_steps=110 pairs=37
+CMAES_STAGE stage=train_progress epoch=1 step=40 max_steps=110 pairs=37
+CMAES_STAGE stage=train_progress epoch=1 step=44 max_steps=110 pairs=37
+CMAES_STAGE stage=train_progress epoch=1 step=48 max_steps=110 pairs=37
+CMAES_STAGE stage=train_progress epoch=1 step=52 max_steps=110 pairs=37

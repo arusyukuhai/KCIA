@@ -13,62 +13,73 @@ use std::io::Write as _;
 use std::sync::Arc;
 
 // ─── アーキテクチャ ハイパーパラメータ ───────────────────────────────────────
-const N_LAYERS: usize = 2;
-const LAYER_LEN: [usize; N_LAYERS] = [6, 8];
+const N_LAYERS: usize = 3;
+const LAYER_LEN: [usize; N_LAYERS] = [39, 39, 249];
 const N_INPUTS_MAIN: usize = 2;
 /// ADF の外部入力: [in0, in1, one, x_global]
 /// x_global はトップ層の ext[0]（入力 x）を全 ADF 層に伝播させたもの。
 const N_INPUTS_ADF: usize = 4;
-const N_ADF_PER_LAYER: [usize; N_LAYERS - 1] = [2];
+const N_ADF_PER_LAYER: [usize; N_LAYERS - 1] = [19, 19];
 
 const ONE_SIG: Sig = 0xFFFF_FFFF_FFFF_FFFFu64;
 /// x_global の固定 Sig。バッチ変化時は exec_adf に渡す x_sig 引数で上書きされる。
 const X_GLOBAL_SIG_SLOT: usize = 3;
-const VEC_LEN: usize = 693;
-const POP_SIZE: usize = 1514;
-const ELITE: usize = 26;
+const VEC_LEN: usize = 215;
+const POP_SIZE: usize = 3202;
+const ELITE: usize = 8;
 const N_GEN: usize = 99999999;  // 時間制限で止める
-const PROB_EML: f64 = 0.07020386;
-const A: f64 = -1.43631465;
-const B: f64 = 0.12114622;
-const C: f64 = -0.30004312;
-const D: f64 = 0.27610193;
-const E: f64 = 1.69324465;
-const HILO: f64 = 10.47126613;
-const P: f64 = 0.88501658;
+const PROB_EML: f64 = 0.59377350;
+const A: f64 = -0.80870604;
+const B: f64 = 0.62456443;
+const C: f64 = -0.56658893;
+const D: f64 = 0.10882220;
+const E: f64 = 0.32435675;
+const HILO: f64 = 20.09132395;
+const P: f64 = 1.77299096;
 
 // ─── 突然変異率パラメータ ────────────────────────────────────────────────────
-const MUT_STOP_PROB: f64 = 6.05395501;
-const MUT_MAX_TARGETS: usize = 5;
+const MUT_STOP_PROB: f64 = 3.12270118;
+const MUT_MAX_TARGETS: usize = 1;
 
 // ─── learned mutator / mixer hyperparams ─────────────────────────────────────
-const LEARNED_MUTATION_PROB: f64 = 0.66867610;
-const MIXER_D1: usize = 9;
-const MIXER_D2: usize = 80;
-const MIXER_BLOCKS: usize = 4;
-const MIXER_TOKEN_HIDDEN: usize = 72;
-const MIXER_CHANNEL_HIDDEN: usize = 275;
-const MIXER_COND_PROJ_HIDDEN: usize = 50;
-const MIXER_COND_VEC_DIM: usize = 128;
-const MIXER_WARMUP_GENERATIONS: usize = 2;
-const MIXER_TRAIN_EVERY: usize = 3;
-const MIXER_TRAIN_EPOCHS: usize = 2;
-const MIXER_BATCH_SIZE: usize = 26;
-const MIXER_TRAIN_POP_SUBSET: usize = 30;
-const MIXER_MAX_TEACHER_PAIRS: usize = 1243;
-const MIXER_MAX_MINIBATCHES: usize = 7;
-const MIXER_LR_MATRIX: f32 = 0.02949220;
-const MIXER_LR_VECTOR: f32 = 0.00284866;
-const NEAREST_BETTER_CACHE_SIZE: usize = 4889;
-const MUON_WEIGHT_DECAY: f32 = 0.00247846;
-const MUON_MOMENTUM: f32 = 0.96472211;
-const MUON_NS_STEPS: usize = 12;
-const MUON_NESTEROV: bool = true;
-const ADAMW_BETA1: f32 = 0.93726507;
-const ADAMW_BETA2: f32 = 0.99925860;
-const ADAMW_EPS: f32 = 0.000000531864;
-const ADAMW_WEIGHT_DECAY: f32 = 0.03194219;
+const LEARNED_MUTATION_PROB: f64 = 0.97399064;
+/// Mixer architecture:
+///   0 = original 2-layer GELU MLP-Mixer
+///   1 = fast activation-free 1-layer Mixer.
+/// In mode 1, token/channel MLPs become a single Linear(in_dim -> in_dim)
+/// and CondProjector removes GELU. This is often much cheaper than
+/// Linear -> GELU -> Linear when hidden dims are large.
+const MIXER_ARCH: usize = 0;
+const MIXER_D1: usize = 191;
+const MIXER_D2: usize = 85;
+const MIXER_BLOCKS: usize = 15;
+const MIXER_TOKEN_HIDDEN: usize = 50;
+const MIXER_CHANNEL_HIDDEN: usize = 53;
+const MIXER_COND_PROJ_HIDDEN: usize = 22;
+const MIXER_COND_VEC_DIM: usize = 13;
+const MIXER_WARMUP_GENERATIONS: usize = 1;
+const MIXER_TRAIN_EVERY: usize = 1;
+const MIXER_TRAIN_EPOCHS: usize = 1;
+const MIXER_BATCH_SIZE: usize = 3;
+const MIXER_TRAIN_POP_SUBSET: usize = 1817;
+const MIXER_MAX_TEACHER_PAIRS: usize = 1605;
+const MIXER_MAX_MINIBATCHES: usize = 336;
+const MIXER_LR_MATRIX: f32 = 0.04031450;
+const MIXER_LR_VECTOR: f32 = 0.00001586;
+const NEAREST_BETTER_CACHE_SIZE: usize = 137688;
+const MUON_WEIGHT_DECAY: f32 = 0.02262794;
+const MUON_MOMENTUM: f32 = 0.65517266;
+const MUON_NS_STEPS: usize = 6;
+const MUON_NESTEROV: bool = false;
+const ADAMW_BETA1: f32 = 0.96189745;
+const ADAMW_BETA2: f32 = 0.90438778;
+const ADAMW_EPS: f32 = 0.000000854729;
+const ADAMW_WEIGHT_DECAY: f32 = 0.06659241;
 const EVAL_PROGRESS_CHUNK: usize = 32;
+// eval_begin 直後だけは小さいチャンクで評価する。
+// 通常チャンク(32)だと「最初の32個が全部終わるまで無出力」になり、
+// たまたま重い個体/allocator競合を含む世代で eval_begin→初回eval_progress が長く見える。
+const EVAL_FIRST_PROGRESS_CHUNK: usize = 1;
 const TRAIN_PROGRESS_EVERY: usize = 4;
 
 // ─── カリキュラム学習 ────────────────────────────────────────────────────────
@@ -1227,7 +1238,9 @@ impl CondProjector {
     fn forward(&self, emb: &Array1<f32>) -> (Array1<f32>, CondProjectorCache) {
         let x = emb.clone().insert_axis(Axis(0)); // [1, in_dim]
         let (z1, fc1_cache) = self.fc1.forward(&x);
-        let a1 = z1.mapv(gelu_scalar);
+        // MIXER_ARCH=1 では条件投影も activation-free にする。
+        // 2層線形は合成すれば線形なので、表現力を保ちつつ GELU のコストを消す。
+        let a1 = if MIXER_ARCH == 1 { z1.clone() } else { z1.mapv(gelu_scalar) };
         let (y, fc2_cache) = self.fc2.forward(&a1);
         (
             y.row(0).to_owned(),
@@ -1243,12 +1256,18 @@ impl CondProjector {
         let dy2 = dy.clone().insert_axis(Axis(0)); // [1, out_dim]
         let da1 = self.fc2.backward(&cache.fc2_cache, &dy2);
 
-        // 修正B: indexed_iter_mut + 2次元インデックス を
-        // フラットイテレータに置換 → 境界チェック排除 + SIMD autovectorization 促進
-        let mut dz1 = da1.clone();
-        for (v, &z) in dz1.iter_mut().zip(cache.z1.iter()) {
-            *v *= gelu_derivative_scalar(z);
-        }
+        let dz1 = if MIXER_ARCH == 1 {
+            // activation-free: d identity / dz = 1
+            da1
+        } else {
+            // 修正B: indexed_iter_mut + 2次元インデックス を
+            // フラットイテレータに置換 → 境界チェック排除 + SIMD autovectorization 促進
+            let mut dz1 = da1.clone();
+            for (v, &z) in dz1.iter_mut().zip(cache.z1.iter()) {
+                *v *= gelu_derivative_scalar(z);
+            }
+            dz1
+        };
 
         let dx = self.fc1.backward(&cache.fc1_cache, &dz1);
         dx.row(0).to_owned()
@@ -1438,28 +1457,49 @@ struct Mlp2DCache {
 
 impl Mlp2D {
     fn new(rng: &mut StdRng, in_dim: usize, hidden_dim: usize, scale: f32) -> Self {
-        Self {
-            fc1: Linear::new(rng, in_dim, hidden_dim, scale),
-            fc2: Linear::new(rng, hidden_dim, in_dim, scale),
+        if MIXER_ARCH == 1 {
+            // activation-free 1-layer Mixer: Linear(in_dim -> in_dim).
+            // fc2 は未使用だが、構造体を単純に保つため同形 Linear として保持する。
+            Self {
+                fc1: Linear::new(rng, in_dim, in_dim, scale),
+                fc2: Linear::new(rng, in_dim, in_dim, scale),
+            }
+        } else {
+            Self {
+                fc1: Linear::new(rng, in_dim, hidden_dim, scale),
+                fc2: Linear::new(rng, hidden_dim, in_dim, scale),
+            }
         }
     }
 
     fn zero_grad(&mut self) {
         self.fc1.zero_grad();
-        self.fc2.zero_grad();
+        if MIXER_ARCH != 1 { self.fc2.zero_grad(); }
     }
 
     fn scale_grad(&mut self, s: f32) {
         self.fc1.scale_grad(s);
-        self.fc2.scale_grad(s);
+        if MIXER_ARCH != 1 { self.fc2.scale_grad(s); }
     }
 
     fn step(&mut self, hp: OptimHyper) {
         self.fc1.step(hp);
-        self.fc2.step(hp);
+        if MIXER_ARCH != 1 { self.fc2.step(hp); }
     }
 
     fn forward(&self, x: &Array2<f32>) -> (Array2<f32>, Mlp2DCache) {
+        if MIXER_ARCH == 1 {
+            let (y, fc1_cache) = self.fc1.forward(x);
+            return (
+                y,
+                Mlp2DCache {
+                    z1: Array2::<f32>::zeros((0, 0)),
+                    fc1_cache,
+                    fc2_cache: LinearCache { x: Array2::<f32>::zeros((0, 0)) },
+                },
+            );
+        }
+
         let (z1, fc1_cache) = self.fc1.forward(x);
         let a1 = z1.mapv(gelu_scalar);
         let (y, fc2_cache) = self.fc2.forward(&a1);
@@ -1474,6 +1514,10 @@ impl Mlp2D {
     }
 
     fn backward(&mut self, cache: &Mlp2DCache, dy: &Array2<f32>) -> Array2<f32> {
+        if MIXER_ARCH == 1 {
+            return self.fc1.backward(&cache.fc1_cache, dy);
+        }
+
         let da1 = self.fc2.backward(&cache.fc2_cache, dy);
         let mut dz1 = da1.clone();
         // 修正B: indexed_iter_mut + 2次元インデックス [[i,j]] を
@@ -2675,14 +2719,43 @@ fn main() {
         mixer_optim,
     );
 
+    // 前世代の scored drop を eval と重ねると、巨大 Genome の解放が allocator/CPU を奪い、
+    // 次世代の eval_begin → 最初の eval_progress が稀に大きく伸びる。
+    // そのため drop は次の eval_begin を出す前に必ず回収し、遅延の計測区間を汚染しない。
+    let mut pending_scored_drop: Option<std::thread::JoinHandle<()>> = None;
+
     for gen in 0..N_GEN {
+        if let Some(h) = pending_scored_drop.take() {
+            println_flush!("CMAES_STAGE gen={} stage=cleanup_prev_scored_begin", gen);
+            let _ = h.join();
+            println_flush!("CMAES_STAGE gen={} stage=cleanup_prev_scored_end", gen);
+        }
+
         println_flush!("CMAES_STAGE gen={} stage=eval_begin", gen);
         evaluator.reset_generation();
         let inter_weight = INTER_WEIGHT_MAX * (gen as f64 / CURRICULUM_RAMP_GENS as f64).min(1.0);
 
         let eval_chunk = EVAL_PROGRESS_CHUNK.max(1);
+        let first_eval_chunk = EVAL_FIRST_PROGRESS_CHUNK.max(1).min(pop.len());
         let mut scored: Vec<(f64, f64, Genome)> = Vec::with_capacity(pop.len());
-        for (chunk_idx, chunk) in pop.chunks(eval_chunk).enumerate() {
+
+        // 初回だけ小チャンクにして「32個完了待ち」の無出力時間をなくす。
+        if first_eval_chunk > 0 {
+            let mut part: Vec<(f64, f64, Genome)> = pop[..first_eval_chunk]
+                .par_iter()
+                .map(|g| { let (l, a) = eval(g, &ds, &evaluator, inter_weight); (l, a, g.clone()) })
+                .collect();
+            scored.append(&mut part);
+            println_flush!(
+                "CMAES_STAGE gen={} stage=eval_progress chunk={} done={}/{}",
+                gen,
+                0usize,
+                scored.len(),
+                pop.len(),
+            );
+        }
+
+        for (chunk_idx, chunk) in pop[first_eval_chunk..].chunks(eval_chunk).enumerate() {
             let mut part: Vec<(f64, f64, Genome)> = chunk
                 .par_iter()
                 .map(|g| { let (l, a) = eval(g, &ds, &evaluator, inter_weight); (l, a, g.clone()) })
@@ -2691,7 +2764,7 @@ fn main() {
             println_flush!(
                 "CMAES_STAGE gen={} stage=eval_progress chunk={} done={}/{}",
                 gen,
-                chunk_idx,
+                chunk_idx + 1,
                 scored.len(),
                 pop.len(),
             );
@@ -2877,16 +2950,10 @@ fn main() {
         next.extend(model_children);
         pop = next;
 
-        // scored の Drop を別スレッドに委ねる。
-        //
-        // scored は Vec<(f64, f64, Genome)> で POP_SIZE 個の Genome を保持している。
-        // Genome → Vec<Vec<Chromosome>> → Box<[u16;2]>/Box<[u8]> が再帰的に解放されるため、
-        // 大きいパラメータ設定では dealloc だけで数百ms かかる。
-        // これが train_end → 次世代 eval_begin の間に観測される遅延の原因。
-        //
-        // drop を別スレッドに投げることで、次世代の eval（rayon 並列）と重なり
-        // レイテンシとして見えなくなる。
-        std::thread::spawn(move || drop(scored));
+        // scored の Drop は重いが、次世代 eval と重ねない。
+        // 重ねると allocator/CPU 競合で eval_begin → 初回 eval_progress が稀に伸びるため、
+        // JoinHandle を保持し、次の eval_begin を出す前に cleanup_prev_scored_* として回収する。
+        pending_scored_drop = Some(std::thread::spawn(move || drop(scored)));
     }
 }
 

@@ -56,8 +56,8 @@ DEFAULT_SRC     = "src/main.rs"   # Rustソースの相対パス (プロジェ�
 DEFAULT_OUT     = "cmaes_results" # 結果ディレクトリ
 DEFAULT_BUDGET  = 3000             # CMA-ES の最大評価回数
 DEFAULT_TIME    = 90              # 各評価の実行秒数
-#TIME_STRECH_AS  = 10               # 実行秒数を毎世代ごとにどの程度増やすか
-CMA_ES_POPSIZE  = 30              # CMA-ESの母集団サイズ
+TIME_STRECH_AS  = 5               # 実行秒数を毎世代ごとにどの程度増やすか
+CMA_ES_POPSIZE  = 50              # CMA-ESの母集団サイズ
 
 # ─── ハイパーパラメータ定義 ──────────────────────────────────────────────────
 
@@ -87,6 +87,9 @@ PARAM_DEFS = [
     ("MUT_MAX_TARGETS",           1.0,       8.0,       3.0,    True,   True),
 
     # learned mutator / mixer
+    # 0 = original 2-layer GELU MLP-Mixer
+    # 1 = fast activation-free 1-layer Mixer (Linear token/channel mixing)
+    ("MIXER_ARCH",                 0.0,       1.0,       1.0,    True,  False),
     ("LEARNED_MUTATION_PROB",     0.0,      1.0,      0.75,   False,  False),
     ("NEAREST_BETTER_CACHE_SIZE", 64.0, 1048576.0,   16384.0,    True,   True),
     ("MIXER_D1",                  8.0,     256.0,      64.0,    True,   True),
@@ -97,7 +100,7 @@ PARAM_DEFS = [
     ("MIXER_COND_PROJ_HIDDEN",    4.0,     256.0,      32.0,    True,   True),
     ("MIXER_COND_VEC_DIM",        2.0,     128.0,      32.0,    True,   True),
     ("MIXER_WARMUP_GENERATIONS", 1,    16,     1    ,    True,   True),
-    ("MIXER_TRAIN_EVERY",         1.0,       32.0,       1.0,    True,   True),
+    ("MIXER_TRAIN_EVERY",         1.0,       8.0,       1.0,    True,   True),
     ("MIXER_TRAIN_EPOCHS",        1.0,       8.0,       1.0,    True,   True),
     ("MIXER_BATCH_SIZE",          1.0,      64.0,       8.0,    True,   True),
     ("MIXER_TRAIN_POP_SUBSET",    8.0,    16384,     1024.0,    True,   True),  # 2048→256
@@ -202,6 +205,13 @@ const MUT_MAX_TARGETS: usize = {MUT_MAX_TARGETS};
 
 // ─── learned mutator / mixer hyperparams ─────────────────────────────────────
 const LEARNED_MUTATION_PROB: f64 = {LEARNED_MUTATION_PROB};
+/// Mixer architecture:
+///   0 = original 2-layer GELU MLP-Mixer
+///   1 = fast activation-free 1-layer Mixer.
+/// In mode 1, token/channel MLPs become a single Linear(in_dim -> in_dim)
+/// and CondProjector removes GELU. This is often much cheaper than
+/// Linear -> GELU -> Linear when hidden dims are large.
+const MIXER_ARCH: usize = {MIXER_ARCH};
 const MIXER_D1: usize = {MIXER_D1};
 const MIXER_D2: usize = {MIXER_D2};
 const MIXER_BLOCKS: usize = {MIXER_BLOCKS};
@@ -228,6 +238,10 @@ const ADAMW_BETA2: f32 = {ADAMW_BETA2};
 const ADAMW_EPS: f32 = {ADAMW_EPS};
 const ADAMW_WEIGHT_DECAY: f32 = {ADAMW_WEIGHT_DECAY};
 const EVAL_PROGRESS_CHUNK: usize = 32;
+// eval_begin 直後だけは小さいチャンクで評価する。
+// 通常チャンク(32)だと「最初の32個が全部終わるまで無出力」になり、
+// たまたま重い個体/allocator競合を含む世代で eval_begin→初回eval_progress が長く見える。
+const EVAL_FIRST_PROGRESS_CHUNK: usize = 1;
 const TRAIN_PROGRESS_EVERY: usize = 4;
 
 // ─── カリキュラム学習 ────────────────────────────────────────────────────────
@@ -1391,7 +1405,9 @@ impl CondProjector {
     fn forward(&self, emb: &Array1<f32>) -> (Array1<f32>, CondProjectorCache) {
         let x = emb.clone().insert_axis(Axis(0)); // [1, in_dim]
         let (z1, fc1_cache) = self.fc1.forward(&x);
-        let a1 = z1.mapv(gelu_scalar);
+        // MIXER_ARCH=1 では条件投影も activation-free にする。
+        // 2層線形は合成すれば線形なので、表現力を保ちつつ GELU のコストを消す。
+        let a1 = if MIXER_ARCH == 1 { z1.clone() } else { z1.mapv(gelu_scalar) };
         let (y, fc2_cache) = self.fc2.forward(&a1);
         (
             y.row(0).to_owned(),
@@ -1407,12 +1423,18 @@ impl CondProjector {
         let dy2 = dy.clone().insert_axis(Axis(0)); // [1, out_dim]
         let da1 = self.fc2.backward(&cache.fc2_cache, &dy2);
 
-        // 修正B: indexed_iter_mut + 2次元インデックス を
-        // フラットイテレータに置換 → 境界チェック排除 + SIMD autovectorization 促進
-        let mut dz1 = da1.clone();
-        for (v, &z) in dz1.iter_mut().zip(cache.z1.iter()) {
-            *v *= gelu_derivative_scalar(z);
-        }
+        let dz1 = if MIXER_ARCH == 1 {
+            // activation-free: d identity / dz = 1
+            da1
+        } else {
+            // 修正B: indexed_iter_mut + 2次元インデックス を
+            // フラットイテレータに置換 → 境界チェック排除 + SIMD autovectorization 促進
+            let mut dz1 = da1.clone();
+            for (v, &z) in dz1.iter_mut().zip(cache.z1.iter()) {
+                *v *= gelu_derivative_scalar(z);
+            }
+            dz1
+        };
 
         let dx = self.fc1.backward(&cache.fc1_cache, &dz1);
         dx.row(0).to_owned()
@@ -1602,28 +1624,49 @@ struct Mlp2DCache {
 
 impl Mlp2D {
     fn new(rng: &mut StdRng, in_dim: usize, hidden_dim: usize, scale: f32) -> Self {
-        Self {
-            fc1: Linear::new(rng, in_dim, hidden_dim, scale),
-            fc2: Linear::new(rng, hidden_dim, in_dim, scale),
+        if MIXER_ARCH == 1 {
+            // activation-free 1-layer Mixer: Linear(in_dim -> in_dim).
+            // fc2 は未使用だが、構造体を単純に保つため同形 Linear として保持する。
+            Self {
+                fc1: Linear::new(rng, in_dim, in_dim, scale),
+                fc2: Linear::new(rng, in_dim, in_dim, scale),
+            }
+        } else {
+            Self {
+                fc1: Linear::new(rng, in_dim, hidden_dim, scale),
+                fc2: Linear::new(rng, hidden_dim, in_dim, scale),
+            }
         }
     }
 
     fn zero_grad(&mut self) {
         self.fc1.zero_grad();
-        self.fc2.zero_grad();
+        if MIXER_ARCH != 1 { self.fc2.zero_grad(); }
     }
 
     fn scale_grad(&mut self, s: f32) {
         self.fc1.scale_grad(s);
-        self.fc2.scale_grad(s);
+        if MIXER_ARCH != 1 { self.fc2.scale_grad(s); }
     }
 
     fn step(&mut self, hp: OptimHyper) {
         self.fc1.step(hp);
-        self.fc2.step(hp);
+        if MIXER_ARCH != 1 { self.fc2.step(hp); }
     }
 
     fn forward(&self, x: &Array2<f32>) -> (Array2<f32>, Mlp2DCache) {
+        if MIXER_ARCH == 1 {
+            let (y, fc1_cache) = self.fc1.forward(x);
+            return (
+                y,
+                Mlp2DCache {
+                    z1: Array2::<f32>::zeros((0, 0)),
+                    fc1_cache,
+                    fc2_cache: LinearCache { x: Array2::<f32>::zeros((0, 0)) },
+                },
+            );
+        }
+
         let (z1, fc1_cache) = self.fc1.forward(x);
         let a1 = z1.mapv(gelu_scalar);
         let (y, fc2_cache) = self.fc2.forward(&a1);
@@ -1638,6 +1681,10 @@ impl Mlp2D {
     }
 
     fn backward(&mut self, cache: &Mlp2DCache, dy: &Array2<f32>) -> Array2<f32> {
+        if MIXER_ARCH == 1 {
+            return self.fc1.backward(&cache.fc1_cache, dy);
+        }
+
         let da1 = self.fc2.backward(&cache.fc2_cache, dy);
         let mut dz1 = da1.clone();
         // 修正B: indexed_iter_mut + 2次元インデックス [[i,j]] を
@@ -2839,14 +2886,43 @@ fn main() {
         mixer_optim,
     );
 
+    // 前世代の scored drop を eval と重ねると、巨大 Genome の解放が allocator/CPU を奪い、
+    // 次世代の eval_begin → 最初の eval_progress が稀に大きく伸びる。
+    // そのため drop は次の eval_begin を出す前に必ず回収し、遅延の計測区間を汚染しない。
+    let mut pending_scored_drop: Option<std::thread::JoinHandle<()>> = None;
+
     for gen in 0..N_GEN {
+        if let Some(h) = pending_scored_drop.take() {
+            println_flush!("CMAES_STAGE gen={} stage=cleanup_prev_scored_begin", gen);
+            let _ = h.join();
+            println_flush!("CMAES_STAGE gen={} stage=cleanup_prev_scored_end", gen);
+        }
+
         println_flush!("CMAES_STAGE gen={} stage=eval_begin", gen);
         evaluator.reset_generation();
         let inter_weight = INTER_WEIGHT_MAX * (gen as f64 / CURRICULUM_RAMP_GENS as f64).min(1.0);
 
         let eval_chunk = EVAL_PROGRESS_CHUNK.max(1);
+        let first_eval_chunk = EVAL_FIRST_PROGRESS_CHUNK.max(1).min(pop.len());
         let mut scored: Vec<(f64, f64, Genome)> = Vec::with_capacity(pop.len());
-        for (chunk_idx, chunk) in pop.chunks(eval_chunk).enumerate() {
+
+        // 初回だけ小チャンクにして「32個完了待ち」の無出力時間をなくす。
+        if first_eval_chunk > 0 {
+            let mut part: Vec<(f64, f64, Genome)> = pop[..first_eval_chunk]
+                .par_iter()
+                .map(|g| { let (l, a) = eval(g, &ds, &evaluator, inter_weight); (l, a, g.clone()) })
+                .collect();
+            scored.append(&mut part);
+            println_flush!(
+                "CMAES_STAGE gen={} stage=eval_progress chunk={} done={}/{}",
+                gen,
+                0usize,
+                scored.len(),
+                pop.len(),
+            );
+        }
+
+        for (chunk_idx, chunk) in pop[first_eval_chunk..].chunks(eval_chunk).enumerate() {
             let mut part: Vec<(f64, f64, Genome)> = chunk
                 .par_iter()
                 .map(|g| { let (l, a) = eval(g, &ds, &evaluator, inter_weight); (l, a, g.clone()) })
@@ -2855,7 +2931,7 @@ fn main() {
             println_flush!(
                 "CMAES_STAGE gen={} stage=eval_progress chunk={} done={}/{}",
                 gen,
-                chunk_idx,
+                chunk_idx + 1,
                 scored.len(),
                 pop.len(),
             );
@@ -3041,16 +3117,10 @@ fn main() {
         next.extend(model_children);
         pop = next;
 
-        // scored の Drop を別スレッドに委ねる。
-        //
-        // scored は Vec<(f64, f64, Genome)> で POP_SIZE 個の Genome を保持している。
-        // Genome → Vec<Vec<Chromosome>> → Box<[u16;2]>/Box<[u8]> が再帰的に解放されるため、
-        // 大きいパラメータ設定では dealloc だけで数百ms かかる。
-        // これが train_end → 次世代 eval_begin の間に観測される遅延の原因。
-        //
-        // drop を別スレッドに投げることで、次世代の eval（rayon 並列）と重なり
-        // レイテンシとして見えなくなる。
-        std::thread::spawn(move || drop(scored));
+        // scored の Drop は重いが、次世代 eval と重ねない。
+        // 重ねると allocator/CPU 競合で eval_begin → 初回 eval_progress が稀に伸びるため、
+        // JoinHandle を保持し、次の eval_begin を出す前に cleanup_prev_scored_* として回収する。
+        pending_scored_drop = Some(std::thread::spawn(move || drop(scored)));
     }
 }
 
@@ -3094,6 +3164,7 @@ def generate_rust_source(params: dict) -> str:
         MUT_STOP_PROB=f"{params['MUT_STOP_PROB']:.8f}",
         MUT_MAX_TARGETS=int(params["MUT_MAX_TARGETS"]),
         LEARNED_MUTATION_PROB=f"{params['LEARNED_MUTATION_PROB']:.8f}",
+        MIXER_ARCH=int(params["MIXER_ARCH"]),
         NEAREST_BETTER_CACHE_SIZE=int(params["NEAREST_BETTER_CACHE_SIZE"]),
         MIXER_D1=int(params["MIXER_D1"]),
         MIXER_D2=int(params["MIXER_D2"]),
@@ -3150,6 +3221,7 @@ def build_and_run(
     trial_idx: int,
     out_dir: str,
 ) -> float:
+    global DEFAULT_TIME
     src = generate_rust_source(params)
     src_path = os.path.join(project_dir, "src", "main.rs")
 
@@ -3315,6 +3387,7 @@ class CMAESSearcher:
 
         global_best_fitness = float("inf")
         global_best_params = None
+        DEFAULT_TIME += 0
 
         while not self.es.stop() and self.trial_idx < self.budget:
             solutions = self.es.ask()
