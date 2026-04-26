@@ -1,0 +1,33 @@
+CMAES_STAGE gen=0 stage=eval_begin
+CMAES_STAGE gen=0 stage=eval_first_item_begin i=0 genome_key=14985626361530440761
+CMAES_STAGE gen=0 stage=eval_first_item_end i=0 loss=0.94289115 acc=0.07506578
+CMAES_STAGE gen=0 stage=eval_progress chunk=0 done=1/721
+CMAES_STAGE gen=0 stage=eval_progress chunk=1 done=33/721
+CMAES_STAGE gen=0 stage=eval_progress chunk=2 done=65/721
+CMAES_STAGE gen=0 stage=eval_progress chunk=3 done=97/721
+CMAES_STAGE gen=0 stage=eval_progress chunk=4 done=129/721
+CMAES_STAGE gen=0 stage=eval_progress chunk=5 done=161/721
+CMAES_STAGE gen=0 stage=eval_progress chunk=6 done=193/721
+CMAES_STAGE gen=0 stage=eval_progress chunk=7 done=225/721
+CMAES_STAGE gen=0 stage=eval_progress chunk=8 done=257/721
+CMAES_STAGE gen=0 stage=eval_progress chunk=9 done=289/721
+CMAES_STAGE gen=0 stage=eval_progress chunk=10 done=321/721
+CMAES_STAGE gen=0 stage=eval_progress chunk=11 done=353/721
+CMAES_STAGE gen=0 stage=eval_progress chunk=12 done=385/721
+CMAES_STAGE gen=0 stage=eval_progress chunk=13 done=417/721
+CMAES_STAGE gen=0 stage=eval_progress chunk=14 done=449/721
+CMAES_STAGE gen=0 stage=eval_progress chunk=15 done=481/721
+CMAES_STAGE gen=0 stage=eval_progress chunk=16 done=513/721
+CMAES_STAGE gen=0 stage=eval_progress chunk=17 done=545/721
+CMAES_STAGE gen=0 stage=eval_progress chunk=18 done=577/721
+CMAES_STAGE gen=0 stage=eval_progress chunk=19 done=609/721
+CMAES_STAGE gen=0 stage=eval_progress chunk=20 done=641/721
+CMAES_STAGE gen=0 stage=eval_progress chunk=21 done=673/721
+CMAES_STAGE gen=0 stage=eval_progress chunk=22 done=705/721
+CMAES_STAGE gen=0 stage=eval_progress chunk=23 done=721/721
+CMAES_ACC gen=0 loss=0.8434487564 acc=0.2075331699
+CMAES_STAGE gen=0 stage=warmup mixer_warmup_generations=5
+CMAES_STAGE gen=0 stage=offspring_begin children=679 model_active=false model_cap=0 model_kept=0 model_throttled=0
+CMAES_STAGE gen=0 stage=offspring_classical_done model_children=0 classical_children=679
+CMAES_STAGE gen=0 stage=offspring_end
+CMAES_STAGE gen=1 stage=eval_begin

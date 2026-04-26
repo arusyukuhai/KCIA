@@ -1,0 +1,2610 @@
+CMAES_STAGE gen=0 stage=eval_begin
+CMAES_STAGE gen=0 stage=eval_first_item_begin i=0 genome_key=1544630313071135838
+CMAES_STAGE gen=0 stage=eval_first_item_end i=0 loss=0.94136893 acc=0.20596213
+CMAES_STAGE gen=0 stage=eval_progress chunk=0 done=1/34
+CMAES_STAGE gen=0 stage=eval_progress chunk=1 done=33/34
+CMAES_STAGE gen=0 stage=eval_progress chunk=2 done=34/34
+CMAES_ACC gen=0 loss=0.9395091137 acc=0.1219231662
+CMAES_STAGE gen=0 stage=warmup mixer_warmup_generations=2
+CMAES_STAGE gen=0 stage=offspring_begin children=26 model_active=false model_cap=0 model_kept=0 model_throttled=0
+CMAES_STAGE gen=0 stage=offspring_classical_done model_children=0 classical_children=26
+CMAES_STAGE gen=0 stage=offspring_end
+CMAES_STAGE gen=1 stage=eval_begin
+CMAES_STAGE gen=1 stage=eval_first_item_begin i=0 genome_key=10337847149449329313
+CMAES_STAGE gen=1 stage=eval_first_item_end i=0 loss=0.93950911 acc=0.12192317
+CMAES_STAGE gen=1 stage=eval_progress chunk=0 done=1/34
+CMAES_STAGE gen=1 stage=eval_progress chunk=1 done=33/34
+CMAES_STAGE gen=1 stage=eval_progress chunk=2 done=34/34
+CMAES_ACC gen=1 loss=0.9378813891 acc=0.2669929175
+CMAES_STAGE gen=1 stage=warmup mixer_warmup_generations=2
+CMAES_STAGE gen=1 stage=offspring_begin children=26 model_active=false model_cap=0 model_kept=0 model_throttled=0
+CMAES_STAGE gen=1 stage=offspring_classical_done model_children=0 classical_children=26
+CMAES_STAGE gen=1 stage=offspring_end
+CMAES_STAGE gen=2 stage=eval_begin
+CMAES_STAGE gen=2 stage=eval_first_item_begin i=0 genome_key=8046496288485634174
+CMAES_STAGE gen=2 stage=eval_first_item_end i=0 loss=0.93788139 acc=0.26699292
+CMAES_STAGE gen=2 stage=eval_progress chunk=0 done=1/34
+CMAES_STAGE gen=2 stage=eval_progress chunk=1 done=33/34
+CMAES_STAGE gen=2 stage=eval_progress chunk=2 done=34/34
+CMAES_ACC gen=2 loss=0.9364493573 acc=0.2611916400
+CMAES_STAGE gen=2 stage=train_phase_begin
+CMAES_STAGE gen=2 stage=build_pairs_begin subset=34
+CMAES_STAGE gen=2 stage=build_pairs_end_train_begin pairs=32 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=2 stage=build_pairs_end pairs=32 lazy_encode=1
+CMAES_STAGE gen=2 stage=train_begin pairs=32 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=2 stage=train_first_batch_encode_begin bs=1 pairs=32
+CMAES_STAGE gen=2 stage=train_first_batch_encode_end bs=1
+CMAES_STAGE gen=2 stage=train_first_step_begin bs=1
+CMAES_STAGE gen=2 stage=train_first_forward_only_begin bs=1
+CMAES_STAGE gen=2 stage=train_first_forward_only_end loss=0.72493547
+CMAES_STAGE gen=2 stage=train_first_step_end
+CMAES_STAGE gen=2 stage=train_progress epoch=0 step=1 max_steps=5 pairs=32 mixer_loss=0.72493547 mixer_loss_avg=0.72493547
+CMAES_STAGE gen=2 stage=train_full_step_begin step=2 bs=22
+CMAES_STAGE gen=2 stage=train_full_zero_grad_begin step=2 bs=22
+CMAES_STAGE gen=2 stage=train_full_zero_grad_end step=2
+CMAES_STAGE gen=2 stage=train_full_backward_begin step=2 bs=22
+CMAES_STAGE gen=2 stage=train_full_backward_end step=2
+CMAES_STAGE gen=2 stage=train_full_scale_begin step=2
+CMAES_STAGE gen=2 stage=train_full_scale_end step=2
+CMAES_STAGE gen=2 stage=train_full_update_begin step=2 optimizer=adamw_matrix
+CMAES_STAGE gen=2 stage=train_full_update_end step=2
+CMAES_STAGE gen=2 stage=train_full_step_end step=2 loss=0.72513920
+CMAES_STAGE gen=2 stage=train_full_step_begin step=3 bs=22
+CMAES_STAGE gen=2 stage=train_full_zero_grad_begin step=3 bs=22
+CMAES_STAGE gen=2 stage=train_full_zero_grad_end step=3
+CMAES_STAGE gen=2 stage=train_full_backward_begin step=3 bs=22
+CMAES_STAGE gen=2 stage=train_full_backward_end step=3
+CMAES_STAGE gen=2 stage=train_full_scale_begin step=3
+CMAES_STAGE gen=2 stage=train_full_scale_end step=3
+CMAES_STAGE gen=2 stage=train_full_update_begin step=3 optimizer=adamw_matrix
+CMAES_STAGE gen=2 stage=train_full_update_end step=3
+CMAES_STAGE gen=2 stage=train_full_step_end step=3 loss=0.81240475
+CMAES_STAGE gen=2 stage=train_progress epoch=0 step=4 max_steps=5 pairs=32 mixer_loss=8.94375515 mixer_loss_avg=2.80155849
+CMAES_STAGE gen=2 stage=train_progress epoch=0 step=5 max_steps=5 pairs=32 mixer_loss=14.66970825 mixer_loss_avg=5.17518854
+CMAES_STAGE gen=2 stage=train_end teacher_pairs=32 subset=109 max_pairs=920 max_steps=5 mixer_loss_avg=5.17518854
+CMAES_STAGE gen=2 stage=offspring_begin children=26 model_active=true model_cap=26 model_kept=26 model_throttled=0
+CMAES_STAGE gen=2 stage=offspring_classical_done model_children=26 classical_children=0
+CMAES_STAGE gen=2 stage=offspring_model_begin candidates=26
+CMAES_STAGE gen=2 stage=offspring_model_encode_begin model_children=26
+CMAES_STAGE gen=2 stage=offspring_model_encode_done model_children=26
+CMAES_STAGE gen=2 stage=offspring_model_predict_begin model_children=26
+CMAES_STAGE gen=2 stage=offspring_model_predict_done model_children=26
+CMAES_STAGE gen=2 stage=offspring_model_decode_begin model_children=26
+CMAES_STAGE gen=2 stage=offspring_model_decode_done model_children=26
+CMAES_STAGE gen=2 stage=offspring_end
+CMAES_STAGE gen=3 stage=eval_begin
+CMAES_STAGE gen=3 stage=eval_first_item_begin i=0 genome_key=110999156782625018
+CMAES_STAGE gen=3 stage=eval_first_item_end i=0 loss=0.93644936 acc=0.26119164
+CMAES_STAGE gen=3 stage=eval_progress chunk=0 done=1/34
+CMAES_STAGE gen=3 stage=eval_progress chunk=1 done=33/34
+CMAES_STAGE gen=3 stage=eval_progress chunk=2 done=34/34
+CMAES_ACC gen=3 loss=0.9364493573 acc=0.2611916400
+CMAES_STAGE gen=3 stage=train_phase_begin
+CMAES_STAGE gen=3 stage=build_pairs_begin subset=34
+CMAES_STAGE gen=3 stage=build_pairs_end_train_begin pairs=32 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=3 stage=build_pairs_end pairs=32 lazy_encode=1
+CMAES_STAGE gen=3 stage=train_begin pairs=32 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=3 stage=train_first_batch_encode_begin bs=1 pairs=32
+CMAES_STAGE gen=3 stage=train_first_batch_encode_end bs=1
+CMAES_STAGE gen=3 stage=train_first_step_begin bs=1
+CMAES_STAGE gen=3 stage=train_first_forward_only_begin bs=1
+CMAES_STAGE gen=3 stage=train_first_forward_only_end loss=3.60892272
+CMAES_STAGE gen=3 stage=train_first_step_end
+CMAES_STAGE gen=3 stage=train_progress epoch=0 step=1 max_steps=5 pairs=32 mixer_loss=3.60892272 mixer_loss_avg=3.60892272
+CMAES_STAGE gen=3 stage=train_full_step_begin step=2 bs=22
+CMAES_STAGE gen=3 stage=train_full_zero_grad_begin step=2 bs=22
+CMAES_STAGE gen=3 stage=train_full_zero_grad_end step=2
+CMAES_STAGE gen=3 stage=train_full_backward_begin step=2 bs=22
+CMAES_STAGE gen=3 stage=train_full_backward_end step=2
+CMAES_STAGE gen=3 stage=train_full_scale_begin step=2
+CMAES_STAGE gen=3 stage=train_full_scale_end step=2
+CMAES_STAGE gen=3 stage=train_full_update_begin step=2 optimizer=adamw_matrix
+CMAES_STAGE gen=3 stage=train_full_update_end step=2
+CMAES_STAGE gen=3 stage=train_full_step_end step=2 loss=91.97503662
+CMAES_STAGE gen=3 stage=train_full_step_begin step=3 bs=22
+CMAES_STAGE gen=3 stage=train_full_zero_grad_begin step=3 bs=22
+CMAES_STAGE gen=3 stage=train_full_zero_grad_end step=3
+CMAES_STAGE gen=3 stage=train_full_backward_begin step=3 bs=22
+CMAES_STAGE gen=3 stage=train_full_backward_end step=3
+CMAES_STAGE gen=3 stage=train_full_scale_begin step=3
+CMAES_STAGE gen=3 stage=train_full_scale_end step=3
+CMAES_STAGE gen=3 stage=train_full_update_begin step=3 optimizer=adamw_matrix
+CMAES_STAGE gen=3 stage=train_full_update_end step=3
+CMAES_STAGE gen=3 stage=train_full_step_end step=3 loss=57.83483887
+CMAES_STAGE gen=3 stage=train_progress epoch=0 step=4 max_steps=5 pairs=32 mixer_loss=37.86876297 mixer_loss_avg=47.82188797
+CMAES_STAGE gen=3 stage=train_progress epoch=0 step=5 max_steps=5 pairs=32 mixer_loss=17.27311707 mixer_loss_avg=41.71213531
+CMAES_STAGE gen=3 stage=train_end teacher_pairs=32 subset=109 max_pairs=920 max_steps=5 mixer_loss_avg=41.71213531
+CMAES_STAGE gen=3 stage=offspring_begin children=26 model_active=true model_cap=26 model_kept=26 model_throttled=0
+CMAES_STAGE gen=3 stage=offspring_classical_done model_children=26 classical_children=0
+CMAES_STAGE gen=3 stage=offspring_model_begin candidates=26
+CMAES_STAGE gen=3 stage=offspring_model_encode_begin model_children=26
+CMAES_STAGE gen=3 stage=offspring_model_encode_done model_children=26
+CMAES_STAGE gen=3 stage=offspring_model_predict_begin model_children=26
+CMAES_STAGE gen=3 stage=offspring_model_predict_done model_children=26
+CMAES_STAGE gen=3 stage=offspring_model_decode_begin model_children=26
+CMAES_STAGE gen=3 stage=offspring_model_decode_done model_children=26
+CMAES_STAGE gen=3 stage=offspring_end
+CMAES_STAGE gen=4 stage=eval_begin
+CMAES_STAGE gen=4 stage=eval_first_item_begin i=0 genome_key=110999156782625018
+CMAES_STAGE gen=4 stage=eval_first_item_end i=0 loss=0.93644936 acc=0.26119164
+CMAES_STAGE gen=4 stage=eval_progress chunk=0 done=1/34
+CMAES_STAGE gen=4 stage=eval_progress chunk=1 done=33/34
+CMAES_STAGE gen=4 stage=eval_progress chunk=2 done=34/34
+CMAES_ACC gen=4 loss=0.9364493573 acc=0.2611916400
+CMAES_STAGE gen=4 stage=train_phase_begin
+CMAES_STAGE gen=4 stage=build_pairs_begin subset=34
+CMAES_STAGE gen=4 stage=build_pairs_end_train_begin pairs=32 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=4 stage=build_pairs_end pairs=32 lazy_encode=1
+CMAES_STAGE gen=4 stage=train_begin pairs=32 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=4 stage=train_first_batch_encode_begin bs=1 pairs=32
+CMAES_STAGE gen=4 stage=train_first_batch_encode_end bs=1
+CMAES_STAGE gen=4 stage=train_first_step_begin bs=1
+CMAES_STAGE gen=4 stage=train_first_forward_only_begin bs=1
+CMAES_STAGE gen=4 stage=train_first_forward_only_end loss=36.34996033
+CMAES_STAGE gen=4 stage=train_first_step_end
+CMAES_STAGE gen=4 stage=train_progress epoch=0 step=1 max_steps=5 pairs=32 mixer_loss=36.34996033 mixer_loss_avg=36.34996033
+CMAES_STAGE gen=4 stage=train_full_step_begin step=2 bs=22
+CMAES_STAGE gen=4 stage=train_full_zero_grad_begin step=2 bs=22
+CMAES_STAGE gen=4 stage=train_full_zero_grad_end step=2
+CMAES_STAGE gen=4 stage=train_full_backward_begin step=2 bs=22
+CMAES_STAGE gen=4 stage=train_full_backward_end step=2
+CMAES_STAGE gen=4 stage=train_full_scale_begin step=2
+CMAES_STAGE gen=4 stage=train_full_scale_end step=2
+CMAES_STAGE gen=4 stage=train_full_update_begin step=2 optimizer=adamw_matrix
+CMAES_STAGE gen=4 stage=train_full_update_end step=2
+CMAES_STAGE gen=4 stage=train_full_step_end step=2 loss=36.71942139
+CMAES_STAGE gen=4 stage=train_full_step_begin step=3 bs=22
+CMAES_STAGE gen=4 stage=train_full_zero_grad_begin step=3 bs=22
+CMAES_STAGE gen=4 stage=train_full_zero_grad_end step=3
+CMAES_STAGE gen=4 stage=train_full_backward_begin step=3 bs=22
+CMAES_STAGE gen=4 stage=train_full_backward_end step=3
+CMAES_STAGE gen=4 stage=train_full_scale_begin step=3
+CMAES_STAGE gen=4 stage=train_full_scale_end step=3
+CMAES_STAGE gen=4 stage=train_full_update_begin step=3 optimizer=adamw_matrix
+CMAES_STAGE gen=4 stage=train_full_update_end step=3
+CMAES_STAGE gen=4 stage=train_full_step_end step=3 loss=62.96197128
+CMAES_STAGE gen=4 stage=train_progress epoch=0 step=4 max_steps=5 pairs=32 mixer_loss=111.09667206 mixer_loss_avg=61.78200531
+CMAES_STAGE gen=4 stage=train_progress epoch=0 step=5 max_steps=5 pairs=32 mixer_loss=142.35881042 mixer_loss_avg=77.89736176
+CMAES_STAGE gen=4 stage=train_end teacher_pairs=32 subset=109 max_pairs=920 max_steps=5 mixer_loss_avg=77.89736176
+CMAES_STAGE gen=4 stage=offspring_begin children=26 model_active=true model_cap=26 model_kept=25 model_throttled=0
+CMAES_STAGE gen=4 stage=offspring_classical_done model_children=25 classical_children=1
+CMAES_STAGE gen=4 stage=offspring_model_begin candidates=26
+CMAES_STAGE gen=4 stage=offspring_model_encode_begin model_children=25
+CMAES_STAGE gen=4 stage=offspring_model_encode_done model_children=25
+CMAES_STAGE gen=4 stage=offspring_model_predict_begin model_children=25
+CMAES_STAGE gen=4 stage=offspring_model_predict_done model_children=25
+CMAES_STAGE gen=4 stage=offspring_model_decode_begin model_children=25
+CMAES_STAGE gen=4 stage=offspring_model_decode_done model_children=25
+CMAES_STAGE gen=4 stage=offspring_end
+CMAES_STAGE gen=5 stage=eval_begin
+CMAES_STAGE gen=5 stage=eval_first_item_begin i=0 genome_key=110999156782625018
+CMAES_STAGE gen=5 stage=eval_first_item_end i=0 loss=0.93644936 acc=0.26119164
+CMAES_STAGE gen=5 stage=eval_progress chunk=0 done=1/34
+CMAES_STAGE gen=5 stage=eval_progress chunk=1 done=33/34
+CMAES_STAGE gen=5 stage=eval_progress chunk=2 done=34/34
+CMAES_ACC gen=5 loss=0.9364493573 acc=0.2611916400
+CMAES_STAGE gen=5 stage=train_phase_begin
+CMAES_STAGE gen=5 stage=build_pairs_begin subset=34
+CMAES_STAGE gen=5 stage=build_pairs_end_train_begin pairs=32 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=5 stage=build_pairs_end pairs=32 lazy_encode=1
+CMAES_STAGE gen=5 stage=train_begin pairs=32 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=5 stage=train_first_batch_encode_begin bs=1 pairs=32
+CMAES_STAGE gen=5 stage=train_first_batch_encode_end bs=1
+CMAES_STAGE gen=5 stage=train_first_step_begin bs=1
+CMAES_STAGE gen=5 stage=train_first_forward_only_begin bs=1
+CMAES_STAGE gen=5 stage=train_first_forward_only_end loss=186.07820129
+CMAES_STAGE gen=5 stage=train_first_step_end
+CMAES_STAGE gen=5 stage=train_progress epoch=0 step=1 max_steps=5 pairs=32 mixer_loss=186.07820129 mixer_loss_avg=186.07820129
+CMAES_STAGE gen=5 stage=train_full_step_begin step=2 bs=22
+CMAES_STAGE gen=5 stage=train_full_zero_grad_begin step=2 bs=22
+CMAES_STAGE gen=5 stage=train_full_zero_grad_end step=2
+CMAES_STAGE gen=5 stage=train_full_backward_begin step=2 bs=22
+CMAES_STAGE gen=5 stage=train_full_backward_end step=2
+CMAES_STAGE gen=5 stage=train_full_scale_begin step=2
+CMAES_STAGE gen=5 stage=train_full_scale_end step=2
+CMAES_STAGE gen=5 stage=train_full_update_begin step=2 optimizer=adamw_matrix
+CMAES_STAGE gen=5 stage=train_full_update_end step=2
+CMAES_STAGE gen=5 stage=train_full_step_end step=2 loss=191.24992371
+CMAES_STAGE gen=5 stage=train_full_step_begin step=3 bs=22
+CMAES_STAGE gen=5 stage=train_full_zero_grad_begin step=3 bs=22
+CMAES_STAGE gen=5 stage=train_full_zero_grad_end step=3
+CMAES_STAGE gen=5 stage=train_full_backward_begin step=3 bs=22
+CMAES_STAGE gen=5 stage=train_full_backward_end step=3
+CMAES_STAGE gen=5 stage=train_full_scale_begin step=3
+CMAES_STAGE gen=5 stage=train_full_scale_end step=3
+CMAES_STAGE gen=5 stage=train_full_update_begin step=3 optimizer=adamw_matrix
+CMAES_STAGE gen=5 stage=train_full_update_end step=3
+CMAES_STAGE gen=5 stage=train_full_step_end step=3 loss=202.17651367
+CMAES_STAGE gen=5 stage=train_progress epoch=0 step=4 max_steps=5 pairs=32 mixer_loss=132.67366028 mixer_loss_avg=178.04457092
+CMAES_STAGE gen=5 stage=train_progress epoch=0 step=5 max_steps=5 pairs=32 mixer_loss=88.44779205 mixer_loss_avg=160.12521362
+CMAES_STAGE gen=5 stage=train_end teacher_pairs=32 subset=109 max_pairs=920 max_steps=5 mixer_loss_avg=160.12521362
+CMAES_STAGE gen=5 stage=offspring_begin children=26 model_active=true model_cap=26 model_kept=26 model_throttled=0
+CMAES_STAGE gen=5 stage=offspring_classical_done model_children=26 classical_children=0
+CMAES_STAGE gen=5 stage=offspring_model_begin candidates=26
+CMAES_STAGE gen=5 stage=offspring_model_encode_begin model_children=26
+CMAES_STAGE gen=5 stage=offspring_model_encode_done model_children=26
+CMAES_STAGE gen=5 stage=offspring_model_predict_begin model_children=26
+CMAES_STAGE gen=5 stage=offspring_model_predict_done model_children=26
+CMAES_STAGE gen=5 stage=offspring_model_decode_begin model_children=26
+CMAES_STAGE gen=5 stage=offspring_model_decode_done model_children=26
+CMAES_STAGE gen=5 stage=offspring_end
+CMAES_STAGE gen=6 stage=eval_begin
+CMAES_STAGE gen=6 stage=eval_first_item_begin i=0 genome_key=110999156782625018
+CMAES_STAGE gen=6 stage=eval_first_item_end i=0 loss=0.93644936 acc=0.26119164
+CMAES_STAGE gen=6 stage=eval_progress chunk=0 done=1/34
+CMAES_STAGE gen=6 stage=eval_progress chunk=1 done=33/34
+CMAES_STAGE gen=6 stage=eval_progress chunk=2 done=34/34
+CMAES_ACC gen=6 loss=0.9364493573 acc=0.2611916400
+CMAES_STAGE gen=6 stage=train_phase_begin
+CMAES_STAGE gen=6 stage=build_pairs_begin subset=34
+CMAES_STAGE gen=6 stage=build_pairs_end_train_begin pairs=32 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=6 stage=build_pairs_end pairs=32 lazy_encode=1
+CMAES_STAGE gen=6 stage=train_begin pairs=32 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=6 stage=train_first_batch_encode_begin bs=1 pairs=32
+CMAES_STAGE gen=6 stage=train_first_batch_encode_end bs=1
+CMAES_STAGE gen=6 stage=train_first_step_begin bs=1
+CMAES_STAGE gen=6 stage=train_first_forward_only_begin bs=1
+CMAES_STAGE gen=6 stage=train_first_forward_only_end loss=88.30332947
+CMAES_STAGE gen=6 stage=train_first_step_end
+CMAES_STAGE gen=6 stage=train_progress epoch=0 step=1 max_steps=5 pairs=32 mixer_loss=88.30332947 mixer_loss_avg=88.30332947
+CMAES_STAGE gen=6 stage=train_full_step_begin step=2 bs=22
+CMAES_STAGE gen=6 stage=train_full_zero_grad_begin step=2 bs=22
+CMAES_STAGE gen=6 stage=train_full_zero_grad_end step=2
+CMAES_STAGE gen=6 stage=train_full_backward_begin step=2 bs=22
+CMAES_STAGE gen=6 stage=train_full_backward_end step=2
+CMAES_STAGE gen=6 stage=train_full_scale_begin step=2
+CMAES_STAGE gen=6 stage=train_full_scale_end step=2
+CMAES_STAGE gen=6 stage=train_full_update_begin step=2 optimizer=adamw_matrix
+CMAES_STAGE gen=6 stage=train_full_update_end step=2
+CMAES_STAGE gen=6 stage=train_full_step_end step=2 loss=86.73532867
+CMAES_STAGE gen=6 stage=train_full_step_begin step=3 bs=22
+CMAES_STAGE gen=6 stage=train_full_zero_grad_begin step=3 bs=22
+CMAES_STAGE gen=6 stage=train_full_zero_grad_end step=3
+CMAES_STAGE gen=6 stage=train_full_backward_begin step=3 bs=22
+CMAES_STAGE gen=6 stage=train_full_backward_end step=3
+CMAES_STAGE gen=6 stage=train_full_scale_begin step=3
+CMAES_STAGE gen=6 stage=train_full_scale_end step=3
+CMAES_STAGE gen=6 stage=train_full_update_begin step=3 optimizer=adamw_matrix
+CMAES_STAGE gen=6 stage=train_full_update_end step=3
+CMAES_STAGE gen=6 stage=train_full_step_end step=3 loss=57.34649277
+CMAES_STAGE gen=6 stage=train_progress epoch=0 step=4 max_steps=5 pairs=32 mixer_loss=51.31146240 mixer_loss_avg=70.92415619
+CMAES_STAGE gen=6 stage=train_progress epoch=0 step=5 max_steps=5 pairs=32 mixer_loss=55.53469849 mixer_loss_avg=67.84626770
+CMAES_STAGE gen=6 stage=train_end teacher_pairs=32 subset=109 max_pairs=920 max_steps=5 mixer_loss_avg=67.84626770
+CMAES_STAGE gen=6 stage=offspring_begin children=26 model_active=true model_cap=26 model_kept=25 model_throttled=0
+CMAES_STAGE gen=6 stage=offspring_classical_done model_children=25 classical_children=1
+CMAES_STAGE gen=6 stage=offspring_model_begin candidates=26
+CMAES_STAGE gen=6 stage=offspring_model_encode_begin model_children=25
+CMAES_STAGE gen=6 stage=offspring_model_encode_done model_children=25
+CMAES_STAGE gen=6 stage=offspring_model_predict_begin model_children=25
+CMAES_STAGE gen=6 stage=offspring_model_predict_done model_children=25
+CMAES_STAGE gen=6 stage=offspring_model_decode_begin model_children=25
+CMAES_STAGE gen=6 stage=offspring_model_decode_done model_children=25
+CMAES_STAGE gen=6 stage=offspring_end
+CMAES_STAGE gen=7 stage=eval_begin
+CMAES_STAGE gen=7 stage=eval_first_item_begin i=0 genome_key=110999156782625018
+CMAES_STAGE gen=7 stage=eval_first_item_end i=0 loss=0.93644936 acc=0.26119164
+CMAES_STAGE gen=7 stage=eval_progress chunk=0 done=1/34
+CMAES_STAGE gen=7 stage=eval_progress chunk=1 done=33/34
+CMAES_STAGE gen=7 stage=eval_progress chunk=2 done=34/34
+CMAES_ACC gen=7 loss=0.9337544332 acc=0.0911211116
+CMAES_STAGE gen=7 stage=train_phase_begin
+CMAES_STAGE gen=7 stage=build_pairs_begin subset=34
+CMAES_STAGE gen=7 stage=build_pairs_end_train_begin pairs=30 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=7 stage=build_pairs_end pairs=30 lazy_encode=1
+CMAES_STAGE gen=7 stage=train_begin pairs=30 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=7 stage=train_first_batch_encode_begin bs=1 pairs=30
+CMAES_STAGE gen=7 stage=train_first_batch_encode_end bs=1
+CMAES_STAGE gen=7 stage=train_first_step_begin bs=1
+CMAES_STAGE gen=7 stage=train_first_forward_only_begin bs=1
+CMAES_STAGE gen=7 stage=train_first_forward_only_end loss=37.64188004
+CMAES_STAGE gen=7 stage=train_first_step_end
+CMAES_STAGE gen=7 stage=train_progress epoch=0 step=1 max_steps=5 pairs=30 mixer_loss=37.64188004 mixer_loss_avg=37.64188004
+CMAES_STAGE gen=7 stage=train_full_step_begin step=2 bs=22
+CMAES_STAGE gen=7 stage=train_full_zero_grad_begin step=2 bs=22
+CMAES_STAGE gen=7 stage=train_full_zero_grad_end step=2
+CMAES_STAGE gen=7 stage=train_full_backward_begin step=2 bs=22
+CMAES_STAGE gen=7 stage=train_full_backward_end step=2
+CMAES_STAGE gen=7 stage=train_full_scale_begin step=2
+CMAES_STAGE gen=7 stage=train_full_scale_end step=2
+CMAES_STAGE gen=7 stage=train_full_update_begin step=2 optimizer=adamw_matrix
+CMAES_STAGE gen=7 stage=train_full_update_end step=2
+CMAES_STAGE gen=7 stage=train_full_step_end step=2 loss=36.15205765
+CMAES_STAGE gen=7 stage=train_full_step_begin step=3 bs=22
+CMAES_STAGE gen=7 stage=train_full_zero_grad_begin step=3 bs=22
+CMAES_STAGE gen=7 stage=train_full_zero_grad_end step=3
+CMAES_STAGE gen=7 stage=train_full_backward_begin step=3 bs=22
+CMAES_STAGE gen=7 stage=train_full_backward_end step=3
+CMAES_STAGE gen=7 stage=train_full_scale_begin step=3
+CMAES_STAGE gen=7 stage=train_full_scale_end step=3
+CMAES_STAGE gen=7 stage=train_full_update_begin step=3 optimizer=adamw_matrix
+CMAES_STAGE gen=7 stage=train_full_update_end step=3
+CMAES_STAGE gen=7 stage=train_full_step_end step=3 loss=30.84382248
+CMAES_STAGE gen=7 stage=train_progress epoch=0 step=4 max_steps=5 pairs=30 mixer_loss=21.15935898 mixer_loss_avg=31.44927979
+CMAES_STAGE gen=7 stage=train_progress epoch=0 step=5 max_steps=5 pairs=30 mixer_loss=22.71207237 mixer_loss_avg=29.70183754
+CMAES_STAGE gen=7 stage=train_end teacher_pairs=30 subset=109 max_pairs=920 max_steps=5 mixer_loss_avg=29.70183754
+CMAES_STAGE gen=7 stage=offspring_begin children=26 model_active=true model_cap=26 model_kept=25 model_throttled=0
+CMAES_STAGE gen=7 stage=offspring_classical_done model_children=25 classical_children=1
+CMAES_STAGE gen=7 stage=offspring_model_begin candidates=26
+CMAES_STAGE gen=7 stage=offspring_model_encode_begin model_children=25
+CMAES_STAGE gen=7 stage=offspring_model_encode_done model_children=25
+CMAES_STAGE gen=7 stage=offspring_model_predict_begin model_children=25
+CMAES_STAGE gen=7 stage=offspring_model_predict_done model_children=25
+CMAES_STAGE gen=7 stage=offspring_model_decode_begin model_children=25
+CMAES_STAGE gen=7 stage=offspring_model_decode_done model_children=25
+CMAES_STAGE gen=7 stage=offspring_end
+CMAES_STAGE gen=8 stage=eval_begin
+CMAES_STAGE gen=8 stage=eval_first_item_begin i=0 genome_key=2205758124188252660
+CMAES_STAGE gen=8 stage=eval_first_item_end i=0 loss=0.93375443 acc=0.09112111
+CMAES_STAGE gen=8 stage=eval_progress chunk=0 done=1/34
+CMAES_STAGE gen=8 stage=eval_progress chunk=1 done=33/34
+CMAES_STAGE gen=8 stage=eval_progress chunk=2 done=34/34
+CMAES_ACC gen=8 loss=0.9337544332 acc=0.0911211116
+CMAES_STAGE gen=8 stage=train_phase_begin
+CMAES_STAGE gen=8 stage=build_pairs_begin subset=34
+CMAES_STAGE gen=8 stage=build_pairs_end_train_begin pairs=29 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=8 stage=build_pairs_end pairs=29 lazy_encode=1
+CMAES_STAGE gen=8 stage=train_begin pairs=29 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=8 stage=train_first_batch_encode_begin bs=1 pairs=29
+CMAES_STAGE gen=8 stage=train_first_batch_encode_end bs=1
+CMAES_STAGE gen=8 stage=train_first_step_begin bs=1
+CMAES_STAGE gen=8 stage=train_first_forward_only_begin bs=1
+CMAES_STAGE gen=8 stage=train_first_forward_only_end loss=31.85740280
+CMAES_STAGE gen=8 stage=train_first_step_end
+CMAES_STAGE gen=8 stage=train_progress epoch=0 step=1 max_steps=5 pairs=29 mixer_loss=31.85740280 mixer_loss_avg=31.85740280
+CMAES_STAGE gen=8 stage=train_full_step_begin step=2 bs=22
+CMAES_STAGE gen=8 stage=train_full_zero_grad_begin step=2 bs=22
+CMAES_STAGE gen=8 stage=train_full_zero_grad_end step=2
+CMAES_STAGE gen=8 stage=train_full_backward_begin step=2 bs=22
+CMAES_STAGE gen=8 stage=train_full_backward_end step=2
+CMAES_STAGE gen=8 stage=train_full_scale_begin step=2
+CMAES_STAGE gen=8 stage=train_full_scale_end step=2
+CMAES_STAGE gen=8 stage=train_full_update_begin step=2 optimizer=adamw_matrix
+CMAES_STAGE gen=8 stage=train_full_update_end step=2
+CMAES_STAGE gen=8 stage=train_full_step_end step=2 loss=24.01971817
+CMAES_STAGE gen=8 stage=train_full_step_begin step=3 bs=22
+CMAES_STAGE gen=8 stage=train_full_zero_grad_begin step=3 bs=22
+CMAES_STAGE gen=8 stage=train_full_zero_grad_end step=3
+CMAES_STAGE gen=8 stage=train_full_backward_begin step=3 bs=22
+CMAES_STAGE gen=8 stage=train_full_backward_end step=3
+CMAES_STAGE gen=8 stage=train_full_scale_begin step=3
+CMAES_STAGE gen=8 stage=train_full_scale_end step=3
+CMAES_STAGE gen=8 stage=train_full_update_begin step=3 optimizer=adamw_matrix
+CMAES_STAGE gen=8 stage=train_full_update_end step=3
+CMAES_STAGE gen=8 stage=train_full_step_end step=3 loss=18.85921097
+CMAES_STAGE gen=8 stage=train_progress epoch=0 step=4 max_steps=5 pairs=29 mixer_loss=14.54801941 mixer_loss_avg=22.32108688
+CMAES_STAGE gen=8 stage=train_progress epoch=0 step=5 max_steps=5 pairs=29 mixer_loss=7.51313400 mixer_loss_avg=19.35949707
+CMAES_STAGE gen=8 stage=train_end teacher_pairs=29 subset=109 max_pairs=920 max_steps=5 mixer_loss_avg=19.35949707
+CMAES_STAGE gen=8 stage=offspring_begin children=26 model_active=true model_cap=26 model_kept=26 model_throttled=0
+CMAES_STAGE gen=8 stage=offspring_classical_done model_children=26 classical_children=0
+CMAES_STAGE gen=8 stage=offspring_model_begin candidates=26
+CMAES_STAGE gen=8 stage=offspring_model_encode_begin model_children=26
+CMAES_STAGE gen=8 stage=offspring_model_encode_done model_children=26
+CMAES_STAGE gen=8 stage=offspring_model_predict_begin model_children=26
+CMAES_STAGE gen=8 stage=offspring_model_predict_done model_children=26
+CMAES_STAGE gen=8 stage=offspring_model_decode_begin model_children=26
+CMAES_STAGE gen=8 stage=offspring_model_decode_done model_children=26
+CMAES_STAGE gen=8 stage=offspring_end
+CMAES_STAGE gen=9 stage=eval_begin
+CMAES_STAGE gen=9 stage=eval_first_item_begin i=0 genome_key=2205758124188252660
+CMAES_STAGE gen=9 stage=eval_first_item_end i=0 loss=0.93375443 acc=0.09112111
+CMAES_STAGE gen=9 stage=eval_progress chunk=0 done=1/34
+CMAES_STAGE gen=9 stage=eval_progress chunk=1 done=33/34
+CMAES_STAGE gen=9 stage=eval_progress chunk=2 done=34/34
+CMAES_ACC gen=9 loss=0.9337544332 acc=0.0911211116
+CMAES_STAGE gen=9 stage=train_phase_begin
+CMAES_STAGE gen=9 stage=build_pairs_begin subset=34
+CMAES_STAGE gen=9 stage=build_pairs_end_train_begin pairs=29 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=9 stage=build_pairs_end pairs=29 lazy_encode=1
+CMAES_STAGE gen=9 stage=train_begin pairs=29 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=9 stage=train_first_batch_encode_begin bs=1 pairs=29
+CMAES_STAGE gen=9 stage=train_first_batch_encode_end bs=1
+CMAES_STAGE gen=9 stage=train_first_step_begin bs=1
+CMAES_STAGE gen=9 stage=train_first_forward_only_begin bs=1
+CMAES_STAGE gen=9 stage=train_first_forward_only_end loss=141.56231689
+CMAES_STAGE gen=9 stage=train_first_step_end
+CMAES_STAGE gen=9 stage=train_progress epoch=0 step=1 max_steps=5 pairs=29 mixer_loss=141.56231689 mixer_loss_avg=141.56231689
+CMAES_STAGE gen=9 stage=train_full_step_begin step=2 bs=22
+CMAES_STAGE gen=9 stage=train_full_zero_grad_begin step=2 bs=22
+CMAES_STAGE gen=9 stage=train_full_zero_grad_end step=2
+CMAES_STAGE gen=9 stage=train_full_backward_begin step=2 bs=22
+CMAES_STAGE gen=9 stage=train_full_backward_end step=2
+CMAES_STAGE gen=9 stage=train_full_scale_begin step=2
+CMAES_STAGE gen=9 stage=train_full_scale_end step=2
+CMAES_STAGE gen=9 stage=train_full_update_begin step=2 optimizer=adamw_matrix
+CMAES_STAGE gen=9 stage=train_full_update_end step=2
+CMAES_STAGE gen=9 stage=train_full_step_end step=2 loss=88.27081299
+CMAES_STAGE gen=9 stage=train_full_step_begin step=3 bs=22
+CMAES_STAGE gen=9 stage=train_full_zero_grad_begin step=3 bs=22
+CMAES_STAGE gen=9 stage=train_full_zero_grad_end step=3
+CMAES_STAGE gen=9 stage=train_full_backward_begin step=3 bs=22
+CMAES_STAGE gen=9 stage=train_full_backward_end step=3
+CMAES_STAGE gen=9 stage=train_full_scale_begin step=3
+CMAES_STAGE gen=9 stage=train_full_scale_end step=3
+CMAES_STAGE gen=9 stage=train_full_update_begin step=3 optimizer=adamw_matrix
+CMAES_STAGE gen=9 stage=train_full_update_end step=3
+CMAES_STAGE gen=9 stage=train_full_step_end step=3 loss=117.97206116
+CMAES_STAGE gen=9 stage=train_progress epoch=0 step=4 max_steps=5 pairs=29 mixer_loss=110.01065826 mixer_loss_avg=114.45395660
+CMAES_STAGE gen=9 stage=train_progress epoch=0 step=5 max_steps=5 pairs=29 mixer_loss=128.47044373 mixer_loss_avg=117.25724792
+CMAES_STAGE gen=9 stage=train_end teacher_pairs=29 subset=109 max_pairs=920 max_steps=5 mixer_loss_avg=117.25724792
+CMAES_STAGE gen=9 stage=offspring_begin children=26 model_active=true model_cap=26 model_kept=25 model_throttled=0
+CMAES_STAGE gen=9 stage=offspring_classical_done model_children=25 classical_children=1
+CMAES_STAGE gen=9 stage=offspring_model_begin candidates=26
+CMAES_STAGE gen=9 stage=offspring_model_encode_begin model_children=25
+CMAES_STAGE gen=9 stage=offspring_model_encode_done model_children=25
+CMAES_STAGE gen=9 stage=offspring_model_predict_begin model_children=25
+CMAES_STAGE gen=9 stage=offspring_model_predict_done model_children=25
+CMAES_STAGE gen=9 stage=offspring_model_decode_begin model_children=25
+CMAES_STAGE gen=9 stage=offspring_model_decode_done model_children=25
+CMAES_STAGE gen=9 stage=offspring_end
+CMAES_STAGE gen=10 stage=eval_begin
+CMAES_STAGE gen=10 stage=eval_first_item_begin i=0 genome_key=2205758124188252660
+CMAES_STAGE gen=10 stage=eval_first_item_end i=0 loss=0.93375443 acc=0.09112111
+CMAES_STAGE gen=10 stage=eval_progress chunk=0 done=1/34
+CMAES_STAGE gen=10 stage=eval_progress chunk=1 done=33/34
+CMAES_STAGE gen=10 stage=eval_progress chunk=2 done=34/34
+CMAES_ACC gen=10 loss=0.9337544332 acc=0.0911211116
+CMAES_STAGE gen=10 stage=train_phase_begin
+CMAES_STAGE gen=10 stage=build_pairs_begin subset=34
+CMAES_STAGE gen=10 stage=build_pairs_end_train_begin pairs=29 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=10 stage=build_pairs_end pairs=29 lazy_encode=1
+CMAES_STAGE gen=10 stage=train_begin pairs=29 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=10 stage=train_first_batch_encode_begin bs=1 pairs=29
+CMAES_STAGE gen=10 stage=train_first_batch_encode_end bs=1
+CMAES_STAGE gen=10 stage=train_first_step_begin bs=1
+CMAES_STAGE gen=10 stage=train_first_forward_only_begin bs=1
+CMAES_STAGE gen=10 stage=train_first_forward_only_end loss=155.18470764
+CMAES_STAGE gen=10 stage=train_first_step_end
+CMAES_STAGE gen=10 stage=train_progress epoch=0 step=1 max_steps=5 pairs=29 mixer_loss=155.18470764 mixer_loss_avg=155.18470764
+CMAES_STAGE gen=10 stage=train_full_step_begin step=2 bs=22
+CMAES_STAGE gen=10 stage=train_full_zero_grad_begin step=2 bs=22
+CMAES_STAGE gen=10 stage=train_full_zero_grad_end step=2
+CMAES_STAGE gen=10 stage=train_full_backward_begin step=2 bs=22
+CMAES_STAGE gen=10 stage=train_full_backward_end step=2
+CMAES_STAGE gen=10 stage=train_full_scale_begin step=2
+CMAES_STAGE gen=10 stage=train_full_scale_end step=2
+CMAES_STAGE gen=10 stage=train_full_update_begin step=2 optimizer=adamw_matrix
+CMAES_STAGE gen=10 stage=train_full_update_end step=2
+CMAES_STAGE gen=10 stage=train_full_step_end step=2 loss=205.91230774
+CMAES_STAGE gen=10 stage=train_full_step_begin step=3 bs=22
+CMAES_STAGE gen=10 stage=train_full_zero_grad_begin step=3 bs=22
+CMAES_STAGE gen=10 stage=train_full_zero_grad_end step=3
+CMAES_STAGE gen=10 stage=train_full_backward_begin step=3 bs=22
+CMAES_STAGE gen=10 stage=train_full_backward_end step=3
+CMAES_STAGE gen=10 stage=train_full_scale_begin step=3
+CMAES_STAGE gen=10 stage=train_full_scale_end step=3
+CMAES_STAGE gen=10 stage=train_full_update_begin step=3 optimizer=adamw_matrix
+CMAES_STAGE gen=10 stage=train_full_update_end step=3
+CMAES_STAGE gen=10 stage=train_full_step_end step=3 loss=158.20732117
+CMAES_STAGE gen=10 stage=train_progress epoch=0 step=4 max_steps=5 pairs=29 mixer_loss=204.30233765 mixer_loss_avg=180.90167236
+CMAES_STAGE gen=10 stage=train_progress epoch=0 step=5 max_steps=5 pairs=29 mixer_loss=154.70896912 mixer_loss_avg=175.66313171
+CMAES_STAGE gen=10 stage=train_end teacher_pairs=29 subset=109 max_pairs=920 max_steps=5 mixer_loss_avg=175.66313171
+CMAES_STAGE gen=10 stage=offspring_begin children=26 model_active=true model_cap=26 model_kept=26 model_throttled=0
+CMAES_STAGE gen=10 stage=offspring_classical_done model_children=26 classical_children=0
+CMAES_STAGE gen=10 stage=offspring_model_begin candidates=26
+CMAES_STAGE gen=10 stage=offspring_model_encode_begin model_children=26
+CMAES_STAGE gen=10 stage=offspring_model_encode_done model_children=26
+CMAES_STAGE gen=10 stage=offspring_model_predict_begin model_children=26
+CMAES_STAGE gen=10 stage=offspring_model_predict_done model_children=26
+CMAES_STAGE gen=10 stage=offspring_model_decode_begin model_children=26
+CMAES_STAGE gen=10 stage=offspring_model_decode_done model_children=26
+CMAES_STAGE gen=10 stage=offspring_end
+CMAES_STAGE gen=11 stage=eval_begin
+CMAES_STAGE gen=11 stage=eval_first_item_begin i=0 genome_key=2205758124188252660
+CMAES_STAGE gen=11 stage=eval_first_item_end i=0 loss=0.93375443 acc=0.09112111
+CMAES_STAGE gen=11 stage=eval_progress chunk=0 done=1/34
+CMAES_STAGE gen=11 stage=eval_progress chunk=1 done=33/34
+CMAES_STAGE gen=11 stage=eval_progress chunk=2 done=34/34
+CMAES_ACC gen=11 loss=0.9337544332 acc=0.0911211116
+CMAES_STAGE gen=11 stage=train_phase_begin
+CMAES_STAGE gen=11 stage=build_pairs_begin subset=34
+CMAES_STAGE gen=11 stage=build_pairs_end_train_begin pairs=29 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=11 stage=build_pairs_end pairs=29 lazy_encode=1
+CMAES_STAGE gen=11 stage=train_begin pairs=29 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=11 stage=train_first_batch_encode_begin bs=1 pairs=29
+CMAES_STAGE gen=11 stage=train_first_batch_encode_end bs=1
+CMAES_STAGE gen=11 stage=train_first_step_begin bs=1
+CMAES_STAGE gen=11 stage=train_first_forward_only_begin bs=1
+CMAES_STAGE gen=11 stage=train_first_forward_only_end loss=228.02037048
+CMAES_STAGE gen=11 stage=train_first_step_end
+CMAES_STAGE gen=11 stage=train_progress epoch=0 step=1 max_steps=5 pairs=29 mixer_loss=228.02037048 mixer_loss_avg=228.02037048
+CMAES_STAGE gen=11 stage=train_full_step_begin step=2 bs=22
+CMAES_STAGE gen=11 stage=train_full_zero_grad_begin step=2 bs=22
+CMAES_STAGE gen=11 stage=train_full_zero_grad_end step=2
+CMAES_STAGE gen=11 stage=train_full_backward_begin step=2 bs=22
+CMAES_STAGE gen=11 stage=train_full_backward_end step=2
+CMAES_STAGE gen=11 stage=train_full_scale_begin step=2
+CMAES_STAGE gen=11 stage=train_full_scale_end step=2
+CMAES_STAGE gen=11 stage=train_full_update_begin step=2 optimizer=adamw_matrix
+CMAES_STAGE gen=11 stage=train_full_update_end step=2
+CMAES_STAGE gen=11 stage=train_full_step_end step=2 loss=124.88084412
+CMAES_STAGE gen=11 stage=train_full_step_begin step=3 bs=22
+CMAES_STAGE gen=11 stage=train_full_zero_grad_begin step=3 bs=22
+CMAES_STAGE gen=11 stage=train_full_zero_grad_end step=3
+CMAES_STAGE gen=11 stage=train_full_backward_begin step=3 bs=22
+CMAES_STAGE gen=11 stage=train_full_backward_end step=3
+CMAES_STAGE gen=11 stage=train_full_scale_begin step=3
+CMAES_STAGE gen=11 stage=train_full_scale_end step=3
+CMAES_STAGE gen=11 stage=train_full_update_begin step=3 optimizer=adamw_matrix
+CMAES_STAGE gen=11 stage=train_full_update_end step=3
+CMAES_STAGE gen=11 stage=train_full_step_end step=3 loss=116.55448914
+CMAES_STAGE gen=11 stage=train_progress epoch=0 step=4 max_steps=5 pairs=29 mixer_loss=117.74083710 mixer_loss_avg=146.79913330
+CMAES_STAGE gen=11 stage=train_progress epoch=0 step=5 max_steps=5 pairs=29 mixer_loss=74.22135162 mixer_loss_avg=132.28358459
+CMAES_STAGE gen=11 stage=train_end teacher_pairs=29 subset=109 max_pairs=920 max_steps=5 mixer_loss_avg=132.28358459
+CMAES_STAGE gen=11 stage=offspring_begin children=26 model_active=true model_cap=26 model_kept=25 model_throttled=0
+CMAES_STAGE gen=11 stage=offspring_classical_done model_children=25 classical_children=1
+CMAES_STAGE gen=11 stage=offspring_model_begin candidates=26
+CMAES_STAGE gen=11 stage=offspring_model_encode_begin model_children=25
+CMAES_STAGE gen=11 stage=offspring_model_encode_done model_children=25
+CMAES_STAGE gen=11 stage=offspring_model_predict_begin model_children=25
+CMAES_STAGE gen=11 stage=offspring_model_predict_done model_children=25
+CMAES_STAGE gen=11 stage=offspring_model_decode_begin model_children=25
+CMAES_STAGE gen=11 stage=offspring_model_decode_done model_children=25
+CMAES_STAGE gen=11 stage=offspring_end
+CMAES_STAGE gen=12 stage=eval_begin
+CMAES_STAGE gen=12 stage=eval_first_item_begin i=0 genome_key=3150911966144329196
+CMAES_STAGE gen=12 stage=eval_first_item_end i=0 loss=0.93375443 acc=0.09112111
+CMAES_STAGE gen=12 stage=eval_progress chunk=0 done=1/34
+CMAES_STAGE gen=12 stage=eval_progress chunk=1 done=33/34
+CMAES_STAGE gen=12 stage=eval_progress chunk=2 done=34/34
+CMAES_ACC gen=12 loss=0.9328671518 acc=0.2611916688
+CMAES_STAGE gen=12 stage=train_phase_begin
+CMAES_STAGE gen=12 stage=build_pairs_begin subset=34
+CMAES_STAGE gen=12 stage=build_pairs_end_train_begin pairs=33 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=12 stage=build_pairs_end pairs=33 lazy_encode=1
+CMAES_STAGE gen=12 stage=train_begin pairs=33 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=12 stage=train_first_batch_encode_begin bs=1 pairs=33
+CMAES_STAGE gen=12 stage=train_first_batch_encode_end bs=1
+CMAES_STAGE gen=12 stage=train_first_step_begin bs=1
+CMAES_STAGE gen=12 stage=train_first_forward_only_begin bs=1
+CMAES_STAGE gen=12 stage=train_first_forward_only_end loss=141.42892456
+CMAES_STAGE gen=12 stage=train_first_step_end
+CMAES_STAGE gen=12 stage=train_progress epoch=0 step=1 max_steps=5 pairs=33 mixer_loss=141.42892456 mixer_loss_avg=141.42892456
+CMAES_STAGE gen=12 stage=train_full_step_begin step=2 bs=22
+CMAES_STAGE gen=12 stage=train_full_zero_grad_begin step=2 bs=22
+CMAES_STAGE gen=12 stage=train_full_zero_grad_end step=2
+CMAES_STAGE gen=12 stage=train_full_backward_begin step=2 bs=22
+CMAES_STAGE gen=12 stage=train_full_backward_end step=2
+CMAES_STAGE gen=12 stage=train_full_scale_begin step=2
+CMAES_STAGE gen=12 stage=train_full_scale_end step=2
+CMAES_STAGE gen=12 stage=train_full_update_begin step=2 optimizer=adamw_matrix
+CMAES_STAGE gen=12 stage=train_full_update_end step=2
+CMAES_STAGE gen=12 stage=train_full_step_end step=2 loss=308.60983276
+CMAES_STAGE gen=12 stage=train_full_step_begin step=3 bs=22
+CMAES_STAGE gen=12 stage=train_full_zero_grad_begin step=3 bs=22
+CMAES_STAGE gen=12 stage=train_full_zero_grad_end step=3
+CMAES_STAGE gen=12 stage=train_full_backward_begin step=3 bs=22
+CMAES_STAGE gen=12 stage=train_full_backward_end step=3
+CMAES_STAGE gen=12 stage=train_full_scale_begin step=3
+CMAES_STAGE gen=12 stage=train_full_scale_end step=3
+CMAES_STAGE gen=12 stage=train_full_update_begin step=3 optimizer=adamw_matrix
+CMAES_STAGE gen=12 stage=train_full_update_end step=3
+CMAES_STAGE gen=12 stage=train_full_step_end step=3 loss=175.84922791
+CMAES_STAGE gen=12 stage=train_progress epoch=0 step=4 max_steps=5 pairs=33 mixer_loss=275.44781494 mixer_loss_avg=225.33395386
+CMAES_STAGE gen=12 stage=train_progress epoch=0 step=5 max_steps=5 pairs=33 mixer_loss=320.92358398 mixer_loss_avg=244.45187378
+CMAES_STAGE gen=12 stage=train_end teacher_pairs=33 subset=109 max_pairs=920 max_steps=5 mixer_loss_avg=244.45187378
+CMAES_STAGE gen=12 stage=offspring_begin children=26 model_active=true model_cap=26 model_kept=26 model_throttled=0
+CMAES_STAGE gen=12 stage=offspring_classical_done model_children=26 classical_children=0
+CMAES_STAGE gen=12 stage=offspring_model_begin candidates=26
+CMAES_STAGE gen=12 stage=offspring_model_encode_begin model_children=26
+CMAES_STAGE gen=12 stage=offspring_model_encode_done model_children=26
+CMAES_STAGE gen=12 stage=offspring_model_predict_begin model_children=26
+CMAES_STAGE gen=12 stage=offspring_model_predict_done model_children=26
+CMAES_STAGE gen=12 stage=offspring_model_decode_begin model_children=26
+CMAES_STAGE gen=12 stage=offspring_model_decode_done model_children=26
+CMAES_STAGE gen=12 stage=offspring_end
+CMAES_STAGE gen=13 stage=eval_begin
+CMAES_STAGE gen=13 stage=eval_first_item_begin i=0 genome_key=7691999408422014907
+CMAES_STAGE gen=13 stage=eval_first_item_end i=0 loss=0.93286715 acc=0.26119167
+CMAES_STAGE gen=13 stage=eval_progress chunk=0 done=1/34
+CMAES_STAGE gen=13 stage=eval_progress chunk=1 done=33/34
+CMAES_STAGE gen=13 stage=eval_progress chunk=2 done=34/34
+CMAES_ACC gen=13 loss=0.9328671518 acc=0.2611916688
+CMAES_STAGE gen=13 stage=train_phase_begin
+CMAES_STAGE gen=13 stage=build_pairs_begin subset=34
+CMAES_STAGE gen=13 stage=build_pairs_end_train_begin pairs=33 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=13 stage=build_pairs_end pairs=33 lazy_encode=1
+CMAES_STAGE gen=13 stage=train_begin pairs=33 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=13 stage=train_first_batch_encode_begin bs=1 pairs=33
+CMAES_STAGE gen=13 stage=train_first_batch_encode_end bs=1
+CMAES_STAGE gen=13 stage=train_first_step_begin bs=1
+CMAES_STAGE gen=13 stage=train_first_forward_only_begin bs=1
+CMAES_STAGE gen=13 stage=train_first_forward_only_end loss=230.57298279
+CMAES_STAGE gen=13 stage=train_first_step_end
+CMAES_STAGE gen=13 stage=train_progress epoch=0 step=1 max_steps=5 pairs=33 mixer_loss=230.57298279 mixer_loss_avg=230.57298279
+CMAES_STAGE gen=13 stage=train_full_step_begin step=2 bs=22
+CMAES_STAGE gen=13 stage=train_full_zero_grad_begin step=2 bs=22
+CMAES_STAGE gen=13 stage=train_full_zero_grad_end step=2
+CMAES_STAGE gen=13 stage=train_full_backward_begin step=2 bs=22
+CMAES_STAGE gen=13 stage=train_full_backward_end step=2
+CMAES_STAGE gen=13 stage=train_full_scale_begin step=2
+CMAES_STAGE gen=13 stage=train_full_scale_end step=2
+CMAES_STAGE gen=13 stage=train_full_update_begin step=2 optimizer=adamw_matrix
+CMAES_STAGE gen=13 stage=train_full_update_end step=2
+CMAES_STAGE gen=13 stage=train_full_step_end step=2 loss=465.03607178
+CMAES_STAGE gen=13 stage=train_full_step_begin step=3 bs=22
+CMAES_STAGE gen=13 stage=train_full_zero_grad_begin step=3 bs=22
+CMAES_STAGE gen=13 stage=train_full_zero_grad_end step=3
+CMAES_STAGE gen=13 stage=train_full_backward_begin step=3 bs=22
+CMAES_STAGE gen=13 stage=train_full_backward_end step=3
+CMAES_STAGE gen=13 stage=train_full_scale_begin step=3
+CMAES_STAGE gen=13 stage=train_full_scale_end step=3
+CMAES_STAGE gen=13 stage=train_full_update_begin step=3 optimizer=adamw_matrix
+CMAES_STAGE gen=13 stage=train_full_update_end step=3
+CMAES_STAGE gen=13 stage=train_full_step_end step=3 loss=480.54919434
+CMAES_STAGE gen=13 stage=train_progress epoch=0 step=4 max_steps=5 pairs=33 mixer_loss=311.64736938 mixer_loss_avg=371.95138550
+CMAES_STAGE gen=13 stage=train_progress epoch=0 step=5 max_steps=5 pairs=33 mixer_loss=461.74871826 mixer_loss_avg=389.91082764
+CMAES_STAGE gen=13 stage=train_end teacher_pairs=33 subset=109 max_pairs=920 max_steps=5 mixer_loss_avg=389.91082764
+CMAES_STAGE gen=13 stage=offspring_begin children=26 model_active=true model_cap=26 model_kept=25 model_throttled=0
+CMAES_STAGE gen=13 stage=offspring_classical_done model_children=25 classical_children=1
+CMAES_STAGE gen=13 stage=offspring_model_begin candidates=26
+CMAES_STAGE gen=13 stage=offspring_model_encode_begin model_children=25
+CMAES_STAGE gen=13 stage=offspring_model_encode_done model_children=25
+CMAES_STAGE gen=13 stage=offspring_model_predict_begin model_children=25
+CMAES_STAGE gen=13 stage=offspring_model_predict_done model_children=25
+CMAES_STAGE gen=13 stage=offspring_model_decode_begin model_children=25
+CMAES_STAGE gen=13 stage=offspring_model_decode_done model_children=25
+CMAES_STAGE gen=13 stage=offspring_end
+CMAES_STAGE gen=14 stage=eval_begin
+CMAES_STAGE gen=14 stage=eval_first_item_begin i=0 genome_key=7691999408422014907
+CMAES_STAGE gen=14 stage=eval_first_item_end i=0 loss=0.93286715 acc=0.26119167
+CMAES_STAGE gen=14 stage=eval_progress chunk=0 done=1/34
+CMAES_STAGE gen=14 stage=eval_progress chunk=1 done=33/34
+CMAES_STAGE gen=14 stage=eval_progress chunk=2 done=34/34
+CMAES_ACC gen=14 loss=0.9315333465 acc=0.0818500024
+CMAES_STAGE gen=14 stage=train_phase_begin
+CMAES_STAGE gen=14 stage=build_pairs_begin subset=34
+CMAES_STAGE gen=14 stage=build_pairs_end_train_begin pairs=25 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=14 stage=build_pairs_end pairs=25 lazy_encode=1
+CMAES_STAGE gen=14 stage=train_begin pairs=25 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=14 stage=train_first_batch_encode_begin bs=1 pairs=25
+CMAES_STAGE gen=14 stage=train_first_batch_encode_end bs=1
+CMAES_STAGE gen=14 stage=train_first_step_begin bs=1
+CMAES_STAGE gen=14 stage=train_first_forward_only_begin bs=1
+CMAES_STAGE gen=14 stage=train_first_forward_only_end loss=266.50177002
+CMAES_STAGE gen=14 stage=train_first_step_end
+CMAES_STAGE gen=14 stage=train_progress epoch=0 step=1 max_steps=5 pairs=25 mixer_loss=266.50177002 mixer_loss_avg=266.50177002
+CMAES_STAGE gen=14 stage=train_full_step_begin step=2 bs=22
+CMAES_STAGE gen=14 stage=train_full_zero_grad_begin step=2 bs=22
+CMAES_STAGE gen=14 stage=train_full_zero_grad_end step=2
+CMAES_STAGE gen=14 stage=train_full_backward_begin step=2 bs=22
+CMAES_STAGE gen=14 stage=train_full_backward_end step=2
+CMAES_STAGE gen=14 stage=train_full_scale_begin step=2
+CMAES_STAGE gen=14 stage=train_full_scale_end step=2
+CMAES_STAGE gen=14 stage=train_full_update_begin step=2 optimizer=adamw_matrix
+CMAES_STAGE gen=14 stage=train_full_update_end step=2
+CMAES_STAGE gen=14 stage=train_full_step_end step=2 loss=226.87268066
+CMAES_STAGE gen=14 stage=train_full_step_begin step=3 bs=22
+CMAES_STAGE gen=14 stage=train_full_zero_grad_begin step=3 bs=22
+CMAES_STAGE gen=14 stage=train_full_zero_grad_end step=3
+CMAES_STAGE gen=14 stage=train_full_backward_begin step=3 bs=22
+CMAES_STAGE gen=14 stage=train_full_backward_end step=3
+CMAES_STAGE gen=14 stage=train_full_scale_begin step=3
+CMAES_STAGE gen=14 stage=train_full_scale_end step=3
+CMAES_STAGE gen=14 stage=train_full_update_begin step=3 optimizer=adamw_matrix
+CMAES_STAGE gen=14 stage=train_full_update_end step=3
+CMAES_STAGE gen=14 stage=train_full_step_end step=3 loss=241.67449951
+CMAES_STAGE gen=14 stage=train_progress epoch=0 step=4 max_steps=5 pairs=25 mixer_loss=246.97045898 mixer_loss_avg=245.50485229
+CMAES_STAGE gen=14 stage=train_progress epoch=0 step=5 max_steps=5 pairs=25 mixer_loss=199.92674255 mixer_loss_avg=236.38923645
+CMAES_STAGE gen=14 stage=train_end teacher_pairs=25 subset=109 max_pairs=920 max_steps=5 mixer_loss_avg=236.38923645
+CMAES_STAGE gen=14 stage=offspring_begin children=26 model_active=true model_cap=26 model_kept=26 model_throttled=0
+CMAES_STAGE gen=14 stage=offspring_classical_done model_children=26 classical_children=0
+CMAES_STAGE gen=14 stage=offspring_model_begin candidates=26
+CMAES_STAGE gen=14 stage=offspring_model_encode_begin model_children=26
+CMAES_STAGE gen=14 stage=offspring_model_encode_done model_children=26
+CMAES_STAGE gen=14 stage=offspring_model_predict_begin model_children=26
+CMAES_STAGE gen=14 stage=offspring_model_predict_done model_children=26
+CMAES_STAGE gen=14 stage=offspring_model_decode_begin model_children=26
+CMAES_STAGE gen=14 stage=offspring_model_decode_done model_children=26
+CMAES_STAGE gen=14 stage=offspring_end
+CMAES_STAGE gen=15 stage=eval_begin
+CMAES_STAGE gen=15 stage=eval_first_item_begin i=0 genome_key=6246765617425403189
+CMAES_STAGE gen=15 stage=eval_first_item_end i=0 loss=0.93153335 acc=0.08185000
+CMAES_STAGE gen=15 stage=eval_progress chunk=0 done=1/34
+CMAES_STAGE gen=15 stage=eval_progress chunk=1 done=33/34
+CMAES_STAGE gen=15 stage=eval_progress chunk=2 done=34/34
+CMAES_ACC gen=15 loss=0.9315333465 acc=0.0818500024
+CMAES_STAGE gen=15 stage=train_phase_begin
+CMAES_STAGE gen=15 stage=build_pairs_begin subset=34
+CMAES_STAGE gen=15 stage=build_pairs_end_train_begin pairs=26 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=15 stage=build_pairs_end pairs=26 lazy_encode=1
+CMAES_STAGE gen=15 stage=train_begin pairs=26 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=15 stage=train_first_batch_encode_begin bs=1 pairs=26
+CMAES_STAGE gen=15 stage=train_first_batch_encode_end bs=1
+CMAES_STAGE gen=15 stage=train_first_step_begin bs=1
+CMAES_STAGE gen=15 stage=train_first_forward_only_begin bs=1
+CMAES_STAGE gen=15 stage=train_first_forward_only_end loss=117.17543793
+CMAES_STAGE gen=15 stage=train_first_step_end
+CMAES_STAGE gen=15 stage=train_progress epoch=0 step=1 max_steps=5 pairs=26 mixer_loss=117.17543793 mixer_loss_avg=117.17543793
+CMAES_STAGE gen=15 stage=train_full_step_begin step=2 bs=22
+CMAES_STAGE gen=15 stage=train_full_zero_grad_begin step=2 bs=22
+CMAES_STAGE gen=15 stage=train_full_zero_grad_end step=2
+CMAES_STAGE gen=15 stage=train_full_backward_begin step=2 bs=22
+CMAES_STAGE gen=15 stage=train_full_backward_end step=2
+CMAES_STAGE gen=15 stage=train_full_scale_begin step=2
+CMAES_STAGE gen=15 stage=train_full_scale_end step=2
+CMAES_STAGE gen=15 stage=train_full_update_begin step=2 optimizer=adamw_matrix
+CMAES_STAGE gen=15 stage=train_full_update_end step=2
+CMAES_STAGE gen=15 stage=train_full_step_end step=2 loss=117.04071045
+CMAES_STAGE gen=15 stage=train_full_step_begin step=3 bs=22
+CMAES_STAGE gen=15 stage=train_full_zero_grad_begin step=3 bs=22
+CMAES_STAGE gen=15 stage=train_full_zero_grad_end step=3
+CMAES_STAGE gen=15 stage=train_full_backward_begin step=3 bs=22
+CMAES_STAGE gen=15 stage=train_full_backward_end step=3
+CMAES_STAGE gen=15 stage=train_full_scale_begin step=3
+CMAES_STAGE gen=15 stage=train_full_scale_end step=3
+CMAES_STAGE gen=15 stage=train_full_update_begin step=3 optimizer=adamw_matrix
+CMAES_STAGE gen=15 stage=train_full_update_end step=3
+CMAES_STAGE gen=15 stage=train_full_step_end step=3 loss=86.13962555
+CMAES_STAGE gen=15 stage=train_progress epoch=0 step=4 max_steps=5 pairs=26 mixer_loss=98.71829987 mixer_loss_avg=104.76851654
+CMAES_STAGE gen=15 stage=train_progress epoch=0 step=5 max_steps=5 pairs=26 mixer_loss=97.05744171 mixer_loss_avg=103.22630310
+CMAES_STAGE gen=15 stage=train_end teacher_pairs=26 subset=109 max_pairs=920 max_steps=5 mixer_loss_avg=103.22630310
+CMAES_STAGE gen=15 stage=offspring_begin children=26 model_active=true model_cap=26 model_kept=26 model_throttled=0
+CMAES_STAGE gen=15 stage=offspring_classical_done model_children=26 classical_children=0
+CMAES_STAGE gen=15 stage=offspring_model_begin candidates=26
+CMAES_STAGE gen=15 stage=offspring_model_encode_begin model_children=26
+CMAES_STAGE gen=15 stage=offspring_model_encode_done model_children=26
+CMAES_STAGE gen=15 stage=offspring_model_predict_begin model_children=26
+CMAES_STAGE gen=15 stage=offspring_model_predict_done model_children=26
+CMAES_STAGE gen=15 stage=offspring_model_decode_begin model_children=26
+CMAES_STAGE gen=15 stage=offspring_model_decode_done model_children=26
+CMAES_STAGE gen=15 stage=offspring_end
+CMAES_STAGE gen=16 stage=eval_begin
+CMAES_STAGE gen=16 stage=eval_first_item_begin i=0 genome_key=6246765617425403189
+CMAES_STAGE gen=16 stage=eval_first_item_end i=0 loss=0.93153335 acc=0.08185000
+CMAES_STAGE gen=16 stage=eval_progress chunk=0 done=1/34
+CMAES_STAGE gen=16 stage=eval_progress chunk=1 done=33/34
+CMAES_STAGE gen=16 stage=eval_progress chunk=2 done=34/34
+CMAES_ACC gen=16 loss=0.9315333465 acc=0.0818500024
+CMAES_STAGE gen=16 stage=train_phase_begin
+CMAES_STAGE gen=16 stage=build_pairs_begin subset=34
+CMAES_STAGE gen=16 stage=build_pairs_end_train_begin pairs=26 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=16 stage=build_pairs_end pairs=26 lazy_encode=1
+CMAES_STAGE gen=16 stage=train_begin pairs=26 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=16 stage=train_first_batch_encode_begin bs=1 pairs=26
+CMAES_STAGE gen=16 stage=train_first_batch_encode_end bs=1
+CMAES_STAGE gen=16 stage=train_first_step_begin bs=1
+CMAES_STAGE gen=16 stage=train_first_forward_only_begin bs=1
+CMAES_STAGE gen=16 stage=train_first_forward_only_end loss=128.98858643
+CMAES_STAGE gen=16 stage=train_first_step_end
+CMAES_STAGE gen=16 stage=train_progress epoch=0 step=1 max_steps=5 pairs=26 mixer_loss=128.98858643 mixer_loss_avg=128.98858643
+CMAES_STAGE gen=16 stage=train_full_step_begin step=2 bs=22
+CMAES_STAGE gen=16 stage=train_full_zero_grad_begin step=2 bs=22
+CMAES_STAGE gen=16 stage=train_full_zero_grad_end step=2
+CMAES_STAGE gen=16 stage=train_full_backward_begin step=2 bs=22
+CMAES_STAGE gen=16 stage=train_full_backward_end step=2
+CMAES_STAGE gen=16 stage=train_full_scale_begin step=2
+CMAES_STAGE gen=16 stage=train_full_scale_end step=2
+CMAES_STAGE gen=16 stage=train_full_update_begin step=2 optimizer=adamw_matrix
+CMAES_STAGE gen=16 stage=train_full_update_end step=2
+CMAES_STAGE gen=16 stage=train_full_step_end step=2 loss=128.97438049
+CMAES_STAGE gen=16 stage=train_full_step_begin step=3 bs=22
+CMAES_STAGE gen=16 stage=train_full_zero_grad_begin step=3 bs=22
+CMAES_STAGE gen=16 stage=train_full_zero_grad_end step=3
+CMAES_STAGE gen=16 stage=train_full_backward_begin step=3 bs=22
+CMAES_STAGE gen=16 stage=train_full_backward_end step=3
+CMAES_STAGE gen=16 stage=train_full_scale_begin step=3
+CMAES_STAGE gen=16 stage=train_full_scale_end step=3
+CMAES_STAGE gen=16 stage=train_full_update_begin step=3 optimizer=adamw_matrix
+CMAES_STAGE gen=16 stage=train_full_update_end step=3
+CMAES_STAGE gen=16 stage=train_full_step_end step=3 loss=93.09432983
+CMAES_STAGE gen=16 stage=train_progress epoch=0 step=4 max_steps=5 pairs=26 mixer_loss=100.19218445 mixer_loss_avg=112.81236267
+CMAES_STAGE gen=16 stage=train_progress epoch=0 step=5 max_steps=5 pairs=26 mixer_loss=70.50326538 mixer_loss_avg=104.35054016
+CMAES_STAGE gen=16 stage=train_end teacher_pairs=26 subset=109 max_pairs=920 max_steps=5 mixer_loss_avg=104.35054016
+CMAES_STAGE gen=16 stage=offspring_begin children=26 model_active=true model_cap=26 model_kept=26 model_throttled=0
+CMAES_STAGE gen=16 stage=offspring_classical_done model_children=26 classical_children=0
+CMAES_STAGE gen=16 stage=offspring_model_begin candidates=26
+CMAES_STAGE gen=16 stage=offspring_model_encode_begin model_children=26
+CMAES_STAGE gen=16 stage=offspring_model_encode_done model_children=26
+CMAES_STAGE gen=16 stage=offspring_model_predict_begin model_children=26
+CMAES_STAGE gen=16 stage=offspring_model_predict_done model_children=26
+CMAES_STAGE gen=16 stage=offspring_model_decode_begin model_children=26
+CMAES_STAGE gen=16 stage=offspring_model_decode_done model_children=26
+CMAES_STAGE gen=16 stage=offspring_end
+CMAES_STAGE gen=17 stage=eval_begin
+CMAES_STAGE gen=17 stage=eval_first_item_begin i=0 genome_key=6246765617425403189
+CMAES_STAGE gen=17 stage=eval_first_item_end i=0 loss=0.93153335 acc=0.08185000
+CMAES_STAGE gen=17 stage=eval_progress chunk=0 done=1/34
+CMAES_STAGE gen=17 stage=eval_progress chunk=1 done=33/34
+CMAES_STAGE gen=17 stage=eval_progress chunk=2 done=34/34
+CMAES_ACC gen=17 loss=0.9315333465 acc=0.0818500024
+CMAES_STAGE gen=17 stage=train_phase_begin
+CMAES_STAGE gen=17 stage=build_pairs_begin subset=34
+CMAES_STAGE gen=17 stage=build_pairs_end_train_begin pairs=26 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=17 stage=build_pairs_end pairs=26 lazy_encode=1
+CMAES_STAGE gen=17 stage=train_begin pairs=26 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=17 stage=train_first_batch_encode_begin bs=1 pairs=26
+CMAES_STAGE gen=17 stage=train_first_batch_encode_end bs=1
+CMAES_STAGE gen=17 stage=train_first_step_begin bs=1
+CMAES_STAGE gen=17 stage=train_first_forward_only_begin bs=1
+CMAES_STAGE gen=17 stage=train_first_forward_only_end loss=53.42939758
+CMAES_STAGE gen=17 stage=train_first_step_end
+CMAES_STAGE gen=17 stage=train_progress epoch=0 step=1 max_steps=5 pairs=26 mixer_loss=53.42939758 mixer_loss_avg=53.42939758
+CMAES_STAGE gen=17 stage=train_full_step_begin step=2 bs=22
+CMAES_STAGE gen=17 stage=train_full_zero_grad_begin step=2 bs=22
+CMAES_STAGE gen=17 stage=train_full_zero_grad_end step=2
+CMAES_STAGE gen=17 stage=train_full_backward_begin step=2 bs=22
+CMAES_STAGE gen=17 stage=train_full_backward_end step=2
+CMAES_STAGE gen=17 stage=train_full_scale_begin step=2
+CMAES_STAGE gen=17 stage=train_full_scale_end step=2
+CMAES_STAGE gen=17 stage=train_full_update_begin step=2 optimizer=adamw_matrix
+CMAES_STAGE gen=17 stage=train_full_update_end step=2
+CMAES_STAGE gen=17 stage=train_full_step_end step=2 loss=53.44472504
+CMAES_STAGE gen=17 stage=train_full_step_begin step=3 bs=22
+CMAES_STAGE gen=17 stage=train_full_zero_grad_begin step=3 bs=22
+CMAES_STAGE gen=17 stage=train_full_zero_grad_end step=3
+CMAES_STAGE gen=17 stage=train_full_backward_begin step=3 bs=22
+CMAES_STAGE gen=17 stage=train_full_backward_end step=3
+CMAES_STAGE gen=17 stage=train_full_scale_begin step=3
+CMAES_STAGE gen=17 stage=train_full_scale_end step=3
+CMAES_STAGE gen=17 stage=train_full_update_begin step=3 optimizer=adamw_matrix
+CMAES_STAGE gen=17 stage=train_full_update_end step=3
+CMAES_STAGE gen=17 stage=train_full_step_end step=3 loss=51.78145599
+CMAES_STAGE gen=17 stage=train_progress epoch=0 step=4 max_steps=5 pairs=26 mixer_loss=64.15832520 mixer_loss_avg=55.70347595
+CMAES_STAGE gen=17 stage=train_progress epoch=0 step=5 max_steps=5 pairs=26 mixer_loss=199.75483704 mixer_loss_avg=84.51374817
+CMAES_STAGE gen=17 stage=train_end teacher_pairs=26 subset=109 max_pairs=920 max_steps=5 mixer_loss_avg=84.51374817
+CMAES_STAGE gen=17 stage=offspring_begin children=26 model_active=true model_cap=26 model_kept=26 model_throttled=0
+CMAES_STAGE gen=17 stage=offspring_classical_done model_children=26 classical_children=0
+CMAES_STAGE gen=17 stage=offspring_model_begin candidates=26
+CMAES_STAGE gen=17 stage=offspring_model_encode_begin model_children=26
+CMAES_STAGE gen=17 stage=offspring_model_encode_done model_children=26
+CMAES_STAGE gen=17 stage=offspring_model_predict_begin model_children=26
+CMAES_STAGE gen=17 stage=offspring_model_predict_done model_children=26
+CMAES_STAGE gen=17 stage=offspring_model_decode_begin model_children=26
+CMAES_STAGE gen=17 stage=offspring_model_decode_done model_children=26
+CMAES_STAGE gen=17 stage=offspring_end
+CMAES_STAGE gen=18 stage=eval_begin
+CMAES_STAGE gen=18 stage=eval_first_item_begin i=0 genome_key=6246765617425403189
+CMAES_STAGE gen=18 stage=eval_first_item_end i=0 loss=0.93153335 acc=0.08185000
+CMAES_STAGE gen=18 stage=eval_progress chunk=0 done=1/34
+CMAES_STAGE gen=18 stage=eval_progress chunk=1 done=33/34
+CMAES_STAGE gen=18 stage=eval_progress chunk=2 done=34/34
+CMAES_ACC gen=18 loss=0.9315333465 acc=0.0818500024
+CMAES_STAGE gen=18 stage=train_phase_begin
+CMAES_STAGE gen=18 stage=build_pairs_begin subset=34
+CMAES_STAGE gen=18 stage=build_pairs_end_train_begin pairs=26 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=18 stage=build_pairs_end pairs=26 lazy_encode=1
+CMAES_STAGE gen=18 stage=train_begin pairs=26 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=18 stage=train_first_batch_encode_begin bs=1 pairs=26
+CMAES_STAGE gen=18 stage=train_first_batch_encode_end bs=1
+CMAES_STAGE gen=18 stage=train_first_step_begin bs=1
+CMAES_STAGE gen=18 stage=train_first_forward_only_begin bs=1
+CMAES_STAGE gen=18 stage=train_first_forward_only_end loss=6874.06201172
+CMAES_STAGE gen=18 stage=train_first_step_end
+CMAES_STAGE gen=18 stage=train_progress epoch=0 step=1 max_steps=5 pairs=26 mixer_loss=6874.06201172 mixer_loss_avg=6874.06201172
+CMAES_STAGE gen=18 stage=train_full_step_begin step=2 bs=22
+CMAES_STAGE gen=18 stage=train_full_zero_grad_begin step=2 bs=22
+CMAES_STAGE gen=18 stage=train_full_zero_grad_end step=2
+CMAES_STAGE gen=18 stage=train_full_backward_begin step=2 bs=22
+CMAES_STAGE gen=18 stage=train_full_backward_end step=2
+CMAES_STAGE gen=18 stage=train_full_scale_begin step=2
+CMAES_STAGE gen=18 stage=train_full_scale_end step=2
+CMAES_STAGE gen=18 stage=train_full_update_begin step=2 optimizer=adamw_matrix
+CMAES_STAGE gen=18 stage=train_full_update_end step=2
+CMAES_STAGE gen=18 stage=train_full_step_end step=2 loss=2909.90747070
+CMAES_STAGE gen=18 stage=train_full_step_begin step=3 bs=22
+CMAES_STAGE gen=18 stage=train_full_zero_grad_begin step=3 bs=22
+CMAES_STAGE gen=18 stage=train_full_zero_grad_end step=3
+CMAES_STAGE gen=18 stage=train_full_backward_begin step=3 bs=22
+CMAES_STAGE gen=18 stage=train_full_backward_end step=3
+CMAES_STAGE gen=18 stage=train_full_scale_begin step=3
+CMAES_STAGE gen=18 stage=train_full_scale_end step=3
+CMAES_STAGE gen=18 stage=train_full_update_begin step=3 optimizer=adamw_matrix
+CMAES_STAGE gen=18 stage=train_full_update_end step=3
+CMAES_STAGE gen=18 stage=train_full_step_end step=3 loss=724.74511719
+CMAES_STAGE gen=18 stage=train_progress epoch=0 step=4 max_steps=5 pairs=26 mixer_loss=547.31018066 mixer_loss_avg=2764.00634766
+CMAES_STAGE gen=18 stage=train_progress epoch=0 step=5 max_steps=5 pairs=26 mixer_loss=525.10375977 mixer_loss_avg=2316.22583008
+CMAES_STAGE gen=18 stage=train_end teacher_pairs=26 subset=109 max_pairs=920 max_steps=5 mixer_loss_avg=2316.22583008
+CMAES_STAGE gen=18 stage=offspring_begin children=26 model_active=true model_cap=26 model_kept=25 model_throttled=0
+CMAES_STAGE gen=18 stage=offspring_classical_done model_children=25 classical_children=1
+CMAES_STAGE gen=18 stage=offspring_model_begin candidates=26
+CMAES_STAGE gen=18 stage=offspring_model_encode_begin model_children=25
+CMAES_STAGE gen=18 stage=offspring_model_encode_done model_children=25
+CMAES_STAGE gen=18 stage=offspring_model_predict_begin model_children=25
+CMAES_STAGE gen=18 stage=offspring_model_predict_done model_children=25
+CMAES_STAGE gen=18 stage=offspring_model_decode_begin model_children=25
+CMAES_STAGE gen=18 stage=offspring_model_decode_done model_children=25
+CMAES_STAGE gen=18 stage=offspring_end
+CMAES_STAGE gen=19 stage=eval_begin
+CMAES_STAGE gen=19 stage=eval_first_item_begin i=0 genome_key=1863651352249253410
+CMAES_STAGE gen=19 stage=eval_first_item_end i=0 loss=0.93153335 acc=0.08185000
+CMAES_STAGE gen=19 stage=eval_progress chunk=0 done=1/34
+CMAES_STAGE gen=19 stage=eval_progress chunk=1 done=33/34
+CMAES_STAGE gen=19 stage=eval_progress chunk=2 done=34/34
+CMAES_ACC gen=19 loss=0.9315333465 acc=0.0818500024
+CMAES_STAGE gen=19 stage=train_phase_begin
+CMAES_STAGE gen=19 stage=build_pairs_begin subset=34
+CMAES_STAGE gen=19 stage=build_pairs_end_train_begin pairs=25 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=19 stage=build_pairs_end pairs=25 lazy_encode=1
+CMAES_STAGE gen=19 stage=train_begin pairs=25 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=19 stage=train_first_batch_encode_begin bs=1 pairs=25
+CMAES_STAGE gen=19 stage=train_first_batch_encode_end bs=1
+CMAES_STAGE gen=19 stage=train_first_step_begin bs=1
+CMAES_STAGE gen=19 stage=train_first_forward_only_begin bs=1
+CMAES_STAGE gen=19 stage=train_first_forward_only_end loss=682.77301025
+CMAES_STAGE gen=19 stage=train_first_step_end
+CMAES_STAGE gen=19 stage=train_progress epoch=0 step=1 max_steps=5 pairs=25 mixer_loss=682.77301025 mixer_loss_avg=682.77301025
+CMAES_STAGE gen=19 stage=train_full_step_begin step=2 bs=22
+CMAES_STAGE gen=19 stage=train_full_zero_grad_begin step=2 bs=22
+CMAES_STAGE gen=19 stage=train_full_zero_grad_end step=2
+CMAES_STAGE gen=19 stage=train_full_backward_begin step=2 bs=22
+CMAES_STAGE gen=19 stage=train_full_backward_end step=2
+CMAES_STAGE gen=19 stage=train_full_scale_begin step=2
+CMAES_STAGE gen=19 stage=train_full_scale_end step=2
+CMAES_STAGE gen=19 stage=train_full_update_begin step=2 optimizer=adamw_matrix
+CMAES_STAGE gen=19 stage=train_full_update_end step=2
+CMAES_STAGE gen=19 stage=train_full_step_end step=2 loss=682.56317139
+CMAES_STAGE gen=19 stage=train_full_step_begin step=3 bs=22
+CMAES_STAGE gen=19 stage=train_full_zero_grad_begin step=3 bs=22
+CMAES_STAGE gen=19 stage=train_full_zero_grad_end step=3
+CMAES_STAGE gen=19 stage=train_full_backward_begin step=3 bs=22
+CMAES_STAGE gen=19 stage=train_full_backward_end step=3
+CMAES_STAGE gen=19 stage=train_full_scale_begin step=3
+CMAES_STAGE gen=19 stage=train_full_scale_end step=3
+CMAES_STAGE gen=19 stage=train_full_update_begin step=3 optimizer=adamw_matrix
+CMAES_STAGE gen=19 stage=train_full_update_end step=3
+CMAES_STAGE gen=19 stage=train_full_step_end step=3 loss=506.82086182
+CMAES_STAGE gen=19 stage=train_progress epoch=0 step=4 max_steps=5 pairs=25 mixer_loss=631.52862549 mixer_loss_avg=625.92138672
+CMAES_STAGE gen=19 stage=train_progress epoch=0 step=5 max_steps=5 pairs=25 mixer_loss=514.05841064 mixer_loss_avg=603.54876709
+CMAES_STAGE gen=19 stage=train_end teacher_pairs=25 subset=109 max_pairs=920 max_steps=5 mixer_loss_avg=603.54876709
+CMAES_STAGE gen=19 stage=offspring_begin children=26 model_active=true model_cap=26 model_kept=25 model_throttled=0
+CMAES_STAGE gen=19 stage=offspring_classical_done model_children=25 classical_children=1
+CMAES_STAGE gen=19 stage=offspring_model_begin candidates=26
+CMAES_STAGE gen=19 stage=offspring_model_encode_begin model_children=25
+CMAES_STAGE gen=19 stage=offspring_model_encode_done model_children=25
+CMAES_STAGE gen=19 stage=offspring_model_predict_begin model_children=25
+CMAES_STAGE gen=19 stage=offspring_model_predict_done model_children=25
+CMAES_STAGE gen=19 stage=offspring_model_decode_begin model_children=25
+CMAES_STAGE gen=19 stage=offspring_model_decode_done model_children=25
+CMAES_STAGE gen=19 stage=offspring_end
+CMAES_STAGE gen=20 stage=eval_begin
+CMAES_STAGE gen=20 stage=eval_first_item_begin i=0 genome_key=1863651352249253410
+CMAES_STAGE gen=20 stage=eval_first_item_end i=0 loss=0.93153335 acc=0.08185000
+CMAES_STAGE gen=20 stage=eval_progress chunk=0 done=1/34
+CMAES_STAGE gen=20 stage=eval_progress chunk=1 done=33/34
+CMAES_STAGE gen=20 stage=eval_progress chunk=2 done=34/34
+CMAES_ACC gen=20 loss=0.9315333465 acc=0.0818500024
+CMAES_STAGE gen=20 stage=train_phase_begin
+CMAES_STAGE gen=20 stage=build_pairs_begin subset=34
+CMAES_STAGE gen=20 stage=build_pairs_end_train_begin pairs=25 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=20 stage=build_pairs_end pairs=25 lazy_encode=1
+CMAES_STAGE gen=20 stage=train_begin pairs=25 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=20 stage=train_first_batch_encode_begin bs=1 pairs=25
+CMAES_STAGE gen=20 stage=train_first_batch_encode_end bs=1
+CMAES_STAGE gen=20 stage=train_first_step_begin bs=1
+CMAES_STAGE gen=20 stage=train_first_forward_only_begin bs=1
+CMAES_STAGE gen=20 stage=train_first_forward_only_end loss=2737.33959961
+CMAES_STAGE gen=20 stage=train_first_step_end
+CMAES_STAGE gen=20 stage=train_progress epoch=0 step=1 max_steps=5 pairs=25 mixer_loss=2737.33959961 mixer_loss_avg=2737.33959961
+CMAES_STAGE gen=20 stage=train_full_step_begin step=2 bs=22
+CMAES_STAGE gen=20 stage=train_full_zero_grad_begin step=2 bs=22
+CMAES_STAGE gen=20 stage=train_full_zero_grad_end step=2
+CMAES_STAGE gen=20 stage=train_full_backward_begin step=2 bs=22
+CMAES_STAGE gen=20 stage=train_full_backward_end step=2
+CMAES_STAGE gen=20 stage=train_full_scale_begin step=2
+CMAES_STAGE gen=20 stage=train_full_scale_end step=2
+CMAES_STAGE gen=20 stage=train_full_update_begin step=2 optimizer=adamw_matrix
+CMAES_STAGE gen=20 stage=train_full_update_end step=2
+CMAES_STAGE gen=20 stage=train_full_step_end step=2 loss=2935.58691406
+CMAES_STAGE gen=20 stage=train_full_step_begin step=3 bs=22
+CMAES_STAGE gen=20 stage=train_full_zero_grad_begin step=3 bs=22
+CMAES_STAGE gen=20 stage=train_full_zero_grad_end step=3
+CMAES_STAGE gen=20 stage=train_full_backward_begin step=3 bs=22
+CMAES_STAGE gen=20 stage=train_full_backward_end step=3
+CMAES_STAGE gen=20 stage=train_full_scale_begin step=3
+CMAES_STAGE gen=20 stage=train_full_scale_end step=3
+CMAES_STAGE gen=20 stage=train_full_update_begin step=3 optimizer=adamw_matrix
+CMAES_STAGE gen=20 stage=train_full_update_end step=3
+CMAES_STAGE gen=20 stage=train_full_step_end step=3 loss=1973.97998047
+CMAES_STAGE gen=20 stage=train_progress epoch=0 step=4 max_steps=5 pairs=25 mixer_loss=1077.76855469 mixer_loss_avg=2181.16894531
+CMAES_STAGE gen=20 stage=train_progress epoch=0 step=5 max_steps=5 pairs=25 mixer_loss=841.08331299 mixer_loss_avg=1913.15173340
+CMAES_STAGE gen=20 stage=train_end teacher_pairs=25 subset=109 max_pairs=920 max_steps=5 mixer_loss_avg=1913.15173340
+CMAES_STAGE gen=20 stage=offspring_begin children=26 model_active=true model_cap=26 model_kept=26 model_throttled=0
+CMAES_STAGE gen=20 stage=offspring_classical_done model_children=26 classical_children=0
+CMAES_STAGE gen=20 stage=offspring_model_begin candidates=26
+CMAES_STAGE gen=20 stage=offspring_model_encode_begin model_children=26
+CMAES_STAGE gen=20 stage=offspring_model_encode_done model_children=26
+CMAES_STAGE gen=20 stage=offspring_model_predict_begin model_children=26
+CMAES_STAGE gen=20 stage=offspring_model_predict_done model_children=26
+CMAES_STAGE gen=20 stage=offspring_model_decode_begin model_children=26
+CMAES_STAGE gen=20 stage=offspring_model_decode_done model_children=26
+CMAES_STAGE gen=20 stage=offspring_end
+CMAES_STAGE gen=21 stage=eval_begin
+CMAES_STAGE gen=21 stage=eval_first_item_begin i=0 genome_key=1863651352249253410
+CMAES_STAGE gen=21 stage=eval_first_item_end i=0 loss=0.93153335 acc=0.08185000
+CMAES_STAGE gen=21 stage=eval_progress chunk=0 done=1/34
+CMAES_STAGE gen=21 stage=eval_progress chunk=1 done=33/34
+CMAES_STAGE gen=21 stage=eval_progress chunk=2 done=34/34
+CMAES_ACC gen=21 loss=0.9315333465 acc=0.0818500024
+CMAES_STAGE gen=21 stage=train_phase_begin
+CMAES_STAGE gen=21 stage=build_pairs_begin subset=34
+CMAES_STAGE gen=21 stage=build_pairs_end_train_begin pairs=26 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=21 stage=build_pairs_end pairs=26 lazy_encode=1
+CMAES_STAGE gen=21 stage=train_begin pairs=26 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=21 stage=train_first_batch_encode_begin bs=1 pairs=26
+CMAES_STAGE gen=21 stage=train_first_batch_encode_end bs=1
+CMAES_STAGE gen=21 stage=train_first_step_begin bs=1
+CMAES_STAGE gen=21 stage=train_first_forward_only_begin bs=1
+CMAES_STAGE gen=21 stage=train_first_forward_only_end loss=13268.83789062
+CMAES_STAGE gen=21 stage=train_first_step_end
+CMAES_STAGE gen=21 stage=train_progress epoch=0 step=1 max_steps=5 pairs=26 mixer_loss=13268.83789062 mixer_loss_avg=13268.83789062
+CMAES_STAGE gen=21 stage=train_full_step_begin step=2 bs=22
+CMAES_STAGE gen=21 stage=train_full_zero_grad_begin step=2 bs=22
+CMAES_STAGE gen=21 stage=train_full_zero_grad_end step=2
+CMAES_STAGE gen=21 stage=train_full_backward_begin step=2 bs=22
+CMAES_STAGE gen=21 stage=train_full_backward_end step=2
+CMAES_STAGE gen=21 stage=train_full_scale_begin step=2
+CMAES_STAGE gen=21 stage=train_full_scale_end step=2
+CMAES_STAGE gen=21 stage=train_full_update_begin step=2 optimizer=adamw_matrix
+CMAES_STAGE gen=21 stage=train_full_update_end step=2
+CMAES_STAGE gen=21 stage=train_full_step_end step=2 loss=11801.23437500
+CMAES_STAGE gen=21 stage=train_full_step_begin step=3 bs=22
+CMAES_STAGE gen=21 stage=train_full_zero_grad_begin step=3 bs=22
+CMAES_STAGE gen=21 stage=train_full_zero_grad_end step=3
+CMAES_STAGE gen=21 stage=train_full_backward_begin step=3 bs=22
+CMAES_STAGE gen=21 stage=train_full_backward_end step=3
+CMAES_STAGE gen=21 stage=train_full_scale_begin step=3
+CMAES_STAGE gen=21 stage=train_full_scale_end step=3
+CMAES_STAGE gen=21 stage=train_full_update_begin step=3 optimizer=adamw_matrix
+CMAES_STAGE gen=21 stage=train_full_update_end step=3
+CMAES_STAGE gen=21 stage=train_full_step_end step=3 loss=8629.46289062
+CMAES_STAGE gen=21 stage=train_progress epoch=0 step=4 max_steps=5 pairs=26 mixer_loss=818.38885498 mixer_loss_avg=8629.48144531
+CMAES_STAGE gen=21 stage=train_progress epoch=0 step=5 max_steps=5 pairs=26 mixer_loss=1231.57263184 mixer_loss_avg=7149.89990234
+CMAES_STAGE gen=21 stage=train_end teacher_pairs=26 subset=109 max_pairs=920 max_steps=5 mixer_loss_avg=7149.89990234
+CMAES_STAGE gen=21 stage=offspring_begin children=26 model_active=true model_cap=26 model_kept=26 model_throttled=0
+CMAES_STAGE gen=21 stage=offspring_classical_done model_children=26 classical_children=0
+CMAES_STAGE gen=21 stage=offspring_model_begin candidates=26
+CMAES_STAGE gen=21 stage=offspring_model_encode_begin model_children=26
+CMAES_STAGE gen=21 stage=offspring_model_encode_done model_children=26
+CMAES_STAGE gen=21 stage=offspring_model_predict_begin model_children=26
+CMAES_STAGE gen=21 stage=offspring_model_predict_done model_children=26
+CMAES_STAGE gen=21 stage=offspring_model_decode_begin model_children=26
+CMAES_STAGE gen=21 stage=offspring_model_decode_done model_children=26
+CMAES_STAGE gen=21 stage=offspring_end
+CMAES_STAGE gen=22 stage=eval_begin
+CMAES_STAGE gen=22 stage=eval_first_item_begin i=0 genome_key=6246765617425403189
+CMAES_STAGE gen=22 stage=eval_first_item_end i=0 loss=0.93153335 acc=0.08185000
+CMAES_STAGE gen=22 stage=eval_progress chunk=0 done=1/34
+CMAES_STAGE gen=22 stage=eval_progress chunk=1 done=33/34
+CMAES_STAGE gen=22 stage=eval_progress chunk=2 done=34/34
+CMAES_ACC gen=22 loss=0.9315333465 acc=0.0818500024
+CMAES_STAGE gen=22 stage=train_phase_begin
+CMAES_STAGE gen=22 stage=build_pairs_begin subset=34
+CMAES_STAGE gen=22 stage=build_pairs_end_train_begin pairs=26 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=22 stage=build_pairs_end pairs=26 lazy_encode=1
+CMAES_STAGE gen=22 stage=train_begin pairs=26 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=22 stage=train_first_batch_encode_begin bs=1 pairs=26
+CMAES_STAGE gen=22 stage=train_first_batch_encode_end bs=1
+CMAES_STAGE gen=22 stage=train_first_step_begin bs=1
+CMAES_STAGE gen=22 stage=train_first_forward_only_begin bs=1
+CMAES_STAGE gen=22 stage=train_first_forward_only_end loss=1374.71875000
+CMAES_STAGE gen=22 stage=train_first_step_end
+CMAES_STAGE gen=22 stage=train_progress epoch=0 step=1 max_steps=5 pairs=26 mixer_loss=1374.71875000 mixer_loss_avg=1374.71875000
+CMAES_STAGE gen=22 stage=train_full_step_begin step=2 bs=22
+CMAES_STAGE gen=22 stage=train_full_zero_grad_begin step=2 bs=22
+CMAES_STAGE gen=22 stage=train_full_zero_grad_end step=2
+CMAES_STAGE gen=22 stage=train_full_backward_begin step=2 bs=22
+CMAES_STAGE gen=22 stage=train_full_backward_end step=2
+CMAES_STAGE gen=22 stage=train_full_scale_begin step=2
+CMAES_STAGE gen=22 stage=train_full_scale_end step=2
+CMAES_STAGE gen=22 stage=train_full_update_begin step=2 optimizer=adamw_matrix
+CMAES_STAGE gen=22 stage=train_full_update_end step=2
+CMAES_STAGE gen=22 stage=train_full_step_end step=2 loss=1412.66528320
+CMAES_STAGE gen=22 stage=train_full_step_begin step=3 bs=22
+CMAES_STAGE gen=22 stage=train_full_zero_grad_begin step=3 bs=22
+CMAES_STAGE gen=22 stage=train_full_zero_grad_end step=3
+CMAES_STAGE gen=22 stage=train_full_backward_begin step=3 bs=22
+CMAES_STAGE gen=22 stage=train_full_backward_end step=3
+CMAES_STAGE gen=22 stage=train_full_scale_begin step=3
+CMAES_STAGE gen=22 stage=train_full_scale_end step=3
+CMAES_STAGE gen=22 stage=train_full_update_begin step=3 optimizer=adamw_matrix
+CMAES_STAGE gen=22 stage=train_full_update_end step=3
+CMAES_STAGE gen=22 stage=train_full_step_end step=3 loss=1391.65124512
+CMAES_STAGE gen=22 stage=train_progress epoch=0 step=4 max_steps=5 pairs=26 mixer_loss=1391.40417480 mixer_loss_avg=1392.60986328
+CMAES_STAGE gen=22 stage=train_progress epoch=0 step=5 max_steps=5 pairs=26 mixer_loss=1174.46875000 mixer_loss_avg=1348.98168945
+CMAES_STAGE gen=22 stage=train_end teacher_pairs=26 subset=109 max_pairs=920 max_steps=5 mixer_loss_avg=1348.98168945
+CMAES_STAGE gen=22 stage=offspring_begin children=26 model_active=true model_cap=26 model_kept=26 model_throttled=0
+CMAES_STAGE gen=22 stage=offspring_classical_done model_children=26 classical_children=0
+CMAES_STAGE gen=22 stage=offspring_model_begin candidates=26
+CMAES_STAGE gen=22 stage=offspring_model_encode_begin model_children=26
+CMAES_STAGE gen=22 stage=offspring_model_encode_done model_children=26
+CMAES_STAGE gen=22 stage=offspring_model_predict_begin model_children=26
+CMAES_STAGE gen=22 stage=offspring_model_predict_done model_children=26
+CMAES_STAGE gen=22 stage=offspring_model_decode_begin model_children=26
+CMAES_STAGE gen=22 stage=offspring_model_decode_done model_children=26
+CMAES_STAGE gen=22 stage=offspring_end
+CMAES_STAGE gen=23 stage=eval_begin
+CMAES_STAGE gen=23 stage=eval_first_item_begin i=0 genome_key=6246765617425403189
+CMAES_STAGE gen=23 stage=eval_first_item_end i=0 loss=0.93153335 acc=0.08185000
+CMAES_STAGE gen=23 stage=eval_progress chunk=0 done=1/34
+CMAES_STAGE gen=23 stage=eval_progress chunk=1 done=33/34
+CMAES_STAGE gen=23 stage=eval_progress chunk=2 done=34/34
+CMAES_ACC gen=23 loss=0.9315333465 acc=0.0818500024
+CMAES_STAGE gen=23 stage=train_phase_begin
+CMAES_STAGE gen=23 stage=build_pairs_begin subset=34
+CMAES_STAGE gen=23 stage=build_pairs_end_train_begin pairs=26 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=23 stage=build_pairs_end pairs=26 lazy_encode=1
+CMAES_STAGE gen=23 stage=train_begin pairs=26 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=23 stage=train_first_batch_encode_begin bs=1 pairs=26
+CMAES_STAGE gen=23 stage=train_first_batch_encode_end bs=1
+CMAES_STAGE gen=23 stage=train_first_step_begin bs=1
+CMAES_STAGE gen=23 stage=train_first_forward_only_begin bs=1
+CMAES_STAGE gen=23 stage=train_first_forward_only_end loss=1391.26330566
+CMAES_STAGE gen=23 stage=train_first_step_end
+CMAES_STAGE gen=23 stage=train_progress epoch=0 step=1 max_steps=5 pairs=26 mixer_loss=1391.26330566 mixer_loss_avg=1391.26330566
+CMAES_STAGE gen=23 stage=train_full_step_begin step=2 bs=22
+CMAES_STAGE gen=23 stage=train_full_zero_grad_begin step=2 bs=22
+CMAES_STAGE gen=23 stage=train_full_zero_grad_end step=2
+CMAES_STAGE gen=23 stage=train_full_backward_begin step=2 bs=22
+CMAES_STAGE gen=23 stage=train_full_backward_end step=2
+CMAES_STAGE gen=23 stage=train_full_scale_begin step=2
+CMAES_STAGE gen=23 stage=train_full_scale_end step=2
+CMAES_STAGE gen=23 stage=train_full_update_begin step=2 optimizer=adamw_matrix
+CMAES_STAGE gen=23 stage=train_full_update_end step=2
+CMAES_STAGE gen=23 stage=train_full_step_end step=2 loss=1387.04248047
+CMAES_STAGE gen=23 stage=train_full_step_begin step=3 bs=22
+CMAES_STAGE gen=23 stage=train_full_zero_grad_begin step=3 bs=22
+CMAES_STAGE gen=23 stage=train_full_zero_grad_end step=3
+CMAES_STAGE gen=23 stage=train_full_backward_begin step=3 bs=22
+CMAES_STAGE gen=23 stage=train_full_backward_end step=3
+CMAES_STAGE gen=23 stage=train_full_scale_begin step=3
+CMAES_STAGE gen=23 stage=train_full_scale_end step=3
+CMAES_STAGE gen=23 stage=train_full_update_begin step=3 optimizer=adamw_matrix
+CMAES_STAGE gen=23 stage=train_full_update_end step=3
+CMAES_STAGE gen=23 stage=train_full_step_end step=3 loss=1110.55712891
+CMAES_STAGE gen=23 stage=train_progress epoch=0 step=4 max_steps=5 pairs=26 mixer_loss=1162.13110352 mixer_loss_avg=1262.74853516
+CMAES_STAGE gen=23 stage=train_progress epoch=0 step=5 max_steps=5 pairs=26 mixer_loss=1125.06335449 mixer_loss_avg=1235.21154785
+CMAES_STAGE gen=23 stage=train_end teacher_pairs=26 subset=109 max_pairs=920 max_steps=5 mixer_loss_avg=1235.21154785
+CMAES_STAGE gen=23 stage=offspring_begin children=26 model_active=true model_cap=26 model_kept=26 model_throttled=0
+CMAES_STAGE gen=23 stage=offspring_classical_done model_children=26 classical_children=0
+CMAES_STAGE gen=23 stage=offspring_model_begin candidates=26
+CMAES_STAGE gen=23 stage=offspring_model_encode_begin model_children=26
+CMAES_STAGE gen=23 stage=offspring_model_encode_done model_children=26
+CMAES_STAGE gen=23 stage=offspring_model_predict_begin model_children=26
+CMAES_STAGE gen=23 stage=offspring_model_predict_done model_children=26
+CMAES_STAGE gen=23 stage=offspring_model_decode_begin model_children=26
+CMAES_STAGE gen=23 stage=offspring_model_decode_done model_children=26
+CMAES_STAGE gen=23 stage=offspring_end
+CMAES_STAGE gen=24 stage=eval_begin
+CMAES_STAGE gen=24 stage=eval_first_item_begin i=0 genome_key=6246765617425403189
+CMAES_STAGE gen=24 stage=eval_first_item_end i=0 loss=0.93153335 acc=0.08185000
+CMAES_STAGE gen=24 stage=eval_progress chunk=0 done=1/34
+CMAES_STAGE gen=24 stage=eval_progress chunk=1 done=33/34
+CMAES_STAGE gen=24 stage=eval_progress chunk=2 done=34/34
+CMAES_ACC gen=24 loss=0.9315333465 acc=0.0818500024
+CMAES_STAGE gen=24 stage=train_phase_begin
+CMAES_STAGE gen=24 stage=build_pairs_begin subset=34
+CMAES_STAGE gen=24 stage=build_pairs_end_train_begin pairs=26 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=24 stage=build_pairs_end pairs=26 lazy_encode=1
+CMAES_STAGE gen=24 stage=train_begin pairs=26 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=24 stage=train_first_batch_encode_begin bs=1 pairs=26
+CMAES_STAGE gen=24 stage=train_first_batch_encode_end bs=1
+CMAES_STAGE gen=24 stage=train_first_step_begin bs=1
+CMAES_STAGE gen=24 stage=train_first_forward_only_begin bs=1
+CMAES_STAGE gen=24 stage=train_first_forward_only_end loss=1392.08715820
+CMAES_STAGE gen=24 stage=train_first_step_end
+CMAES_STAGE gen=24 stage=train_progress epoch=0 step=1 max_steps=5 pairs=26 mixer_loss=1392.08715820 mixer_loss_avg=1392.08715820
+CMAES_STAGE gen=24 stage=train_full_step_begin step=2 bs=22
+CMAES_STAGE gen=24 stage=train_full_zero_grad_begin step=2 bs=22
+CMAES_STAGE gen=24 stage=train_full_zero_grad_end step=2
+CMAES_STAGE gen=24 stage=train_full_backward_begin step=2 bs=22
+CMAES_STAGE gen=24 stage=train_full_backward_end step=2
+CMAES_STAGE gen=24 stage=train_full_scale_begin step=2
+CMAES_STAGE gen=24 stage=train_full_scale_end step=2
+CMAES_STAGE gen=24 stage=train_full_update_begin step=2 optimizer=adamw_matrix
+CMAES_STAGE gen=24 stage=train_full_update_end step=2
+CMAES_STAGE gen=24 stage=train_full_step_end step=2 loss=1391.90649414
+CMAES_STAGE gen=24 stage=train_full_step_begin step=3 bs=22
+CMAES_STAGE gen=24 stage=train_full_zero_grad_begin step=3 bs=22
+CMAES_STAGE gen=24 stage=train_full_zero_grad_end step=3
+CMAES_STAGE gen=24 stage=train_full_backward_begin step=3 bs=22
+CMAES_STAGE gen=24 stage=train_full_backward_end step=3
+CMAES_STAGE gen=24 stage=train_full_scale_begin step=3
+CMAES_STAGE gen=24 stage=train_full_scale_end step=3
+CMAES_STAGE gen=24 stage=train_full_update_begin step=3 optimizer=adamw_matrix
+CMAES_STAGE gen=24 stage=train_full_update_end step=3
+CMAES_STAGE gen=24 stage=train_full_step_end step=3 loss=1276.13598633
+CMAES_STAGE gen=24 stage=train_progress epoch=0 step=4 max_steps=5 pairs=26 mixer_loss=1063.89709473 mixer_loss_avg=1281.00671387
+CMAES_STAGE gen=24 stage=train_progress epoch=0 step=5 max_steps=5 pairs=26 mixer_loss=1033.14709473 mixer_loss_avg=1231.43481445
+CMAES_STAGE gen=24 stage=train_end teacher_pairs=26 subset=109 max_pairs=920 max_steps=5 mixer_loss_avg=1231.43481445
+CMAES_STAGE gen=24 stage=offspring_begin children=26 model_active=true model_cap=26 model_kept=24 model_throttled=0
+CMAES_STAGE gen=24 stage=offspring_classical_done model_children=24 classical_children=2
+CMAES_STAGE gen=24 stage=offspring_model_begin candidates=26
+CMAES_STAGE gen=24 stage=offspring_model_encode_begin model_children=24
+CMAES_STAGE gen=24 stage=offspring_model_encode_done model_children=24
+CMAES_STAGE gen=24 stage=offspring_model_predict_begin model_children=24
+CMAES_STAGE gen=24 stage=offspring_model_predict_done model_children=24
+CMAES_STAGE gen=24 stage=offspring_model_decode_begin model_children=24
+CMAES_STAGE gen=24 stage=offspring_model_decode_done model_children=24
+CMAES_STAGE gen=24 stage=offspring_end
+CMAES_STAGE gen=25 stage=eval_begin
+CMAES_STAGE gen=25 stage=eval_first_item_begin i=0 genome_key=6246765617425403189
+CMAES_STAGE gen=25 stage=eval_first_item_end i=0 loss=0.93153335 acc=0.08185000
+CMAES_STAGE gen=25 stage=eval_progress chunk=0 done=1/34
+CMAES_STAGE gen=25 stage=eval_progress chunk=1 done=33/34
+CMAES_STAGE gen=25 stage=eval_progress chunk=2 done=34/34
+CMAES_ACC gen=25 loss=0.9315333465 acc=0.0818500024
+CMAES_STAGE gen=25 stage=train_phase_begin
+CMAES_STAGE gen=25 stage=build_pairs_begin subset=34
+CMAES_STAGE gen=25 stage=build_pairs_end_train_begin pairs=24 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=25 stage=build_pairs_end pairs=24 lazy_encode=1
+CMAES_STAGE gen=25 stage=train_begin pairs=24 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=25 stage=train_first_batch_encode_begin bs=1 pairs=24
+CMAES_STAGE gen=25 stage=train_first_batch_encode_end bs=1
+CMAES_STAGE gen=25 stage=train_first_step_begin bs=1
+CMAES_STAGE gen=25 stage=train_first_forward_only_begin bs=1
+CMAES_STAGE gen=25 stage=train_first_forward_only_end loss=882.30798340
+CMAES_STAGE gen=25 stage=train_first_step_end
+CMAES_STAGE gen=25 stage=train_progress epoch=0 step=1 max_steps=5 pairs=24 mixer_loss=882.30798340 mixer_loss_avg=882.30798340
+CMAES_STAGE gen=25 stage=train_full_step_begin step=2 bs=22
+CMAES_STAGE gen=25 stage=train_full_zero_grad_begin step=2 bs=22
+CMAES_STAGE gen=25 stage=train_full_zero_grad_end step=2
+CMAES_STAGE gen=25 stage=train_full_backward_begin step=2 bs=22
+CMAES_STAGE gen=25 stage=train_full_backward_end step=2
+CMAES_STAGE gen=25 stage=train_full_scale_begin step=2
+CMAES_STAGE gen=25 stage=train_full_scale_end step=2
+CMAES_STAGE gen=25 stage=train_full_update_begin step=2 optimizer=adamw_matrix
+CMAES_STAGE gen=25 stage=train_full_update_end step=2
+CMAES_STAGE gen=25 stage=train_full_step_end step=2 loss=883.28143311
+CMAES_STAGE gen=25 stage=train_full_step_begin step=3 bs=22
+CMAES_STAGE gen=25 stage=train_full_zero_grad_begin step=3 bs=22
+CMAES_STAGE gen=25 stage=train_full_zero_grad_end step=3
+CMAES_STAGE gen=25 stage=train_full_backward_begin step=3 bs=22
+CMAES_STAGE gen=25 stage=train_full_backward_end step=3
+CMAES_STAGE gen=25 stage=train_full_scale_begin step=3
+CMAES_STAGE gen=25 stage=train_full_scale_end step=3
+CMAES_STAGE gen=25 stage=train_full_update_begin step=3 optimizer=adamw_matrix
+CMAES_STAGE gen=25 stage=train_full_update_end step=3
+CMAES_STAGE gen=25 stage=train_full_step_end step=3 loss=937.40991211
+CMAES_STAGE gen=25 stage=train_progress epoch=0 step=4 max_steps=5 pairs=24 mixer_loss=678.10522461 mixer_loss_avg=845.27612305
+CMAES_STAGE gen=25 stage=train_progress epoch=0 step=5 max_steps=5 pairs=24 mixer_loss=766.04370117 mixer_loss_avg=829.42968750
+CMAES_STAGE gen=25 stage=train_end teacher_pairs=24 subset=109 max_pairs=920 max_steps=5 mixer_loss_avg=829.42968750
+CMAES_STAGE gen=25 stage=offspring_begin children=26 model_active=true model_cap=26 model_kept=26 model_throttled=0
+CMAES_STAGE gen=25 stage=offspring_classical_done model_children=26 classical_children=0
+CMAES_STAGE gen=25 stage=offspring_model_begin candidates=26
+CMAES_STAGE gen=25 stage=offspring_model_encode_begin model_children=26
+CMAES_STAGE gen=25 stage=offspring_model_encode_done model_children=26
+CMAES_STAGE gen=25 stage=offspring_model_predict_begin model_children=26
+CMAES_STAGE gen=25 stage=offspring_model_predict_done model_children=26
+CMAES_STAGE gen=25 stage=offspring_model_decode_begin model_children=26
+CMAES_STAGE gen=25 stage=offspring_model_decode_done model_children=26
+CMAES_STAGE gen=25 stage=offspring_end
+CMAES_STAGE gen=26 stage=eval_begin
+CMAES_STAGE gen=26 stage=eval_first_item_begin i=0 genome_key=6246765617425403189
+CMAES_STAGE gen=26 stage=eval_first_item_end i=0 loss=0.93153335 acc=0.08185000
+CMAES_STAGE gen=26 stage=eval_progress chunk=0 done=1/34
+CMAES_STAGE gen=26 stage=eval_progress chunk=1 done=33/34
+CMAES_STAGE gen=26 stage=eval_progress chunk=2 done=34/34
+CMAES_ACC gen=26 loss=0.9315333465 acc=0.0818500024
+CMAES_STAGE gen=26 stage=train_phase_begin
+CMAES_STAGE gen=26 stage=build_pairs_begin subset=34
+CMAES_STAGE gen=26 stage=build_pairs_end_train_begin pairs=26 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=26 stage=build_pairs_end pairs=26 lazy_encode=1
+CMAES_STAGE gen=26 stage=train_begin pairs=26 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=26 stage=train_first_batch_encode_begin bs=1 pairs=26
+CMAES_STAGE gen=26 stage=train_first_batch_encode_end bs=1
+CMAES_STAGE gen=26 stage=train_first_step_begin bs=1
+CMAES_STAGE gen=26 stage=train_first_forward_only_begin bs=1
+CMAES_STAGE gen=26 stage=train_first_forward_only_end loss=562.42974854
+CMAES_STAGE gen=26 stage=train_first_step_end
+CMAES_STAGE gen=26 stage=train_progress epoch=0 step=1 max_steps=5 pairs=26 mixer_loss=562.42974854 mixer_loss_avg=562.42974854
+CMAES_STAGE gen=26 stage=train_full_step_begin step=2 bs=22
+CMAES_STAGE gen=26 stage=train_full_zero_grad_begin step=2 bs=22
+CMAES_STAGE gen=26 stage=train_full_zero_grad_end step=2
+CMAES_STAGE gen=26 stage=train_full_backward_begin step=2 bs=22
+CMAES_STAGE gen=26 stage=train_full_backward_end step=2
+CMAES_STAGE gen=26 stage=train_full_scale_begin step=2
+CMAES_STAGE gen=26 stage=train_full_scale_end step=2
+CMAES_STAGE gen=26 stage=train_full_update_begin step=2 optimizer=adamw_matrix
+CMAES_STAGE gen=26 stage=train_full_update_end step=2
+CMAES_STAGE gen=26 stage=train_full_step_end step=2 loss=562.58789062
+CMAES_STAGE gen=26 stage=train_full_step_begin step=3 bs=22
+CMAES_STAGE gen=26 stage=train_full_zero_grad_begin step=3 bs=22
+CMAES_STAGE gen=26 stage=train_full_zero_grad_end step=3
+CMAES_STAGE gen=26 stage=train_full_backward_begin step=3 bs=22
+CMAES_STAGE gen=26 stage=train_full_backward_end step=3
+CMAES_STAGE gen=26 stage=train_full_scale_begin step=3
+CMAES_STAGE gen=26 stage=train_full_scale_end step=3
+CMAES_STAGE gen=26 stage=train_full_update_begin step=3 optimizer=adamw_matrix
+CMAES_STAGE gen=26 stage=train_full_update_end step=3
+CMAES_STAGE gen=26 stage=train_full_step_end step=3 loss=500.29217529
+CMAES_STAGE gen=26 stage=train_progress epoch=0 step=4 max_steps=5 pairs=26 mixer_loss=438.19869995 mixer_loss_avg=515.87713623
+CMAES_STAGE gen=26 stage=train_progress epoch=0 step=5 max_steps=5 pairs=26 mixer_loss=349.12332153 mixer_loss_avg=482.52636719
+CMAES_STAGE gen=26 stage=train_end teacher_pairs=26 subset=109 max_pairs=920 max_steps=5 mixer_loss_avg=482.52636719
+CMAES_STAGE gen=26 stage=offspring_begin children=26 model_active=true model_cap=26 model_kept=25 model_throttled=0
+CMAES_STAGE gen=26 stage=offspring_classical_done model_children=25 classical_children=1
+CMAES_STAGE gen=26 stage=offspring_model_begin candidates=26
+CMAES_STAGE gen=26 stage=offspring_model_encode_begin model_children=25
+CMAES_STAGE gen=26 stage=offspring_model_encode_done model_children=25
+CMAES_STAGE gen=26 stage=offspring_model_predict_begin model_children=25
+CMAES_STAGE gen=26 stage=offspring_model_predict_done model_children=25
+CMAES_STAGE gen=26 stage=offspring_model_decode_begin model_children=25
+CMAES_STAGE gen=26 stage=offspring_model_decode_done model_children=25
+CMAES_STAGE gen=26 stage=offspring_end
+CMAES_STAGE gen=27 stage=eval_begin
+CMAES_STAGE gen=27 stage=eval_first_item_begin i=0 genome_key=4498714278024850367
+CMAES_STAGE gen=27 stage=eval_first_item_end i=0 loss=0.93153335 acc=0.08185000
+CMAES_STAGE gen=27 stage=eval_progress chunk=0 done=1/34
+CMAES_STAGE gen=27 stage=eval_progress chunk=1 done=33/34
+CMAES_STAGE gen=27 stage=eval_progress chunk=2 done=34/34
+CMAES_ACC gen=27 loss=0.9315333465 acc=0.0818500024
+CMAES_STAGE gen=27 stage=train_phase_begin
+CMAES_STAGE gen=27 stage=build_pairs_begin subset=34
+CMAES_STAGE gen=27 stage=build_pairs_end_train_begin pairs=25 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=27 stage=build_pairs_end pairs=25 lazy_encode=1
+CMAES_STAGE gen=27 stage=train_begin pairs=25 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=27 stage=train_first_batch_encode_begin bs=1 pairs=25
+CMAES_STAGE gen=27 stage=train_first_batch_encode_end bs=1
+CMAES_STAGE gen=27 stage=train_first_step_begin bs=1
+CMAES_STAGE gen=27 stage=train_first_forward_only_begin bs=1
+CMAES_STAGE gen=27 stage=train_first_forward_only_end loss=541.01373291
+CMAES_STAGE gen=27 stage=train_first_step_end
+CMAES_STAGE gen=27 stage=train_progress epoch=0 step=1 max_steps=5 pairs=25 mixer_loss=541.01373291 mixer_loss_avg=541.01373291
+CMAES_STAGE gen=27 stage=train_full_step_begin step=2 bs=22
+CMAES_STAGE gen=27 stage=train_full_zero_grad_begin step=2 bs=22
+CMAES_STAGE gen=27 stage=train_full_zero_grad_end step=2
+CMAES_STAGE gen=27 stage=train_full_backward_begin step=2 bs=22
+CMAES_STAGE gen=27 stage=train_full_backward_end step=2
+CMAES_STAGE gen=27 stage=train_full_scale_begin step=2
+CMAES_STAGE gen=27 stage=train_full_scale_end step=2
+CMAES_STAGE gen=27 stage=train_full_update_begin step=2 optimizer=adamw_matrix
+CMAES_STAGE gen=27 stage=train_full_update_end step=2
+CMAES_STAGE gen=27 stage=train_full_step_end step=2 loss=540.50616455
+CMAES_STAGE gen=27 stage=train_full_step_begin step=3 bs=22
+CMAES_STAGE gen=27 stage=train_full_zero_grad_begin step=3 bs=22
+CMAES_STAGE gen=27 stage=train_full_zero_grad_end step=3
+CMAES_STAGE gen=27 stage=train_full_backward_begin step=3 bs=22
+CMAES_STAGE gen=27 stage=train_full_backward_end step=3
+CMAES_STAGE gen=27 stage=train_full_scale_begin step=3
+CMAES_STAGE gen=27 stage=train_full_scale_end step=3
+CMAES_STAGE gen=27 stage=train_full_update_begin step=3 optimizer=adamw_matrix
+CMAES_STAGE gen=27 stage=train_full_update_end step=3
+CMAES_STAGE gen=27 stage=train_full_step_end step=3 loss=464.15563965
+CMAES_STAGE gen=27 stage=train_progress epoch=0 step=4 max_steps=5 pairs=25 mixer_loss=464.31509399 mixer_loss_avg=502.49765015
+CMAES_STAGE gen=27 stage=train_progress epoch=0 step=5 max_steps=5 pairs=25 mixer_loss=394.06658936 mixer_loss_avg=480.81143188
+CMAES_STAGE gen=27 stage=train_end teacher_pairs=25 subset=109 max_pairs=920 max_steps=5 mixer_loss_avg=480.81143188
+CMAES_STAGE gen=27 stage=offspring_begin children=26 model_active=true model_cap=26 model_kept=26 model_throttled=0
+CMAES_STAGE gen=27 stage=offspring_classical_done model_children=26 classical_children=0
+CMAES_STAGE gen=27 stage=offspring_model_begin candidates=26
+CMAES_STAGE gen=27 stage=offspring_model_encode_begin model_children=26
+CMAES_STAGE gen=27 stage=offspring_model_encode_done model_children=26
+CMAES_STAGE gen=27 stage=offspring_model_predict_begin model_children=26
+CMAES_STAGE gen=27 stage=offspring_model_predict_done model_children=26
+CMAES_STAGE gen=27 stage=offspring_model_decode_begin model_children=26
+CMAES_STAGE gen=27 stage=offspring_model_decode_done model_children=26
+CMAES_STAGE gen=27 stage=offspring_end
+CMAES_STAGE gen=28 stage=eval_begin
+CMAES_STAGE gen=28 stage=eval_first_item_begin i=0 genome_key=4498714278024850367
+CMAES_STAGE gen=28 stage=eval_first_item_end i=0 loss=0.93153335 acc=0.08185000
+CMAES_STAGE gen=28 stage=eval_progress chunk=0 done=1/34
+CMAES_STAGE gen=28 stage=eval_progress chunk=1 done=33/34
+CMAES_STAGE gen=28 stage=eval_progress chunk=2 done=34/34
+CMAES_ACC gen=28 loss=0.9315333465 acc=0.0818500024
+CMAES_STAGE gen=28 stage=train_phase_begin
+CMAES_STAGE gen=28 stage=build_pairs_begin subset=34
+CMAES_STAGE gen=28 stage=build_pairs_end_train_begin pairs=26 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=28 stage=build_pairs_end pairs=26 lazy_encode=1
+CMAES_STAGE gen=28 stage=train_begin pairs=26 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=28 stage=train_first_batch_encode_begin bs=1 pairs=26
+CMAES_STAGE gen=28 stage=train_first_batch_encode_end bs=1
+CMAES_STAGE gen=28 stage=train_first_step_begin bs=1
+CMAES_STAGE gen=28 stage=train_first_forward_only_begin bs=1
+CMAES_STAGE gen=28 stage=train_first_forward_only_end loss=362.00714111
+CMAES_STAGE gen=28 stage=train_first_step_end
+CMAES_STAGE gen=28 stage=train_progress epoch=0 step=1 max_steps=5 pairs=26 mixer_loss=362.00714111 mixer_loss_avg=362.00714111
+CMAES_STAGE gen=28 stage=train_full_step_begin step=2 bs=22
+CMAES_STAGE gen=28 stage=train_full_zero_grad_begin step=2 bs=22
+CMAES_STAGE gen=28 stage=train_full_zero_grad_end step=2
+CMAES_STAGE gen=28 stage=train_full_backward_begin step=2 bs=22
+CMAES_STAGE gen=28 stage=train_full_backward_end step=2
+CMAES_STAGE gen=28 stage=train_full_scale_begin step=2
+CMAES_STAGE gen=28 stage=train_full_scale_end step=2
+CMAES_STAGE gen=28 stage=train_full_update_begin step=2 optimizer=adamw_matrix
+CMAES_STAGE gen=28 stage=train_full_update_end step=2
+CMAES_STAGE gen=28 stage=train_full_step_end step=2 loss=342.09201050
+CMAES_STAGE gen=28 stage=train_full_step_begin step=3 bs=22
+CMAES_STAGE gen=28 stage=train_full_zero_grad_begin step=3 bs=22
+CMAES_STAGE gen=28 stage=train_full_zero_grad_end step=3
+CMAES_STAGE gen=28 stage=train_full_backward_begin step=3 bs=22
+CMAES_STAGE gen=28 stage=train_full_backward_end step=3
+CMAES_STAGE gen=28 stage=train_full_scale_begin step=3
+CMAES_STAGE gen=28 stage=train_full_scale_end step=3
+CMAES_STAGE gen=28 stage=train_full_update_begin step=3 optimizer=adamw_matrix
+CMAES_STAGE gen=28 stage=train_full_update_end step=3
+CMAES_STAGE gen=28 stage=train_full_step_end step=3 loss=352.48327637
+CMAES_STAGE gen=28 stage=train_progress epoch=0 step=4 max_steps=5 pairs=26 mixer_loss=240.77507019 mixer_loss_avg=324.33935547
+CMAES_STAGE gen=28 stage=train_progress epoch=0 step=5 max_steps=5 pairs=26 mixer_loss=270.19638062 mixer_loss_avg=313.51077271
+CMAES_STAGE gen=28 stage=train_end teacher_pairs=26 subset=109 max_pairs=920 max_steps=5 mixer_loss_avg=313.51077271
+CMAES_STAGE gen=28 stage=offspring_begin children=26 model_active=true model_cap=26 model_kept=24 model_throttled=0
+CMAES_STAGE gen=28 stage=offspring_classical_done model_children=24 classical_children=2
+CMAES_STAGE gen=28 stage=offspring_model_begin candidates=26
+CMAES_STAGE gen=28 stage=offspring_model_encode_begin model_children=24
+CMAES_STAGE gen=28 stage=offspring_model_encode_done model_children=24
+CMAES_STAGE gen=28 stage=offspring_model_predict_begin model_children=24
+CMAES_STAGE gen=28 stage=offspring_model_predict_done model_children=24
+CMAES_STAGE gen=28 stage=offspring_model_decode_begin model_children=24
+CMAES_STAGE gen=28 stage=offspring_model_decode_done model_children=24
+CMAES_STAGE gen=28 stage=offspring_end
+CMAES_STAGE gen=29 stage=eval_begin
+CMAES_STAGE gen=29 stage=eval_first_item_begin i=0 genome_key=1863651352249253410
+CMAES_STAGE gen=29 stage=eval_first_item_end i=0 loss=0.93153335 acc=0.08185000
+CMAES_STAGE gen=29 stage=eval_progress chunk=0 done=1/34
+CMAES_STAGE gen=29 stage=eval_progress chunk=1 done=33/34
+CMAES_STAGE gen=29 stage=eval_progress chunk=2 done=34/34
+CMAES_ACC gen=29 loss=0.9315333465 acc=0.0818500024
+CMAES_STAGE gen=29 stage=train_phase_begin
+CMAES_STAGE gen=29 stage=build_pairs_begin subset=34
+CMAES_STAGE gen=29 stage=build_pairs_end_train_begin pairs=24 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=29 stage=build_pairs_end pairs=24 lazy_encode=1
+CMAES_STAGE gen=29 stage=train_begin pairs=24 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=29 stage=train_first_batch_encode_begin bs=1 pairs=24
+CMAES_STAGE gen=29 stage=train_first_batch_encode_end bs=1
+CMAES_STAGE gen=29 stage=train_first_step_begin bs=1
+CMAES_STAGE gen=29 stage=train_first_forward_only_begin bs=1
+CMAES_STAGE gen=29 stage=train_first_forward_only_end loss=267.54656982
+CMAES_STAGE gen=29 stage=train_first_step_end
+CMAES_STAGE gen=29 stage=train_progress epoch=0 step=1 max_steps=5 pairs=24 mixer_loss=267.54656982 mixer_loss_avg=267.54656982
+CMAES_STAGE gen=29 stage=train_full_step_begin step=2 bs=22
+CMAES_STAGE gen=29 stage=train_full_zero_grad_begin step=2 bs=22
+CMAES_STAGE gen=29 stage=train_full_zero_grad_end step=2
+CMAES_STAGE gen=29 stage=train_full_backward_begin step=2 bs=22
+CMAES_STAGE gen=29 stage=train_full_backward_end step=2
+CMAES_STAGE gen=29 stage=train_full_scale_begin step=2
+CMAES_STAGE gen=29 stage=train_full_scale_end step=2
+CMAES_STAGE gen=29 stage=train_full_update_begin step=2 optimizer=adamw_matrix
+CMAES_STAGE gen=29 stage=train_full_update_end step=2
+CMAES_STAGE gen=29 stage=train_full_step_end step=2 loss=266.79086304
+CMAES_STAGE gen=29 stage=train_full_step_begin step=3 bs=22
+CMAES_STAGE gen=29 stage=train_full_zero_grad_begin step=3 bs=22
+CMAES_STAGE gen=29 stage=train_full_zero_grad_end step=3
+CMAES_STAGE gen=29 stage=train_full_backward_begin step=3 bs=22
+CMAES_STAGE gen=29 stage=train_full_backward_end step=3
+CMAES_STAGE gen=29 stage=train_full_scale_begin step=3
+CMAES_STAGE gen=29 stage=train_full_scale_end step=3
+CMAES_STAGE gen=29 stage=train_full_update_begin step=3 optimizer=adamw_matrix
+CMAES_STAGE gen=29 stage=train_full_update_end step=3
+CMAES_STAGE gen=29 stage=train_full_step_end step=3 loss=289.06036377
+CMAES_STAGE gen=29 stage=train_progress epoch=0 step=4 max_steps=5 pairs=24 mixer_loss=204.45614624 mixer_loss_avg=256.96347046
+CMAES_STAGE gen=29 stage=train_progress epoch=0 step=5 max_steps=5 pairs=24 mixer_loss=175.15162659 mixer_loss_avg=240.60110474
+CMAES_STAGE gen=29 stage=train_end teacher_pairs=24 subset=109 max_pairs=920 max_steps=5 mixer_loss_avg=240.60110474
+CMAES_STAGE gen=29 stage=offspring_begin children=26 model_active=true model_cap=26 model_kept=26 model_throttled=0
+CMAES_STAGE gen=29 stage=offspring_classical_done model_children=26 classical_children=0
+CMAES_STAGE gen=29 stage=offspring_model_begin candidates=26
+CMAES_STAGE gen=29 stage=offspring_model_encode_begin model_children=26
+CMAES_STAGE gen=29 stage=offspring_model_encode_done model_children=26
+CMAES_STAGE gen=29 stage=offspring_model_predict_begin model_children=26
+CMAES_STAGE gen=29 stage=offspring_model_predict_done model_children=26
+CMAES_STAGE gen=29 stage=offspring_model_decode_begin model_children=26
+CMAES_STAGE gen=29 stage=offspring_model_decode_done model_children=26
+CMAES_STAGE gen=29 stage=offspring_end
+CMAES_STAGE gen=30 stage=eval_begin
+CMAES_STAGE gen=30 stage=eval_first_item_begin i=0 genome_key=6246765617425403189
+CMAES_STAGE gen=30 stage=eval_first_item_end i=0 loss=0.93153335 acc=0.08185000
+CMAES_STAGE gen=30 stage=eval_progress chunk=0 done=1/34
+CMAES_STAGE gen=30 stage=eval_progress chunk=1 done=33/34
+CMAES_STAGE gen=30 stage=eval_progress chunk=2 done=34/34
+CMAES_ACC gen=30 loss=0.9315333465 acc=0.0818500024
+CMAES_STAGE gen=30 stage=train_phase_begin
+CMAES_STAGE gen=30 stage=build_pairs_begin subset=34
+CMAES_STAGE gen=30 stage=build_pairs_end_train_begin pairs=26 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=30 stage=build_pairs_end pairs=26 lazy_encode=1
+CMAES_STAGE gen=30 stage=train_begin pairs=26 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=30 stage=train_first_batch_encode_begin bs=1 pairs=26
+CMAES_STAGE gen=30 stage=train_first_batch_encode_end bs=1
+CMAES_STAGE gen=30 stage=train_first_step_begin bs=1
+CMAES_STAGE gen=30 stage=train_first_forward_only_begin bs=1
+CMAES_STAGE gen=30 stage=train_first_forward_only_end loss=950.08398438
+CMAES_STAGE gen=30 stage=train_first_step_end
+CMAES_STAGE gen=30 stage=train_progress epoch=0 step=1 max_steps=5 pairs=26 mixer_loss=950.08398438 mixer_loss_avg=950.08398438
+CMAES_STAGE gen=30 stage=train_full_step_begin step=2 bs=22
+CMAES_STAGE gen=30 stage=train_full_zero_grad_begin step=2 bs=22
+CMAES_STAGE gen=30 stage=train_full_zero_grad_end step=2
+CMAES_STAGE gen=30 stage=train_full_backward_begin step=2 bs=22
+CMAES_STAGE gen=30 stage=train_full_backward_end step=2
+CMAES_STAGE gen=30 stage=train_full_scale_begin step=2
+CMAES_STAGE gen=30 stage=train_full_scale_end step=2
+CMAES_STAGE gen=30 stage=train_full_update_begin step=2 optimizer=adamw_matrix
+CMAES_STAGE gen=30 stage=train_full_update_end step=2
+CMAES_STAGE gen=30 stage=train_full_step_end step=2 loss=303.01177979
+CMAES_STAGE gen=30 stage=train_full_step_begin step=3 bs=22
+CMAES_STAGE gen=30 stage=train_full_zero_grad_begin step=3 bs=22
+CMAES_STAGE gen=30 stage=train_full_zero_grad_end step=3
+CMAES_STAGE gen=30 stage=train_full_backward_begin step=3 bs=22
+CMAES_STAGE gen=30 stage=train_full_backward_end step=3
+CMAES_STAGE gen=30 stage=train_full_scale_begin step=3
+CMAES_STAGE gen=30 stage=train_full_scale_end step=3
+CMAES_STAGE gen=30 stage=train_full_update_begin step=3 optimizer=adamw_matrix
+CMAES_STAGE gen=30 stage=train_full_update_end step=3
+CMAES_STAGE gen=30 stage=train_full_step_end step=3 loss=372.87435913
+CMAES_STAGE gen=30 stage=train_progress epoch=0 step=4 max_steps=5 pairs=26 mixer_loss=507.36511230 mixer_loss_avg=533.33380127
+CMAES_STAGE gen=30 stage=train_progress epoch=0 step=5 max_steps=5 pairs=26 mixer_loss=1324.79394531 mixer_loss_avg=691.62585449
+CMAES_STAGE gen=30 stage=train_end teacher_pairs=26 subset=109 max_pairs=920 max_steps=5 mixer_loss_avg=691.62585449
+CMAES_STAGE gen=30 stage=offspring_begin children=26 model_active=true model_cap=26 model_kept=25 model_throttled=0
+CMAES_STAGE gen=30 stage=offspring_classical_done model_children=25 classical_children=1
+CMAES_STAGE gen=30 stage=offspring_model_begin candidates=26
+CMAES_STAGE gen=30 stage=offspring_model_encode_begin model_children=25
+CMAES_STAGE gen=30 stage=offspring_model_encode_done model_children=25
+CMAES_STAGE gen=30 stage=offspring_model_predict_begin model_children=25
+CMAES_STAGE gen=30 stage=offspring_model_predict_done model_children=25
+CMAES_STAGE gen=30 stage=offspring_model_decode_begin model_children=25
+CMAES_STAGE gen=30 stage=offspring_model_decode_done model_children=25
+CMAES_STAGE gen=30 stage=offspring_end
+CMAES_STAGE gen=31 stage=eval_begin
+CMAES_STAGE gen=31 stage=eval_first_item_begin i=0 genome_key=6246765617425403189
+CMAES_STAGE gen=31 stage=eval_first_item_end i=0 loss=0.93153335 acc=0.08185000
+CMAES_STAGE gen=31 stage=eval_progress chunk=0 done=1/34
+CMAES_STAGE gen=31 stage=eval_progress chunk=1 done=33/34
+CMAES_STAGE gen=31 stage=eval_progress chunk=2 done=34/34
+CMAES_ACC gen=31 loss=0.9315333465 acc=0.0818500024
+CMAES_STAGE gen=31 stage=train_phase_begin
+CMAES_STAGE gen=31 stage=build_pairs_begin subset=34
+CMAES_STAGE gen=31 stage=build_pairs_end_train_begin pairs=25 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=31 stage=build_pairs_end pairs=25 lazy_encode=1
+CMAES_STAGE gen=31 stage=train_begin pairs=25 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=31 stage=train_first_batch_encode_begin bs=1 pairs=25
+CMAES_STAGE gen=31 stage=train_first_batch_encode_end bs=1
+CMAES_STAGE gen=31 stage=train_first_step_begin bs=1
+CMAES_STAGE gen=31 stage=train_first_forward_only_begin bs=1
+CMAES_STAGE gen=31 stage=train_first_forward_only_end loss=579.38452148
+CMAES_STAGE gen=31 stage=train_first_step_end
+CMAES_STAGE gen=31 stage=train_progress epoch=0 step=1 max_steps=5 pairs=25 mixer_loss=579.38452148 mixer_loss_avg=579.38452148
+CMAES_STAGE gen=31 stage=train_full_step_begin step=2 bs=22
+CMAES_STAGE gen=31 stage=train_full_zero_grad_begin step=2 bs=22
+CMAES_STAGE gen=31 stage=train_full_zero_grad_end step=2
+CMAES_STAGE gen=31 stage=train_full_backward_begin step=2 bs=22
+CMAES_STAGE gen=31 stage=train_full_backward_end step=2
+CMAES_STAGE gen=31 stage=train_full_scale_begin step=2
+CMAES_STAGE gen=31 stage=train_full_scale_end step=2
+CMAES_STAGE gen=31 stage=train_full_update_begin step=2 optimizer=adamw_matrix
+CMAES_STAGE gen=31 stage=train_full_update_end step=2
+CMAES_STAGE gen=31 stage=train_full_step_end step=2 loss=579.26428223
+CMAES_STAGE gen=31 stage=train_full_step_begin step=3 bs=22
+CMAES_STAGE gen=31 stage=train_full_zero_grad_begin step=3 bs=22
+CMAES_STAGE gen=31 stage=train_full_zero_grad_end step=3
+CMAES_STAGE gen=31 stage=train_full_backward_begin step=3 bs=22
+CMAES_STAGE gen=31 stage=train_full_backward_end step=3
+CMAES_STAGE gen=31 stage=train_full_scale_begin step=3
+CMAES_STAGE gen=31 stage=train_full_scale_end step=3
+CMAES_STAGE gen=31 stage=train_full_update_begin step=3 optimizer=adamw_matrix
+CMAES_STAGE gen=31 stage=train_full_update_end step=3
+CMAES_STAGE gen=31 stage=train_full_step_end step=3 loss=653.26464844
+CMAES_STAGE gen=31 stage=train_progress epoch=0 step=4 max_steps=5 pairs=25 mixer_loss=667.08203125 mixer_loss_avg=619.74890137
+CMAES_STAGE gen=31 stage=train_progress epoch=0 step=5 max_steps=5 pairs=25 mixer_loss=601.13793945 mixer_loss_avg=616.02673340
+CMAES_STAGE gen=31 stage=train_end teacher_pairs=25 subset=109 max_pairs=920 max_steps=5 mixer_loss_avg=616.02673340
+CMAES_STAGE gen=31 stage=offspring_begin children=26 model_active=true model_cap=26 model_kept=25 model_throttled=0
+CMAES_STAGE gen=31 stage=offspring_classical_done model_children=25 classical_children=1
+CMAES_STAGE gen=31 stage=offspring_model_begin candidates=26
+CMAES_STAGE gen=31 stage=offspring_model_encode_begin model_children=25
+CMAES_STAGE gen=31 stage=offspring_model_encode_done model_children=25
+CMAES_STAGE gen=31 stage=offspring_model_predict_begin model_children=25
+CMAES_STAGE gen=31 stage=offspring_model_predict_done model_children=25
+CMAES_STAGE gen=31 stage=offspring_model_decode_begin model_children=25
+CMAES_STAGE gen=31 stage=offspring_model_decode_done model_children=25
+CMAES_STAGE gen=31 stage=offspring_end
+CMAES_STAGE gen=32 stage=eval_begin
+CMAES_STAGE gen=32 stage=eval_first_item_begin i=0 genome_key=6246765617425403189
+CMAES_STAGE gen=32 stage=eval_first_item_end i=0 loss=0.93153335 acc=0.08185000
+CMAES_STAGE gen=32 stage=eval_progress chunk=0 done=1/34
+CMAES_STAGE gen=32 stage=eval_progress chunk=1 done=33/34
+CMAES_STAGE gen=32 stage=eval_progress chunk=2 done=34/34
+CMAES_ACC gen=32 loss=0.9315333465 acc=0.0818500024
+CMAES_STAGE gen=32 stage=train_phase_begin
+CMAES_STAGE gen=32 stage=build_pairs_begin subset=34
+CMAES_STAGE gen=32 stage=build_pairs_end_train_begin pairs=25 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=32 stage=build_pairs_end pairs=25 lazy_encode=1
+CMAES_STAGE gen=32 stage=train_begin pairs=25 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=32 stage=train_first_batch_encode_begin bs=1 pairs=25
+CMAES_STAGE gen=32 stage=train_first_batch_encode_end bs=1
+CMAES_STAGE gen=32 stage=train_first_step_begin bs=1
+CMAES_STAGE gen=32 stage=train_first_forward_only_begin bs=1
+CMAES_STAGE gen=32 stage=train_first_forward_only_end loss=570.34838867
+CMAES_STAGE gen=32 stage=train_first_step_end
+CMAES_STAGE gen=32 stage=train_progress epoch=0 step=1 max_steps=5 pairs=25 mixer_loss=570.34838867 mixer_loss_avg=570.34838867
+CMAES_STAGE gen=32 stage=train_full_step_begin step=2 bs=22
+CMAES_STAGE gen=32 stage=train_full_zero_grad_begin step=2 bs=22
+CMAES_STAGE gen=32 stage=train_full_zero_grad_end step=2
+CMAES_STAGE gen=32 stage=train_full_backward_begin step=2 bs=22
+CMAES_STAGE gen=32 stage=train_full_backward_end step=2
+CMAES_STAGE gen=32 stage=train_full_scale_begin step=2
+CMAES_STAGE gen=32 stage=train_full_scale_end step=2
+CMAES_STAGE gen=32 stage=train_full_update_begin step=2 optimizer=adamw_matrix
+CMAES_STAGE gen=32 stage=train_full_update_end step=2
+CMAES_STAGE gen=32 stage=train_full_step_end step=2 loss=570.51092529
+CMAES_STAGE gen=32 stage=train_full_step_begin step=3 bs=22
+CMAES_STAGE gen=32 stage=train_full_zero_grad_begin step=3 bs=22
+CMAES_STAGE gen=32 stage=train_full_zero_grad_end step=3
+CMAES_STAGE gen=32 stage=train_full_backward_begin step=3 bs=22
+CMAES_STAGE gen=32 stage=train_full_backward_end step=3
+CMAES_STAGE gen=32 stage=train_full_scale_begin step=3
+CMAES_STAGE gen=32 stage=train_full_scale_end step=3
+CMAES_STAGE gen=32 stage=train_full_update_begin step=3 optimizer=adamw_matrix
+CMAES_STAGE gen=32 stage=train_full_update_end step=3
+CMAES_STAGE gen=32 stage=train_full_step_end step=3 loss=532.79284668
+CMAES_STAGE gen=32 stage=train_progress epoch=0 step=4 max_steps=5 pairs=25 mixer_loss=475.27215576 mixer_loss_avg=537.23107910
+CMAES_STAGE gen=32 stage=train_progress epoch=0 step=5 max_steps=5 pairs=25 mixer_loss=441.64694214 mixer_loss_avg=518.11425781
+CMAES_STAGE gen=32 stage=train_end teacher_pairs=25 subset=109 max_pairs=920 max_steps=5 mixer_loss_avg=518.11425781
+CMAES_STAGE gen=32 stage=offspring_begin children=26 model_active=true model_cap=26 model_kept=26 model_throttled=0
+CMAES_STAGE gen=32 stage=offspring_classical_done model_children=26 classical_children=0
+CMAES_STAGE gen=32 stage=offspring_model_begin candidates=26
+CMAES_STAGE gen=32 stage=offspring_model_encode_begin model_children=26
+CMAES_STAGE gen=32 stage=offspring_model_encode_done model_children=26
+CMAES_STAGE gen=32 stage=offspring_model_predict_begin model_children=26
+CMAES_STAGE gen=32 stage=offspring_model_predict_done model_children=26
+CMAES_STAGE gen=32 stage=offspring_model_decode_begin model_children=26
+CMAES_STAGE gen=32 stage=offspring_model_decode_done model_children=26
+CMAES_STAGE gen=32 stage=offspring_end
+CMAES_STAGE gen=33 stage=eval_begin
+CMAES_STAGE gen=33 stage=eval_first_item_begin i=0 genome_key=9645013351860548085
+CMAES_STAGE gen=33 stage=eval_first_item_end i=0 loss=0.93153335 acc=0.08185000
+CMAES_STAGE gen=33 stage=eval_progress chunk=0 done=1/34
+CMAES_STAGE gen=33 stage=eval_progress chunk=1 done=33/34
+CMAES_STAGE gen=33 stage=eval_progress chunk=2 done=34/34
+CMAES_ACC gen=33 loss=0.9315333465 acc=0.0818500024
+CMAES_STAGE gen=33 stage=train_phase_begin
+CMAES_STAGE gen=33 stage=build_pairs_begin subset=34
+CMAES_STAGE gen=33 stage=build_pairs_end_train_begin pairs=26 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=33 stage=build_pairs_end pairs=26 lazy_encode=1
+CMAES_STAGE gen=33 stage=train_begin pairs=26 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=33 stage=train_first_batch_encode_begin bs=1 pairs=26
+CMAES_STAGE gen=33 stage=train_first_batch_encode_end bs=1
+CMAES_STAGE gen=33 stage=train_first_step_begin bs=1
+CMAES_STAGE gen=33 stage=train_first_forward_only_begin bs=1
+CMAES_STAGE gen=33 stage=train_first_forward_only_end loss=6769.82031250
+CMAES_STAGE gen=33 stage=train_first_step_end
+CMAES_STAGE gen=33 stage=train_progress epoch=0 step=1 max_steps=5 pairs=26 mixer_loss=6769.82031250 mixer_loss_avg=6769.82031250
+CMAES_STAGE gen=33 stage=train_full_step_begin step=2 bs=22
+CMAES_STAGE gen=33 stage=train_full_zero_grad_begin step=2 bs=22
+CMAES_STAGE gen=33 stage=train_full_zero_grad_end step=2
+CMAES_STAGE gen=33 stage=train_full_backward_begin step=2 bs=22
+CMAES_STAGE gen=33 stage=train_full_backward_end step=2
+CMAES_STAGE gen=33 stage=train_full_scale_begin step=2
+CMAES_STAGE gen=33 stage=train_full_scale_end step=2
+CMAES_STAGE gen=33 stage=train_full_update_begin step=2 optimizer=adamw_matrix
+CMAES_STAGE gen=33 stage=train_full_update_end step=2
+CMAES_STAGE gen=33 stage=train_full_step_end step=2 loss=8623.47851562
+CMAES_STAGE gen=33 stage=train_full_step_begin step=3 bs=22
+CMAES_STAGE gen=33 stage=train_full_zero_grad_begin step=3 bs=22
+CMAES_STAGE gen=33 stage=train_full_zero_grad_end step=3
+CMAES_STAGE gen=33 stage=train_full_backward_begin step=3 bs=22
+CMAES_STAGE gen=33 stage=train_full_backward_end step=3
+CMAES_STAGE gen=33 stage=train_full_scale_begin step=3
+CMAES_STAGE gen=33 stage=train_full_scale_end step=3
+CMAES_STAGE gen=33 stage=train_full_update_begin step=3 optimizer=adamw_matrix
+CMAES_STAGE gen=33 stage=train_full_update_end step=3
+CMAES_STAGE gen=33 stage=train_full_step_end step=3 loss=2887.69653320
+CMAES_STAGE gen=33 stage=train_progress epoch=0 step=4 max_steps=5 pairs=26 mixer_loss=2865.17944336 mixer_loss_avg=5286.54394531
+CMAES_STAGE gen=33 stage=train_progress epoch=0 step=5 max_steps=5 pairs=26 mixer_loss=1897.31970215 mixer_loss_avg=4608.69921875
+CMAES_STAGE gen=33 stage=train_end teacher_pairs=26 subset=109 max_pairs=920 max_steps=5 mixer_loss_avg=4608.69921875
+CMAES_STAGE gen=33 stage=offspring_begin children=26 model_active=true model_cap=26 model_kept=26 model_throttled=0
+CMAES_STAGE gen=33 stage=offspring_classical_done model_children=26 classical_children=0
+CMAES_STAGE gen=33 stage=offspring_model_begin candidates=26
+CMAES_STAGE gen=33 stage=offspring_model_encode_begin model_children=26
+CMAES_STAGE gen=33 stage=offspring_model_encode_done model_children=26
+CMAES_STAGE gen=33 stage=offspring_model_predict_begin model_children=26
+CMAES_STAGE gen=33 stage=offspring_model_predict_done model_children=26
+CMAES_STAGE gen=33 stage=offspring_model_decode_begin model_children=26
+CMAES_STAGE gen=33 stage=offspring_model_decode_done model_children=26
+CMAES_STAGE gen=33 stage=offspring_end
+CMAES_STAGE gen=34 stage=eval_begin
+CMAES_STAGE gen=34 stage=eval_first_item_begin i=0 genome_key=6246765617425403189
+CMAES_STAGE gen=34 stage=eval_first_item_end i=0 loss=0.93153335 acc=0.08185000
+CMAES_STAGE gen=34 stage=eval_progress chunk=0 done=1/34
+CMAES_STAGE gen=34 stage=eval_progress chunk=1 done=33/34
+CMAES_STAGE gen=34 stage=eval_progress chunk=2 done=34/34
+CMAES_ACC gen=34 loss=0.9315333465 acc=0.0818500024
+CMAES_STAGE gen=34 stage=train_phase_begin
+CMAES_STAGE gen=34 stage=build_pairs_begin subset=34
+CMAES_STAGE gen=34 stage=build_pairs_end_train_begin pairs=26 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=34 stage=build_pairs_end pairs=26 lazy_encode=1
+CMAES_STAGE gen=34 stage=train_begin pairs=26 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=34 stage=train_first_batch_encode_begin bs=1 pairs=26
+CMAES_STAGE gen=34 stage=train_first_batch_encode_end bs=1
+CMAES_STAGE gen=34 stage=train_first_step_begin bs=1
+CMAES_STAGE gen=34 stage=train_first_forward_only_begin bs=1
+CMAES_STAGE gen=34 stage=train_first_forward_only_end loss=1296.73620605
+CMAES_STAGE gen=34 stage=train_first_step_end
+CMAES_STAGE gen=34 stage=train_progress epoch=0 step=1 max_steps=5 pairs=26 mixer_loss=1296.73620605 mixer_loss_avg=1296.73620605
+CMAES_STAGE gen=34 stage=train_full_step_begin step=2 bs=22
+CMAES_STAGE gen=34 stage=train_full_zero_grad_begin step=2 bs=22
+CMAES_STAGE gen=34 stage=train_full_zero_grad_end step=2
+CMAES_STAGE gen=34 stage=train_full_backward_begin step=2 bs=22
+CMAES_STAGE gen=34 stage=train_full_backward_end step=2
+CMAES_STAGE gen=34 stage=train_full_scale_begin step=2
+CMAES_STAGE gen=34 stage=train_full_scale_end step=2
+CMAES_STAGE gen=34 stage=train_full_update_begin step=2 optimizer=adamw_matrix
+CMAES_STAGE gen=34 stage=train_full_update_end step=2
+CMAES_STAGE gen=34 stage=train_full_step_end step=2 loss=1297.04821777
+CMAES_STAGE gen=34 stage=train_full_step_begin step=3 bs=22
+CMAES_STAGE gen=34 stage=train_full_zero_grad_begin step=3 bs=22
+CMAES_STAGE gen=34 stage=train_full_zero_grad_end step=3
+CMAES_STAGE gen=34 stage=train_full_backward_begin step=3 bs=22
+CMAES_STAGE gen=34 stage=train_full_backward_end step=3
+CMAES_STAGE gen=34 stage=train_full_scale_begin step=3
+CMAES_STAGE gen=34 stage=train_full_scale_end step=3
+CMAES_STAGE gen=34 stage=train_full_update_begin step=3 optimizer=adamw_matrix
+CMAES_STAGE gen=34 stage=train_full_update_end step=3
+CMAES_STAGE gen=34 stage=train_full_step_end step=3 loss=809.77929688
+CMAES_STAGE gen=34 stage=train_progress epoch=0 step=4 max_steps=5 pairs=26 mixer_loss=736.83825684 mixer_loss_avg=1035.10046387
+CMAES_STAGE gen=34 stage=train_progress epoch=0 step=5 max_steps=5 pairs=26 mixer_loss=701.41662598 mixer_loss_avg=968.36364746
+CMAES_STAGE gen=34 stage=train_end teacher_pairs=26 subset=109 max_pairs=920 max_steps=5 mixer_loss_avg=968.36364746
+CMAES_STAGE gen=34 stage=offspring_begin children=26 model_active=true model_cap=26 model_kept=26 model_throttled=0
+CMAES_STAGE gen=34 stage=offspring_classical_done model_children=26 classical_children=0
+CMAES_STAGE gen=34 stage=offspring_model_begin candidates=26
+CMAES_STAGE gen=34 stage=offspring_model_encode_begin model_children=26
+CMAES_STAGE gen=34 stage=offspring_model_encode_done model_children=26
+CMAES_STAGE gen=34 stage=offspring_model_predict_begin model_children=26
+CMAES_STAGE gen=34 stage=offspring_model_predict_done model_children=26
+CMAES_STAGE gen=34 stage=offspring_model_decode_begin model_children=26
+CMAES_STAGE gen=34 stage=offspring_model_decode_done model_children=26
+CMAES_STAGE gen=34 stage=offspring_end
+CMAES_STAGE gen=35 stage=eval_begin
+CMAES_STAGE gen=35 stage=eval_first_item_begin i=0 genome_key=13912363324662261138
+CMAES_STAGE gen=35 stage=eval_first_item_end i=0 loss=0.93153335 acc=0.08185000
+CMAES_STAGE gen=35 stage=eval_progress chunk=0 done=1/34
+CMAES_STAGE gen=35 stage=eval_progress chunk=1 done=33/34
+CMAES_STAGE gen=35 stage=eval_progress chunk=2 done=34/34
+CMAES_ACC gen=35 loss=0.9315333465 acc=0.0818500024
+CMAES_STAGE gen=35 stage=train_phase_begin
+CMAES_STAGE gen=35 stage=build_pairs_begin subset=34
+CMAES_STAGE gen=35 stage=build_pairs_end_train_begin pairs=26 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=35 stage=build_pairs_end pairs=26 lazy_encode=1
+CMAES_STAGE gen=35 stage=train_begin pairs=26 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=35 stage=train_first_batch_encode_begin bs=1 pairs=26
+CMAES_STAGE gen=35 stage=train_first_batch_encode_end bs=1
+CMAES_STAGE gen=35 stage=train_first_step_begin bs=1
+CMAES_STAGE gen=35 stage=train_first_forward_only_begin bs=1
+CMAES_STAGE gen=35 stage=train_first_forward_only_end loss=772.68908691
+CMAES_STAGE gen=35 stage=train_first_step_end
+CMAES_STAGE gen=35 stage=train_progress epoch=0 step=1 max_steps=5 pairs=26 mixer_loss=772.68908691 mixer_loss_avg=772.68908691
+CMAES_STAGE gen=35 stage=train_full_step_begin step=2 bs=22
+CMAES_STAGE gen=35 stage=train_full_zero_grad_begin step=2 bs=22
+CMAES_STAGE gen=35 stage=train_full_zero_grad_end step=2
+CMAES_STAGE gen=35 stage=train_full_backward_begin step=2 bs=22
+CMAES_STAGE gen=35 stage=train_full_backward_end step=2
+CMAES_STAGE gen=35 stage=train_full_scale_begin step=2
+CMAES_STAGE gen=35 stage=train_full_scale_end step=2
+CMAES_STAGE gen=35 stage=train_full_update_begin step=2 optimizer=adamw_matrix
+CMAES_STAGE gen=35 stage=train_full_update_end step=2
+CMAES_STAGE gen=35 stage=train_full_step_end step=2 loss=772.21777344
+CMAES_STAGE gen=35 stage=train_full_step_begin step=3 bs=22
+CMAES_STAGE gen=35 stage=train_full_zero_grad_begin step=3 bs=22
+CMAES_STAGE gen=35 stage=train_full_zero_grad_end step=3
+CMAES_STAGE gen=35 stage=train_full_backward_begin step=3 bs=22
+CMAES_STAGE gen=35 stage=train_full_backward_end step=3
+CMAES_STAGE gen=35 stage=train_full_scale_begin step=3
+CMAES_STAGE gen=35 stage=train_full_scale_end step=3
+CMAES_STAGE gen=35 stage=train_full_update_begin step=3 optimizer=adamw_matrix
+CMAES_STAGE gen=35 stage=train_full_update_end step=3
+CMAES_STAGE gen=35 stage=train_full_step_end step=3 loss=569.25494385
+CMAES_STAGE gen=35 stage=train_progress epoch=0 step=4 max_steps=5 pairs=26 mixer_loss=593.83996582 mixer_loss_avg=677.00048828
+CMAES_STAGE gen=35 stage=train_progress epoch=0 step=5 max_steps=5 pairs=26 mixer_loss=540.59960938 mixer_loss_avg=649.72033691
+CMAES_STAGE gen=35 stage=train_end teacher_pairs=26 subset=109 max_pairs=920 max_steps=5 mixer_loss_avg=649.72033691
+CMAES_STAGE gen=35 stage=offspring_begin children=26 model_active=true model_cap=26 model_kept=25 model_throttled=0
+CMAES_STAGE gen=35 stage=offspring_classical_done model_children=25 classical_children=1
+CMAES_STAGE gen=35 stage=offspring_model_begin candidates=26
+CMAES_STAGE gen=35 stage=offspring_model_encode_begin model_children=25
+CMAES_STAGE gen=35 stage=offspring_model_encode_done model_children=25
+CMAES_STAGE gen=35 stage=offspring_model_predict_begin model_children=25
+CMAES_STAGE gen=35 stage=offspring_model_predict_done model_children=25
+CMAES_STAGE gen=35 stage=offspring_model_decode_begin model_children=25
+CMAES_STAGE gen=35 stage=offspring_model_decode_done model_children=25
+CMAES_STAGE gen=35 stage=offspring_end
+CMAES_STAGE gen=36 stage=eval_begin
+CMAES_STAGE gen=36 stage=eval_first_item_begin i=0 genome_key=4498714278024850367
+CMAES_STAGE gen=36 stage=eval_first_item_end i=0 loss=0.93153335 acc=0.08185000
+CMAES_STAGE gen=36 stage=eval_progress chunk=0 done=1/34
+CMAES_STAGE gen=36 stage=eval_progress chunk=1 done=33/34
+CMAES_STAGE gen=36 stage=eval_progress chunk=2 done=34/34
+CMAES_ACC gen=36 loss=0.9315333465 acc=0.0818500024
+CMAES_STAGE gen=36 stage=train_phase_begin
+CMAES_STAGE gen=36 stage=build_pairs_begin subset=34
+CMAES_STAGE gen=36 stage=build_pairs_end_train_begin pairs=26 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=36 stage=build_pairs_end pairs=26 lazy_encode=1
+CMAES_STAGE gen=36 stage=train_begin pairs=26 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=36 stage=train_first_batch_encode_begin bs=1 pairs=26
+CMAES_STAGE gen=36 stage=train_first_batch_encode_end bs=1
+CMAES_STAGE gen=36 stage=train_first_step_begin bs=1
+CMAES_STAGE gen=36 stage=train_first_forward_only_begin bs=1
+CMAES_STAGE gen=36 stage=train_first_forward_only_end loss=1623.77783203
+CMAES_STAGE gen=36 stage=train_first_step_end
+CMAES_STAGE gen=36 stage=train_progress epoch=0 step=1 max_steps=5 pairs=26 mixer_loss=1623.77783203 mixer_loss_avg=1623.77783203
+CMAES_STAGE gen=36 stage=train_full_step_begin step=2 bs=22
+CMAES_STAGE gen=36 stage=train_full_zero_grad_begin step=2 bs=22
+CMAES_STAGE gen=36 stage=train_full_zero_grad_end step=2
+CMAES_STAGE gen=36 stage=train_full_backward_begin step=2 bs=22
+CMAES_STAGE gen=36 stage=train_full_backward_end step=2
+CMAES_STAGE gen=36 stage=train_full_scale_begin step=2
+CMAES_STAGE gen=36 stage=train_full_scale_end step=2
+CMAES_STAGE gen=36 stage=train_full_update_begin step=2 optimizer=adamw_matrix
+CMAES_STAGE gen=36 stage=train_full_update_end step=2
+CMAES_STAGE gen=36 stage=train_full_step_end step=2 loss=8280.22363281
+CMAES_STAGE gen=36 stage=train_full_step_begin step=3 bs=22
+CMAES_STAGE gen=36 stage=train_full_zero_grad_begin step=3 bs=22
+CMAES_STAGE gen=36 stage=train_full_zero_grad_end step=3
+CMAES_STAGE gen=36 stage=train_full_backward_begin step=3 bs=22
+CMAES_STAGE gen=36 stage=train_full_backward_end step=3
+CMAES_STAGE gen=36 stage=train_full_scale_begin step=3
+CMAES_STAGE gen=36 stage=train_full_scale_end step=3
+CMAES_STAGE gen=36 stage=train_full_update_begin step=3 optimizer=adamw_matrix
+CMAES_STAGE gen=36 stage=train_full_update_end step=3
+CMAES_STAGE gen=36 stage=train_full_step_end step=3 loss=1984.53662109
+CMAES_STAGE gen=36 stage=train_progress epoch=0 step=4 max_steps=5 pairs=26 mixer_loss=2348.06274414 mixer_loss_avg=3559.15039062
+CMAES_STAGE gen=36 stage=train_progress epoch=0 step=5 max_steps=5 pairs=26 mixer_loss=2335.61108398 mixer_loss_avg=3314.44262695
+CMAES_STAGE gen=36 stage=train_end teacher_pairs=26 subset=109 max_pairs=920 max_steps=5 mixer_loss_avg=3314.44262695
+CMAES_STAGE gen=36 stage=offspring_begin children=26 model_active=true model_cap=26 model_kept=25 model_throttled=0
+CMAES_STAGE gen=36 stage=offspring_classical_done model_children=25 classical_children=1
+CMAES_STAGE gen=36 stage=offspring_model_begin candidates=26
+CMAES_STAGE gen=36 stage=offspring_model_encode_begin model_children=25
+CMAES_STAGE gen=36 stage=offspring_model_encode_done model_children=25
+CMAES_STAGE gen=36 stage=offspring_model_predict_begin model_children=25
+CMAES_STAGE gen=36 stage=offspring_model_predict_done model_children=25
+CMAES_STAGE gen=36 stage=offspring_model_decode_begin model_children=25
+CMAES_STAGE gen=36 stage=offspring_model_decode_done model_children=25
+CMAES_STAGE gen=36 stage=offspring_end
+CMAES_STAGE gen=37 stage=eval_begin
+CMAES_STAGE gen=37 stage=eval_first_item_begin i=0 genome_key=1863651352249253410
+CMAES_STAGE gen=37 stage=eval_first_item_end i=0 loss=0.93153335 acc=0.08185000
+CMAES_STAGE gen=37 stage=eval_progress chunk=0 done=1/34
+CMAES_STAGE gen=37 stage=eval_progress chunk=1 done=33/34
+CMAES_STAGE gen=37 stage=eval_progress chunk=2 done=34/34
+CMAES_ACC gen=37 loss=0.9315333465 acc=0.0818500024
+CMAES_STAGE gen=37 stage=train_phase_begin
+CMAES_STAGE gen=37 stage=build_pairs_begin subset=34
+CMAES_STAGE gen=37 stage=build_pairs_end_train_begin pairs=25 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=37 stage=build_pairs_end pairs=25 lazy_encode=1
+CMAES_STAGE gen=37 stage=train_begin pairs=25 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=37 stage=train_first_batch_encode_begin bs=1 pairs=25
+CMAES_STAGE gen=37 stage=train_first_batch_encode_end bs=1
+CMAES_STAGE gen=37 stage=train_first_step_begin bs=1
+CMAES_STAGE gen=37 stage=train_first_forward_only_begin bs=1
+CMAES_STAGE gen=37 stage=train_first_forward_only_end loss=1611.76220703
+CMAES_STAGE gen=37 stage=train_first_step_end
+CMAES_STAGE gen=37 stage=train_progress epoch=0 step=1 max_steps=5 pairs=25 mixer_loss=1611.76220703 mixer_loss_avg=1611.76220703
+CMAES_STAGE gen=37 stage=train_full_step_begin step=2 bs=22
+CMAES_STAGE gen=37 stage=train_full_zero_grad_begin step=2 bs=22
+CMAES_STAGE gen=37 stage=train_full_zero_grad_end step=2
+CMAES_STAGE gen=37 stage=train_full_backward_begin step=2 bs=22
+CMAES_STAGE gen=37 stage=train_full_backward_end step=2
+CMAES_STAGE gen=37 stage=train_full_scale_begin step=2
+CMAES_STAGE gen=37 stage=train_full_scale_end step=2
+CMAES_STAGE gen=37 stage=train_full_update_begin step=2 optimizer=adamw_matrix
+CMAES_STAGE gen=37 stage=train_full_update_end step=2
+CMAES_STAGE gen=37 stage=train_full_step_end step=2 loss=1610.89025879
+CMAES_STAGE gen=37 stage=train_full_step_begin step=3 bs=22
+CMAES_STAGE gen=37 stage=train_full_zero_grad_begin step=3 bs=22
+CMAES_STAGE gen=37 stage=train_full_zero_grad_end step=3
+CMAES_STAGE gen=37 stage=train_full_backward_begin step=3 bs=22
+CMAES_STAGE gen=37 stage=train_full_backward_end step=3
+CMAES_STAGE gen=37 stage=train_full_scale_begin step=3
+CMAES_STAGE gen=37 stage=train_full_scale_end step=3
+CMAES_STAGE gen=37 stage=train_full_update_begin step=3 optimizer=adamw_matrix
+CMAES_STAGE gen=37 stage=train_full_update_end step=3
+CMAES_STAGE gen=37 stage=train_full_step_end step=3 loss=1334.55346680
+CMAES_STAGE gen=37 stage=train_progress epoch=0 step=4 max_steps=5 pairs=25 mixer_loss=1017.49121094 mixer_loss_avg=1393.67431641
+CMAES_STAGE gen=37 stage=train_progress epoch=0 step=5 max_steps=5 pairs=25 mixer_loss=843.89929199 mixer_loss_avg=1283.71936035
+CMAES_STAGE gen=37 stage=train_end teacher_pairs=25 subset=109 max_pairs=920 max_steps=5 mixer_loss_avg=1283.71936035
+CMAES_STAGE gen=37 stage=offspring_begin children=26 model_active=true model_cap=26 model_kept=26 model_throttled=0
+CMAES_STAGE gen=37 stage=offspring_classical_done model_children=26 classical_children=0
+CMAES_STAGE gen=37 stage=offspring_model_begin candidates=26
+CMAES_STAGE gen=37 stage=offspring_model_encode_begin model_children=26
+CMAES_STAGE gen=37 stage=offspring_model_encode_done model_children=26
+CMAES_STAGE gen=37 stage=offspring_model_predict_begin model_children=26
+CMAES_STAGE gen=37 stage=offspring_model_predict_done model_children=26
+CMAES_STAGE gen=37 stage=offspring_model_decode_begin model_children=26
+CMAES_STAGE gen=37 stage=offspring_model_decode_done model_children=26
+CMAES_STAGE gen=37 stage=offspring_end
+CMAES_STAGE gen=38 stage=eval_begin
+CMAES_STAGE gen=38 stage=eval_first_item_begin i=0 genome_key=6246765617425403189
+CMAES_STAGE gen=38 stage=eval_first_item_end i=0 loss=0.93153335 acc=0.08185000
+CMAES_STAGE gen=38 stage=eval_progress chunk=0 done=1/34
+CMAES_STAGE gen=38 stage=eval_progress chunk=1 done=33/34
+CMAES_STAGE gen=38 stage=eval_progress chunk=2 done=34/34
+CMAES_ACC gen=38 loss=0.9315333465 acc=0.0818500024
+CMAES_STAGE gen=38 stage=train_phase_begin
+CMAES_STAGE gen=38 stage=build_pairs_begin subset=34
+CMAES_STAGE gen=38 stage=build_pairs_end_train_begin pairs=26 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=38 stage=build_pairs_end pairs=26 lazy_encode=1
+CMAES_STAGE gen=38 stage=train_begin pairs=26 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=38 stage=train_first_batch_encode_begin bs=1 pairs=26
+CMAES_STAGE gen=38 stage=train_first_batch_encode_end bs=1
+CMAES_STAGE gen=38 stage=train_first_step_begin bs=1
+CMAES_STAGE gen=38 stage=train_first_forward_only_begin bs=1
+CMAES_STAGE gen=38 stage=train_first_forward_only_end loss=1207.39733887
+CMAES_STAGE gen=38 stage=train_first_step_end
+CMAES_STAGE gen=38 stage=train_progress epoch=0 step=1 max_steps=5 pairs=26 mixer_loss=1207.39733887 mixer_loss_avg=1207.39733887
+CMAES_STAGE gen=38 stage=train_full_step_begin step=2 bs=22
+CMAES_STAGE gen=38 stage=train_full_zero_grad_begin step=2 bs=22
+CMAES_STAGE gen=38 stage=train_full_zero_grad_end step=2
+CMAES_STAGE gen=38 stage=train_full_backward_begin step=2 bs=22
+CMAES_STAGE gen=38 stage=train_full_backward_end step=2
+CMAES_STAGE gen=38 stage=train_full_scale_begin step=2
+CMAES_STAGE gen=38 stage=train_full_scale_end step=2
+CMAES_STAGE gen=38 stage=train_full_update_begin step=2 optimizer=adamw_matrix
+CMAES_STAGE gen=38 stage=train_full_update_end step=2
+CMAES_STAGE gen=38 stage=train_full_step_end step=2 loss=1208.00683594
+CMAES_STAGE gen=38 stage=train_full_step_begin step=3 bs=22
+CMAES_STAGE gen=38 stage=train_full_zero_grad_begin step=3 bs=22
+CMAES_STAGE gen=38 stage=train_full_zero_grad_end step=3
+CMAES_STAGE gen=38 stage=train_full_backward_begin step=3 bs=22
+CMAES_STAGE gen=38 stage=train_full_backward_end step=3
+CMAES_STAGE gen=38 stage=train_full_scale_begin step=3
+CMAES_STAGE gen=38 stage=train_full_scale_end step=3
+CMAES_STAGE gen=38 stage=train_full_update_begin step=3 optimizer=adamw_matrix
+CMAES_STAGE gen=38 stage=train_full_update_end step=3
+CMAES_STAGE gen=38 stage=train_full_step_end step=3 loss=1152.01721191
+CMAES_STAGE gen=38 stage=train_progress epoch=0 step=4 max_steps=5 pairs=26 mixer_loss=1017.66027832 mixer_loss_avg=1146.27038574
+CMAES_STAGE gen=38 stage=train_progress epoch=0 step=5 max_steps=5 pairs=26 mixer_loss=924.34698486 mixer_loss_avg=1101.88574219
+CMAES_STAGE gen=38 stage=train_end teacher_pairs=26 subset=109 max_pairs=920 max_steps=5 mixer_loss_avg=1101.88574219
+CMAES_STAGE gen=38 stage=offspring_begin children=26 model_active=true model_cap=26 model_kept=25 model_throttled=0
+CMAES_STAGE gen=38 stage=offspring_classical_done model_children=25 classical_children=1
+CMAES_STAGE gen=38 stage=offspring_model_begin candidates=26
+CMAES_STAGE gen=38 stage=offspring_model_encode_begin model_children=25
+CMAES_STAGE gen=38 stage=offspring_model_encode_done model_children=25
+CMAES_STAGE gen=38 stage=offspring_model_predict_begin model_children=25
+CMAES_STAGE gen=38 stage=offspring_model_predict_done model_children=25
+CMAES_STAGE gen=38 stage=offspring_model_decode_begin model_children=25
+CMAES_STAGE gen=38 stage=offspring_model_decode_done model_children=25
+CMAES_STAGE gen=38 stage=offspring_end
+CMAES_STAGE gen=39 stage=eval_begin
+CMAES_STAGE gen=39 stage=eval_first_item_begin i=0 genome_key=7229985792515746086
+CMAES_STAGE gen=39 stage=eval_first_item_end i=0 loss=0.93153335 acc=0.08185000
+CMAES_STAGE gen=39 stage=eval_progress chunk=0 done=1/34
+CMAES_STAGE gen=39 stage=eval_progress chunk=1 done=33/34
+CMAES_STAGE gen=39 stage=eval_progress chunk=2 done=34/34
+CMAES_ACC gen=39 loss=0.9315333465 acc=0.0818500024
+CMAES_STAGE gen=39 stage=train_phase_begin
+CMAES_STAGE gen=39 stage=build_pairs_begin subset=34
+CMAES_STAGE gen=39 stage=build_pairs_end_train_begin pairs=25 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=39 stage=build_pairs_end pairs=25 lazy_encode=1
+CMAES_STAGE gen=39 stage=train_begin pairs=25 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=39 stage=train_first_batch_encode_begin bs=1 pairs=25
+CMAES_STAGE gen=39 stage=train_first_batch_encode_end bs=1
+CMAES_STAGE gen=39 stage=train_first_step_begin bs=1
+CMAES_STAGE gen=39 stage=train_first_forward_only_begin bs=1
+CMAES_STAGE gen=39 stage=train_first_forward_only_end loss=1083.26550293
+CMAES_STAGE gen=39 stage=train_first_step_end
+CMAES_STAGE gen=39 stage=train_progress epoch=0 step=1 max_steps=5 pairs=25 mixer_loss=1083.26550293 mixer_loss_avg=1083.26550293
+CMAES_STAGE gen=39 stage=train_full_step_begin step=2 bs=22
+CMAES_STAGE gen=39 stage=train_full_zero_grad_begin step=2 bs=22
+CMAES_STAGE gen=39 stage=train_full_zero_grad_end step=2
+CMAES_STAGE gen=39 stage=train_full_backward_begin step=2 bs=22
+CMAES_STAGE gen=39 stage=train_full_backward_end step=2
+CMAES_STAGE gen=39 stage=train_full_scale_begin step=2
+CMAES_STAGE gen=39 stage=train_full_scale_end step=2
+CMAES_STAGE gen=39 stage=train_full_update_begin step=2 optimizer=adamw_matrix
+CMAES_STAGE gen=39 stage=train_full_update_end step=2
+CMAES_STAGE gen=39 stage=train_full_step_end step=2 loss=1082.43725586
+CMAES_STAGE gen=39 stage=train_full_step_begin step=3 bs=22
+CMAES_STAGE gen=39 stage=train_full_zero_grad_begin step=3 bs=22
+CMAES_STAGE gen=39 stage=train_full_zero_grad_end step=3
+CMAES_STAGE gen=39 stage=train_full_backward_begin step=3 bs=22
+CMAES_STAGE gen=39 stage=train_full_backward_end step=3
+CMAES_STAGE gen=39 stage=train_full_scale_begin step=3
+CMAES_STAGE gen=39 stage=train_full_scale_end step=3
+CMAES_STAGE gen=39 stage=train_full_update_begin step=3 optimizer=adamw_matrix
+CMAES_STAGE gen=39 stage=train_full_update_end step=3
+CMAES_STAGE gen=39 stage=train_full_step_end step=3 loss=1145.55651855
+CMAES_STAGE gen=39 stage=train_progress epoch=0 step=4 max_steps=5 pairs=25 mixer_loss=1292.57092285 mixer_loss_avg=1150.95751953
+CMAES_STAGE gen=39 stage=train_progress epoch=0 step=5 max_steps=5 pairs=25 mixer_loss=1162.04907227 mixer_loss_avg=1153.17578125
+CMAES_STAGE gen=39 stage=train_end teacher_pairs=25 subset=109 max_pairs=920 max_steps=5 mixer_loss_avg=1153.17578125
+CMAES_STAGE gen=39 stage=offspring_begin children=26 model_active=true model_cap=26 model_kept=25 model_throttled=0
+CMAES_STAGE gen=39 stage=offspring_classical_done model_children=25 classical_children=1
+CMAES_STAGE gen=39 stage=offspring_model_begin candidates=26
+CMAES_STAGE gen=39 stage=offspring_model_encode_begin model_children=25
+CMAES_STAGE gen=39 stage=offspring_model_encode_done model_children=25
+CMAES_STAGE gen=39 stage=offspring_model_predict_begin model_children=25
+CMAES_STAGE gen=39 stage=offspring_model_predict_done model_children=25
+CMAES_STAGE gen=39 stage=offspring_model_decode_begin model_children=25
+CMAES_STAGE gen=39 stage=offspring_model_decode_done model_children=25
+CMAES_STAGE gen=39 stage=offspring_end
+CMAES_STAGE gen=40 stage=eval_begin
+CMAES_STAGE gen=40 stage=eval_first_item_begin i=0 genome_key=2368638635369828810
+CMAES_STAGE gen=40 stage=eval_first_item_end i=0 loss=0.93153335 acc=0.08185000
+CMAES_STAGE gen=40 stage=eval_progress chunk=0 done=1/34
+CMAES_STAGE gen=40 stage=eval_progress chunk=1 done=33/34
+CMAES_STAGE gen=40 stage=eval_progress chunk=2 done=34/34
+CMAES_ACC gen=40 loss=0.9315333465 acc=0.0818500024
+CMAES_STAGE gen=40 stage=train_phase_begin
+CMAES_STAGE gen=40 stage=build_pairs_begin subset=34
+CMAES_STAGE gen=40 stage=build_pairs_end_train_begin pairs=26 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=40 stage=build_pairs_end pairs=26 lazy_encode=1
+CMAES_STAGE gen=40 stage=train_begin pairs=26 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=40 stage=train_first_batch_encode_begin bs=1 pairs=26
+CMAES_STAGE gen=40 stage=train_first_batch_encode_end bs=1
+CMAES_STAGE gen=40 stage=train_first_step_begin bs=1
+CMAES_STAGE gen=40 stage=train_first_forward_only_begin bs=1
+CMAES_STAGE gen=40 stage=train_first_forward_only_end loss=1380.24755859
+CMAES_STAGE gen=40 stage=train_first_step_end
+CMAES_STAGE gen=40 stage=train_progress epoch=0 step=1 max_steps=5 pairs=26 mixer_loss=1380.24755859 mixer_loss_avg=1380.24755859
+CMAES_STAGE gen=40 stage=train_full_step_begin step=2 bs=22
+CMAES_STAGE gen=40 stage=train_full_zero_grad_begin step=2 bs=22
+CMAES_STAGE gen=40 stage=train_full_zero_grad_end step=2
+CMAES_STAGE gen=40 stage=train_full_backward_begin step=2 bs=22
+CMAES_STAGE gen=40 stage=train_full_backward_end step=2
+CMAES_STAGE gen=40 stage=train_full_scale_begin step=2
+CMAES_STAGE gen=40 stage=train_full_scale_end step=2
+CMAES_STAGE gen=40 stage=train_full_update_begin step=2 optimizer=adamw_matrix
+CMAES_STAGE gen=40 stage=train_full_update_end step=2
+CMAES_STAGE gen=40 stage=train_full_step_end step=2 loss=1383.30126953
+CMAES_STAGE gen=40 stage=train_full_step_begin step=3 bs=22
+CMAES_STAGE gen=40 stage=train_full_zero_grad_begin step=3 bs=22
+CMAES_STAGE gen=40 stage=train_full_zero_grad_end step=3
+CMAES_STAGE gen=40 stage=train_full_backward_begin step=3 bs=22
+CMAES_STAGE gen=40 stage=train_full_backward_end step=3
+CMAES_STAGE gen=40 stage=train_full_scale_begin step=3
+CMAES_STAGE gen=40 stage=train_full_scale_end step=3
+CMAES_STAGE gen=40 stage=train_full_update_begin step=3 optimizer=adamw_matrix
+CMAES_STAGE gen=40 stage=train_full_update_end step=3
+CMAES_STAGE gen=40 stage=train_full_step_end step=3 loss=1391.72705078
+CMAES_STAGE gen=40 stage=train_progress epoch=0 step=4 max_steps=5 pairs=26 mixer_loss=7828.98095703 mixer_loss_avg=2996.06420898
+CMAES_STAGE gen=40 stage=train_progress epoch=0 step=5 max_steps=5 pairs=26 mixer_loss=3319.36938477 mixer_loss_avg=3060.72509766
+CMAES_STAGE gen=40 stage=train_end teacher_pairs=26 subset=109 max_pairs=920 max_steps=5 mixer_loss_avg=3060.72509766
+CMAES_STAGE gen=40 stage=offspring_begin children=26 model_active=true model_cap=26 model_kept=26 model_throttled=0
+CMAES_STAGE gen=40 stage=offspring_classical_done model_children=26 classical_children=0
+CMAES_STAGE gen=40 stage=offspring_model_begin candidates=26
+CMAES_STAGE gen=40 stage=offspring_model_encode_begin model_children=26
+CMAES_STAGE gen=40 stage=offspring_model_encode_done model_children=26
+CMAES_STAGE gen=40 stage=offspring_model_predict_begin model_children=26
+CMAES_STAGE gen=40 stage=offspring_model_predict_done model_children=26
+CMAES_STAGE gen=40 stage=offspring_model_decode_begin model_children=26
+CMAES_STAGE gen=40 stage=offspring_model_decode_done model_children=26
+CMAES_STAGE gen=40 stage=offspring_end
+CMAES_STAGE gen=41 stage=eval_begin
+CMAES_STAGE gen=41 stage=eval_first_item_begin i=0 genome_key=9645013351860548085
+CMAES_STAGE gen=41 stage=eval_first_item_end i=0 loss=0.93153335 acc=0.08185000
+CMAES_STAGE gen=41 stage=eval_progress chunk=0 done=1/34
+CMAES_STAGE gen=41 stage=eval_progress chunk=1 done=33/34
+CMAES_STAGE gen=41 stage=eval_progress chunk=2 done=34/34
+CMAES_ACC gen=41 loss=0.9315333465 acc=0.0818500024
+CMAES_STAGE gen=41 stage=train_phase_begin
+CMAES_STAGE gen=41 stage=build_pairs_begin subset=34
+CMAES_STAGE gen=41 stage=build_pairs_end_train_begin pairs=26 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=41 stage=build_pairs_end pairs=26 lazy_encode=1
+CMAES_STAGE gen=41 stage=train_begin pairs=26 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=41 stage=train_first_batch_encode_begin bs=1 pairs=26
+CMAES_STAGE gen=41 stage=train_first_batch_encode_end bs=1
+CMAES_STAGE gen=41 stage=train_first_step_begin bs=1
+CMAES_STAGE gen=41 stage=train_first_forward_only_begin bs=1
+CMAES_STAGE gen=41 stage=train_first_forward_only_end loss=1850.28161621
+CMAES_STAGE gen=41 stage=train_first_step_end
+CMAES_STAGE gen=41 stage=train_progress epoch=0 step=1 max_steps=5 pairs=26 mixer_loss=1850.28161621 mixer_loss_avg=1850.28161621
+CMAES_STAGE gen=41 stage=train_full_step_begin step=2 bs=22
+CMAES_STAGE gen=41 stage=train_full_zero_grad_begin step=2 bs=22
+CMAES_STAGE gen=41 stage=train_full_zero_grad_end step=2
+CMAES_STAGE gen=41 stage=train_full_backward_begin step=2 bs=22
+CMAES_STAGE gen=41 stage=train_full_backward_end step=2
+CMAES_STAGE gen=41 stage=train_full_scale_begin step=2
+CMAES_STAGE gen=41 stage=train_full_scale_end step=2
+CMAES_STAGE gen=41 stage=train_full_update_begin step=2 optimizer=adamw_matrix
+CMAES_STAGE gen=41 stage=train_full_update_end step=2
+CMAES_STAGE gen=41 stage=train_full_step_end step=2 loss=1850.19372559
+CMAES_STAGE gen=41 stage=train_full_step_begin step=3 bs=22
+CMAES_STAGE gen=41 stage=train_full_zero_grad_begin step=3 bs=22
+CMAES_STAGE gen=41 stage=train_full_zero_grad_end step=3
+CMAES_STAGE gen=41 stage=train_full_backward_begin step=3 bs=22
+CMAES_STAGE gen=41 stage=train_full_backward_end step=3
+CMAES_STAGE gen=41 stage=train_full_scale_begin step=3
+CMAES_STAGE gen=41 stage=train_full_scale_end step=3
+CMAES_STAGE gen=41 stage=train_full_update_begin step=3 optimizer=adamw_matrix
+CMAES_STAGE gen=41 stage=train_full_update_end step=3
+CMAES_STAGE gen=41 stage=train_full_step_end step=3 loss=1945.41772461
+CMAES_STAGE gen=41 stage=train_progress epoch=0 step=4 max_steps=5 pairs=26 mixer_loss=1954.46264648 mixer_loss_avg=1900.08886719
+CMAES_STAGE gen=41 stage=train_progress epoch=0 step=5 max_steps=5 pairs=26 mixer_loss=1983.33984375 mixer_loss_avg=1916.73901367
+CMAES_STAGE gen=41 stage=train_end teacher_pairs=26 subset=109 max_pairs=920 max_steps=5 mixer_loss_avg=1916.73901367
+CMAES_STAGE gen=41 stage=offspring_begin children=26 model_active=true model_cap=26 model_kept=26 model_throttled=0
+CMAES_STAGE gen=41 stage=offspring_classical_done model_children=26 classical_children=0
+CMAES_STAGE gen=41 stage=offspring_model_begin candidates=26
+CMAES_STAGE gen=41 stage=offspring_model_encode_begin model_children=26
+CMAES_STAGE gen=41 stage=offspring_model_encode_done model_children=26
+CMAES_STAGE gen=41 stage=offspring_model_predict_begin model_children=26
+CMAES_STAGE gen=41 stage=offspring_model_predict_done model_children=26
+CMAES_STAGE gen=41 stage=offspring_model_decode_begin model_children=26
+CMAES_STAGE gen=41 stage=offspring_model_decode_done model_children=26
+CMAES_STAGE gen=41 stage=offspring_end
+CMAES_STAGE gen=42 stage=eval_begin
+CMAES_STAGE gen=42 stage=eval_first_item_begin i=0 genome_key=6246765617425403189
+CMAES_STAGE gen=42 stage=eval_first_item_end i=0 loss=0.93153335 acc=0.08185000
+CMAES_STAGE gen=42 stage=eval_progress chunk=0 done=1/34
+CMAES_STAGE gen=42 stage=eval_progress chunk=1 done=33/34
+CMAES_STAGE gen=42 stage=eval_progress chunk=2 done=34/34
+CMAES_ACC gen=42 loss=0.9315333465 acc=0.0818500024
+CMAES_STAGE gen=42 stage=train_phase_begin
+CMAES_STAGE gen=42 stage=build_pairs_begin subset=34
+CMAES_STAGE gen=42 stage=build_pairs_end_train_begin pairs=26 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=42 stage=build_pairs_end pairs=26 lazy_encode=1
+CMAES_STAGE gen=42 stage=train_begin pairs=26 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=42 stage=train_first_batch_encode_begin bs=1 pairs=26
+CMAES_STAGE gen=42 stage=train_first_batch_encode_end bs=1
+CMAES_STAGE gen=42 stage=train_first_step_begin bs=1
+CMAES_STAGE gen=42 stage=train_first_forward_only_begin bs=1
+CMAES_STAGE gen=42 stage=train_first_forward_only_end loss=1867.48559570
+CMAES_STAGE gen=42 stage=train_first_step_end
+CMAES_STAGE gen=42 stage=train_progress epoch=0 step=1 max_steps=5 pairs=26 mixer_loss=1867.48559570 mixer_loss_avg=1867.48559570
+CMAES_STAGE gen=42 stage=train_full_step_begin step=2 bs=22
+CMAES_STAGE gen=42 stage=train_full_zero_grad_begin step=2 bs=22
+CMAES_STAGE gen=42 stage=train_full_zero_grad_end step=2
+CMAES_STAGE gen=42 stage=train_full_backward_begin step=2 bs=22
+CMAES_STAGE gen=42 stage=train_full_backward_end step=2
+CMAES_STAGE gen=42 stage=train_full_scale_begin step=2
+CMAES_STAGE gen=42 stage=train_full_scale_end step=2
+CMAES_STAGE gen=42 stage=train_full_update_begin step=2 optimizer=adamw_matrix
+CMAES_STAGE gen=42 stage=train_full_update_end step=2
+CMAES_STAGE gen=42 stage=train_full_step_end step=2 loss=1867.46862793
+CMAES_STAGE gen=42 stage=train_full_step_begin step=3 bs=22
+CMAES_STAGE gen=42 stage=train_full_zero_grad_begin step=3 bs=22
+CMAES_STAGE gen=42 stage=train_full_zero_grad_end step=3
+CMAES_STAGE gen=42 stage=train_full_backward_begin step=3 bs=22
+CMAES_STAGE gen=42 stage=train_full_backward_end step=3
+CMAES_STAGE gen=42 stage=train_full_scale_begin step=3
+CMAES_STAGE gen=42 stage=train_full_scale_end step=3
+CMAES_STAGE gen=42 stage=train_full_update_begin step=3 optimizer=adamw_matrix
+CMAES_STAGE gen=42 stage=train_full_update_end step=3
+CMAES_STAGE gen=42 stage=train_full_step_end step=3 loss=1426.42187500
+CMAES_STAGE gen=42 stage=train_progress epoch=0 step=4 max_steps=5 pairs=26 mixer_loss=1271.64489746 mixer_loss_avg=1608.25524902
+CMAES_STAGE gen=42 stage=train_progress epoch=0 step=5 max_steps=5 pairs=26 mixer_loss=1121.45361328 mixer_loss_avg=1510.89489746
+CMAES_STAGE gen=42 stage=train_end teacher_pairs=26 subset=109 max_pairs=920 max_steps=5 mixer_loss_avg=1510.89489746
+CMAES_STAGE gen=42 stage=offspring_begin children=26 model_active=true model_cap=26 model_kept=25 model_throttled=0
+CMAES_STAGE gen=42 stage=offspring_classical_done model_children=25 classical_children=1
+CMAES_STAGE gen=42 stage=offspring_model_begin candidates=26
+CMAES_STAGE gen=42 stage=offspring_model_encode_begin model_children=25
+CMAES_STAGE gen=42 stage=offspring_model_encode_done model_children=25
+CMAES_STAGE gen=42 stage=offspring_model_predict_begin model_children=25
+CMAES_STAGE gen=42 stage=offspring_model_predict_done model_children=25
+CMAES_STAGE gen=42 stage=offspring_model_decode_begin model_children=25
+CMAES_STAGE gen=42 stage=offspring_model_decode_done model_children=25
+CMAES_STAGE gen=42 stage=offspring_end
+CMAES_STAGE gen=43 stage=eval_begin
+CMAES_STAGE gen=43 stage=eval_first_item_begin i=0 genome_key=13912363324662261138
+CMAES_STAGE gen=43 stage=eval_first_item_end i=0 loss=0.93153335 acc=0.08185000
+CMAES_STAGE gen=43 stage=eval_progress chunk=0 done=1/34
+CMAES_STAGE gen=43 stage=eval_progress chunk=1 done=33/34
+CMAES_STAGE gen=43 stage=eval_progress chunk=2 done=34/34
+CMAES_ACC gen=43 loss=0.9315333465 acc=0.0818500024
+CMAES_STAGE gen=43 stage=train_phase_begin
+CMAES_STAGE gen=43 stage=build_pairs_begin subset=34
+CMAES_STAGE gen=43 stage=build_pairs_end_train_begin pairs=25 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=43 stage=build_pairs_end pairs=25 lazy_encode=1
+CMAES_STAGE gen=43 stage=train_begin pairs=25 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=43 stage=train_first_batch_encode_begin bs=1 pairs=25
+CMAES_STAGE gen=43 stage=train_first_batch_encode_end bs=1
+CMAES_STAGE gen=43 stage=train_first_step_begin bs=1
+CMAES_STAGE gen=43 stage=train_first_forward_only_begin bs=1
+CMAES_STAGE gen=43 stage=train_first_forward_only_end loss=1390.78857422
+CMAES_STAGE gen=43 stage=train_first_step_end
+CMAES_STAGE gen=43 stage=train_progress epoch=0 step=1 max_steps=5 pairs=25 mixer_loss=1390.78857422 mixer_loss_avg=1390.78857422
+CMAES_STAGE gen=43 stage=train_full_step_begin step=2 bs=22
+CMAES_STAGE gen=43 stage=train_full_zero_grad_begin step=2 bs=22
+CMAES_STAGE gen=43 stage=train_full_zero_grad_end step=2
+CMAES_STAGE gen=43 stage=train_full_backward_begin step=2 bs=22
+CMAES_STAGE gen=43 stage=train_full_backward_end step=2
+CMAES_STAGE gen=43 stage=train_full_scale_begin step=2
+CMAES_STAGE gen=43 stage=train_full_scale_end step=2
+CMAES_STAGE gen=43 stage=train_full_update_begin step=2 optimizer=adamw_matrix
+CMAES_STAGE gen=43 stage=train_full_update_end step=2
+CMAES_STAGE gen=43 stage=train_full_step_end step=2 loss=1388.52050781
+CMAES_STAGE gen=43 stage=train_full_step_begin step=3 bs=22
+CMAES_STAGE gen=43 stage=train_full_zero_grad_begin step=3 bs=22
+CMAES_STAGE gen=43 stage=train_full_zero_grad_end step=3
+CMAES_STAGE gen=43 stage=train_full_backward_begin step=3 bs=22
+CMAES_STAGE gen=43 stage=train_full_backward_end step=3
+CMAES_STAGE gen=43 stage=train_full_scale_begin step=3
+CMAES_STAGE gen=43 stage=train_full_scale_end step=3
+CMAES_STAGE gen=43 stage=train_full_update_begin step=3 optimizer=adamw_matrix
+CMAES_STAGE gen=43 stage=train_full_update_end step=3
+CMAES_STAGE gen=43 stage=train_full_step_end step=3 loss=1129.21069336
+CMAES_STAGE gen=43 stage=train_progress epoch=0 step=4 max_steps=5 pairs=25 mixer_loss=1109.70446777 mixer_loss_avg=1254.55603027
+CMAES_STAGE gen=43 stage=train_progress epoch=0 step=5 max_steps=5 pairs=25 mixer_loss=977.33648682 mixer_loss_avg=1199.11206055
+CMAES_STAGE gen=43 stage=train_end teacher_pairs=25 subset=109 max_pairs=920 max_steps=5 mixer_loss_avg=1199.11206055
+CMAES_STAGE gen=43 stage=offspring_begin children=26 model_active=true model_cap=26 model_kept=25 model_throttled=0
+CMAES_STAGE gen=43 stage=offspring_classical_done model_children=25 classical_children=1
+CMAES_STAGE gen=43 stage=offspring_model_begin candidates=26
+CMAES_STAGE gen=43 stage=offspring_model_encode_begin model_children=25
+CMAES_STAGE gen=43 stage=offspring_model_encode_done model_children=25
+CMAES_STAGE gen=43 stage=offspring_model_predict_begin model_children=25
+CMAES_STAGE gen=43 stage=offspring_model_predict_done model_children=25
+CMAES_STAGE gen=43 stage=offspring_model_decode_begin model_children=25
+CMAES_STAGE gen=43 stage=offspring_model_decode_done model_children=25
+CMAES_STAGE gen=43 stage=offspring_end
+CMAES_STAGE gen=44 stage=eval_begin
+CMAES_STAGE gen=44 stage=eval_first_item_begin i=0 genome_key=4498714278024850367
+CMAES_STAGE gen=44 stage=eval_first_item_end i=0 loss=0.93153335 acc=0.08185000
+CMAES_STAGE gen=44 stage=eval_progress chunk=0 done=1/34
+CMAES_STAGE gen=44 stage=eval_progress chunk=1 done=33/34
+CMAES_STAGE gen=44 stage=eval_progress chunk=2 done=34/34
+CMAES_ACC gen=44 loss=0.9315333465 acc=0.0818500024
+CMAES_STAGE gen=44 stage=train_phase_begin
+CMAES_STAGE gen=44 stage=build_pairs_begin subset=34
+CMAES_STAGE gen=44 stage=build_pairs_end_train_begin pairs=25 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=44 stage=build_pairs_end pairs=25 lazy_encode=1
+CMAES_STAGE gen=44 stage=train_begin pairs=25 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=44 stage=train_first_batch_encode_begin bs=1 pairs=25
+CMAES_STAGE gen=44 stage=train_first_batch_encode_end bs=1
+CMAES_STAGE gen=44 stage=train_first_step_begin bs=1
+CMAES_STAGE gen=44 stage=train_first_forward_only_begin bs=1
+CMAES_STAGE gen=44 stage=train_first_forward_only_end loss=1180.99890137
+CMAES_STAGE gen=44 stage=train_first_step_end
+CMAES_STAGE gen=44 stage=train_progress epoch=0 step=1 max_steps=5 pairs=25 mixer_loss=1180.99890137 mixer_loss_avg=1180.99890137
+CMAES_STAGE gen=44 stage=train_full_step_begin step=2 bs=22
+CMAES_STAGE gen=44 stage=train_full_zero_grad_begin step=2 bs=22
+CMAES_STAGE gen=44 stage=train_full_zero_grad_end step=2
+CMAES_STAGE gen=44 stage=train_full_backward_begin step=2 bs=22
+CMAES_STAGE gen=44 stage=train_full_backward_end step=2
+CMAES_STAGE gen=44 stage=train_full_scale_begin step=2
+CMAES_STAGE gen=44 stage=train_full_scale_end step=2
+CMAES_STAGE gen=44 stage=train_full_update_begin step=2 optimizer=adamw_matrix
+CMAES_STAGE gen=44 stage=train_full_update_end step=2
+CMAES_STAGE gen=44 stage=train_full_step_end step=2 loss=1181.44677734
+CMAES_STAGE gen=44 stage=train_full_step_begin step=3 bs=22
+CMAES_STAGE gen=44 stage=train_full_zero_grad_begin step=3 bs=22
+CMAES_STAGE gen=44 stage=train_full_zero_grad_end step=3
+CMAES_STAGE gen=44 stage=train_full_backward_begin step=3 bs=22
+CMAES_STAGE gen=44 stage=train_full_backward_end step=3
+CMAES_STAGE gen=44 stage=train_full_scale_begin step=3
+CMAES_STAGE gen=44 stage=train_full_scale_end step=3
+CMAES_STAGE gen=44 stage=train_full_update_begin step=3 optimizer=adamw_matrix
+CMAES_STAGE gen=44 stage=train_full_update_end step=3
+CMAES_STAGE gen=44 stage=train_full_step_end step=3 loss=968.13610840
+CMAES_STAGE gen=44 stage=train_progress epoch=0 step=4 max_steps=5 pairs=25 mixer_loss=835.29296875 mixer_loss_avg=1041.46875000
+CMAES_STAGE gen=44 stage=train_progress epoch=0 step=5 max_steps=5 pairs=25 mixer_loss=891.50347900 mixer_loss_avg=1011.47570801
+CMAES_STAGE gen=44 stage=train_end teacher_pairs=25 subset=109 max_pairs=920 max_steps=5 mixer_loss_avg=1011.47570801
+CMAES_STAGE gen=44 stage=offspring_begin children=26 model_active=true model_cap=26 model_kept=26 model_throttled=0
+CMAES_STAGE gen=44 stage=offspring_classical_done model_children=26 classical_children=0
+CMAES_STAGE gen=44 stage=offspring_model_begin candidates=26
+CMAES_STAGE gen=44 stage=offspring_model_encode_begin model_children=26
+CMAES_STAGE gen=44 stage=offspring_model_encode_done model_children=26
+CMAES_STAGE gen=44 stage=offspring_model_predict_begin model_children=26
+CMAES_STAGE gen=44 stage=offspring_model_predict_done model_children=26
+CMAES_STAGE gen=44 stage=offspring_model_decode_begin model_children=26
+CMAES_STAGE gen=44 stage=offspring_model_decode_done model_children=26
+CMAES_STAGE gen=44 stage=offspring_end
+CMAES_STAGE gen=45 stage=eval_begin
+CMAES_STAGE gen=45 stage=eval_first_item_begin i=0 genome_key=5420732496525504179
+CMAES_STAGE gen=45 stage=eval_first_item_end i=0 loss=0.93153335 acc=0.08185000
+CMAES_STAGE gen=45 stage=eval_progress chunk=0 done=1/34
+CMAES_STAGE gen=45 stage=eval_progress chunk=1 done=33/34
+CMAES_STAGE gen=45 stage=eval_progress chunk=2 done=34/34
+CMAES_ACC gen=45 loss=0.9315333465 acc=0.0818500024
+CMAES_STAGE gen=45 stage=train_phase_begin
+CMAES_STAGE gen=45 stage=build_pairs_begin subset=34
+CMAES_STAGE gen=45 stage=build_pairs_end_train_begin pairs=26 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=45 stage=build_pairs_end pairs=26 lazy_encode=1
+CMAES_STAGE gen=45 stage=train_begin pairs=26 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=45 stage=train_first_batch_encode_begin bs=1 pairs=26
+CMAES_STAGE gen=45 stage=train_first_batch_encode_end bs=1
+CMAES_STAGE gen=45 stage=train_first_step_begin bs=1
+CMAES_STAGE gen=45 stage=train_first_forward_only_begin bs=1
+CMAES_STAGE gen=45 stage=train_first_forward_only_end loss=621.40338135
+CMAES_STAGE gen=45 stage=train_first_step_end
+CMAES_STAGE gen=45 stage=train_progress epoch=0 step=1 max_steps=5 pairs=26 mixer_loss=621.40338135 mixer_loss_avg=621.40338135
+CMAES_STAGE gen=45 stage=train_full_step_begin step=2 bs=22
+CMAES_STAGE gen=45 stage=train_full_zero_grad_begin step=2 bs=22
+CMAES_STAGE gen=45 stage=train_full_zero_grad_end step=2
+CMAES_STAGE gen=45 stage=train_full_backward_begin step=2 bs=22
+CMAES_STAGE gen=45 stage=train_full_backward_end step=2
+CMAES_STAGE gen=45 stage=train_full_scale_begin step=2
+CMAES_STAGE gen=45 stage=train_full_scale_end step=2
+CMAES_STAGE gen=45 stage=train_full_update_begin step=2 optimizer=adamw_matrix
+CMAES_STAGE gen=45 stage=train_full_update_end step=2
+CMAES_STAGE gen=45 stage=train_full_step_end step=2 loss=621.79150391
+CMAES_STAGE gen=45 stage=train_full_step_begin step=3 bs=22
+CMAES_STAGE gen=45 stage=train_full_zero_grad_begin step=3 bs=22
+CMAES_STAGE gen=45 stage=train_full_zero_grad_end step=3
+CMAES_STAGE gen=45 stage=train_full_backward_begin step=3 bs=22
+CMAES_STAGE gen=45 stage=train_full_backward_end step=3
+CMAES_STAGE gen=45 stage=train_full_scale_begin step=3
+CMAES_STAGE gen=45 stage=train_full_scale_end step=3
+CMAES_STAGE gen=45 stage=train_full_update_begin step=3 optimizer=adamw_matrix
+CMAES_STAGE gen=45 stage=train_full_update_end step=3
+CMAES_STAGE gen=45 stage=train_full_step_end step=3 loss=670.54461670
+CMAES_STAGE gen=45 stage=train_progress epoch=0 step=4 max_steps=5 pairs=26 mixer_loss=705.61230469 mixer_loss_avg=654.83795166
+CMAES_STAGE gen=45 stage=train_progress epoch=0 step=5 max_steps=5 pairs=26 mixer_loss=656.46868896 mixer_loss_avg=655.16412354
+CMAES_STAGE gen=45 stage=train_end teacher_pairs=26 subset=109 max_pairs=920 max_steps=5 mixer_loss_avg=655.16412354
+CMAES_STAGE gen=45 stage=offspring_begin children=26 model_active=true model_cap=26 model_kept=25 model_throttled=0
+CMAES_STAGE gen=45 stage=offspring_classical_done model_children=25 classical_children=1
+CMAES_STAGE gen=45 stage=offspring_model_begin candidates=26
+CMAES_STAGE gen=45 stage=offspring_model_encode_begin model_children=25
+CMAES_STAGE gen=45 stage=offspring_model_encode_done model_children=25
+CMAES_STAGE gen=45 stage=offspring_model_predict_begin model_children=25
+CMAES_STAGE gen=45 stage=offspring_model_predict_done model_children=25
+CMAES_STAGE gen=45 stage=offspring_model_decode_begin model_children=25
+CMAES_STAGE gen=45 stage=offspring_model_decode_done model_children=25
+CMAES_STAGE gen=45 stage=offspring_end
+CMAES_STAGE gen=46 stage=eval_begin
+CMAES_STAGE gen=46 stage=eval_first_item_begin i=0 genome_key=6246765617425403189
+CMAES_STAGE gen=46 stage=eval_first_item_end i=0 loss=0.93153335 acc=0.08185000
+CMAES_STAGE gen=46 stage=eval_progress chunk=0 done=1/34
+CMAES_STAGE gen=46 stage=eval_progress chunk=1 done=33/34
+CMAES_STAGE gen=46 stage=eval_progress chunk=2 done=34/34
+CMAES_ACC gen=46 loss=0.9315333465 acc=0.0818500024
+CMAES_STAGE gen=46 stage=train_phase_begin
+CMAES_STAGE gen=46 stage=build_pairs_begin subset=34
+CMAES_STAGE gen=46 stage=build_pairs_end_train_begin pairs=25 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=46 stage=build_pairs_end pairs=25 lazy_encode=1
+CMAES_STAGE gen=46 stage=train_begin pairs=25 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=46 stage=train_first_batch_encode_begin bs=1 pairs=25
+CMAES_STAGE gen=46 stage=train_first_batch_encode_end bs=1
+CMAES_STAGE gen=46 stage=train_first_step_begin bs=1
+CMAES_STAGE gen=46 stage=train_first_forward_only_begin bs=1
+CMAES_STAGE gen=46 stage=train_first_forward_only_end loss=1648.88635254
+CMAES_STAGE gen=46 stage=train_first_step_end
+CMAES_STAGE gen=46 stage=train_progress epoch=0 step=1 max_steps=5 pairs=25 mixer_loss=1648.88635254 mixer_loss_avg=1648.88635254
+CMAES_STAGE gen=46 stage=train_full_step_begin step=2 bs=22
+CMAES_STAGE gen=46 stage=train_full_zero_grad_begin step=2 bs=22
+CMAES_STAGE gen=46 stage=train_full_zero_grad_end step=2
+CMAES_STAGE gen=46 stage=train_full_backward_begin step=2 bs=22
+CMAES_STAGE gen=46 stage=train_full_backward_end step=2
+CMAES_STAGE gen=46 stage=train_full_scale_begin step=2
+CMAES_STAGE gen=46 stage=train_full_scale_end step=2
+CMAES_STAGE gen=46 stage=train_full_update_begin step=2 optimizer=adamw_matrix
+CMAES_STAGE gen=46 stage=train_full_update_end step=2
+CMAES_STAGE gen=46 stage=train_full_step_end step=2 loss=1650.41271973
+CMAES_STAGE gen=46 stage=train_full_step_begin step=3 bs=22
+CMAES_STAGE gen=46 stage=train_full_zero_grad_begin step=3 bs=22
+CMAES_STAGE gen=46 stage=train_full_zero_grad_end step=3
+CMAES_STAGE gen=46 stage=train_full_backward_begin step=3 bs=22
+CMAES_STAGE gen=46 stage=train_full_backward_end step=3
+CMAES_STAGE gen=46 stage=train_full_scale_begin step=3
+CMAES_STAGE gen=46 stage=train_full_scale_end step=3
+CMAES_STAGE gen=46 stage=train_full_update_begin step=3 optimizer=adamw_matrix
+CMAES_STAGE gen=46 stage=train_full_update_end step=3
+CMAES_STAGE gen=46 stage=train_full_step_end step=3 loss=1186.20959473
+CMAES_STAGE gen=46 stage=train_progress epoch=0 step=4 max_steps=5 pairs=25 mixer_loss=1274.14355469 mixer_loss_avg=1439.91308594
+CMAES_STAGE gen=46 stage=train_progress epoch=0 step=5 max_steps=5 pairs=25 mixer_loss=1923.22875977 mixer_loss_avg=1536.57617188
+CMAES_STAGE gen=46 stage=train_end teacher_pairs=25 subset=109 max_pairs=920 max_steps=5 mixer_loss_avg=1536.57617188
+CMAES_STAGE gen=46 stage=offspring_begin children=26 model_active=true model_cap=26 model_kept=25 model_throttled=0
+CMAES_STAGE gen=46 stage=offspring_classical_done model_children=25 classical_children=1
+CMAES_STAGE gen=46 stage=offspring_model_begin candidates=26
+CMAES_STAGE gen=46 stage=offspring_model_encode_begin model_children=25
+CMAES_STAGE gen=46 stage=offspring_model_encode_done model_children=25
+CMAES_STAGE gen=46 stage=offspring_model_predict_begin model_children=25
+CMAES_STAGE gen=46 stage=offspring_model_predict_done model_children=25
+CMAES_STAGE gen=46 stage=offspring_model_decode_begin model_children=25
+CMAES_STAGE gen=46 stage=offspring_model_decode_done model_children=25
+CMAES_STAGE gen=46 stage=offspring_end
+CMAES_STAGE gen=47 stage=eval_begin
+CMAES_STAGE gen=47 stage=eval_first_item_begin i=0 genome_key=2184164180832880525
+CMAES_STAGE gen=47 stage=eval_first_item_end i=0 loss=0.93153335 acc=0.08185000
+CMAES_STAGE gen=47 stage=eval_progress chunk=0 done=1/34
+CMAES_STAGE gen=47 stage=eval_progress chunk=1 done=33/34
+CMAES_STAGE gen=47 stage=eval_progress chunk=2 done=34/34
+CMAES_ACC gen=47 loss=0.9315333465 acc=0.0818500024
+CMAES_STAGE gen=47 stage=train_phase_begin
+CMAES_STAGE gen=47 stage=build_pairs_begin subset=34
+CMAES_STAGE gen=47 stage=build_pairs_end_train_begin pairs=25 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=47 stage=build_pairs_end pairs=25 lazy_encode=1
+CMAES_STAGE gen=47 stage=train_begin pairs=25 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=47 stage=train_first_batch_encode_begin bs=1 pairs=25
+CMAES_STAGE gen=47 stage=train_first_batch_encode_end bs=1
+CMAES_STAGE gen=47 stage=train_first_step_begin bs=1
+CMAES_STAGE gen=47 stage=train_first_forward_only_begin bs=1
+CMAES_STAGE gen=47 stage=train_first_forward_only_end loss=4250.72851562
+CMAES_STAGE gen=47 stage=train_first_step_end
+CMAES_STAGE gen=47 stage=train_progress epoch=0 step=1 max_steps=5 pairs=25 mixer_loss=4250.72851562 mixer_loss_avg=4250.72851562
+CMAES_STAGE gen=47 stage=train_full_step_begin step=2 bs=22
+CMAES_STAGE gen=47 stage=train_full_zero_grad_begin step=2 bs=22
+CMAES_STAGE gen=47 stage=train_full_zero_grad_end step=2
+CMAES_STAGE gen=47 stage=train_full_backward_begin step=2 bs=22
+CMAES_STAGE gen=47 stage=train_full_backward_end step=2
+CMAES_STAGE gen=47 stage=train_full_scale_begin step=2
+CMAES_STAGE gen=47 stage=train_full_scale_end step=2
+CMAES_STAGE gen=47 stage=train_full_update_begin step=2 optimizer=adamw_matrix
+CMAES_STAGE gen=47 stage=train_full_update_end step=2
+CMAES_STAGE gen=47 stage=train_full_step_end step=2 loss=8962.56445312
+CMAES_STAGE gen=47 stage=train_full_step_begin step=3 bs=22
+CMAES_STAGE gen=47 stage=train_full_zero_grad_begin step=3 bs=22
+CMAES_STAGE gen=47 stage=train_full_zero_grad_end step=3
+CMAES_STAGE gen=47 stage=train_full_backward_begin step=3 bs=22
+CMAES_STAGE gen=47 stage=train_full_backward_end step=3
+CMAES_STAGE gen=47 stage=train_full_scale_begin step=3
+CMAES_STAGE gen=47 stage=train_full_scale_end step=3
+CMAES_STAGE gen=47 stage=train_full_update_begin step=3 optimizer=adamw_matrix
+CMAES_STAGE gen=47 stage=train_full_update_end step=3
+CMAES_STAGE gen=47 stage=train_full_step_end step=3 loss=3511.88574219
+CMAES_STAGE gen=47 stage=train_progress epoch=0 step=4 max_steps=5 pairs=25 mixer_loss=2476.86962891 mixer_loss_avg=4800.51220703
+CMAES_STAGE gen=47 stage=train_progress epoch=0 step=5 max_steps=5 pairs=25 mixer_loss=2461.09692383 mixer_loss_avg=4332.62939453
+CMAES_STAGE gen=47 stage=train_end teacher_pairs=25 subset=109 max_pairs=920 max_steps=5 mixer_loss_avg=4332.62939453
+CMAES_STAGE gen=47 stage=offspring_begin children=26 model_active=true model_cap=26 model_kept=26 model_throttled=0
+CMAES_STAGE gen=47 stage=offspring_classical_done model_children=26 classical_children=0
+CMAES_STAGE gen=47 stage=offspring_model_begin candidates=26
+CMAES_STAGE gen=47 stage=offspring_model_encode_begin model_children=26
+CMAES_STAGE gen=47 stage=offspring_model_encode_done model_children=26
+CMAES_STAGE gen=47 stage=offspring_model_predict_begin model_children=26
+CMAES_STAGE gen=47 stage=offspring_model_predict_done model_children=26
+CMAES_STAGE gen=47 stage=offspring_model_decode_begin model_children=26
+CMAES_STAGE gen=47 stage=offspring_model_decode_done model_children=26
+CMAES_STAGE gen=47 stage=offspring_end
+CMAES_STAGE gen=48 stage=eval_begin
+CMAES_STAGE gen=48 stage=eval_first_item_begin i=0 genome_key=2184164180832880525
+CMAES_STAGE gen=48 stage=eval_first_item_end i=0 loss=0.93153335 acc=0.08185000
+CMAES_STAGE gen=48 stage=eval_progress chunk=0 done=1/34
+CMAES_STAGE gen=48 stage=eval_progress chunk=1 done=33/34
+CMAES_STAGE gen=48 stage=eval_progress chunk=2 done=34/34
+CMAES_ACC gen=48 loss=0.9315333465 acc=0.0818500024
+CMAES_STAGE gen=48 stage=train_phase_begin
+CMAES_STAGE gen=48 stage=build_pairs_begin subset=34
+CMAES_STAGE gen=48 stage=build_pairs_end_train_begin pairs=26 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=48 stage=build_pairs_end pairs=26 lazy_encode=1
+CMAES_STAGE gen=48 stage=train_begin pairs=26 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=48 stage=train_first_batch_encode_begin bs=1 pairs=26
+CMAES_STAGE gen=48 stage=train_first_batch_encode_end bs=1
+CMAES_STAGE gen=48 stage=train_first_step_begin bs=1
+CMAES_STAGE gen=48 stage=train_first_forward_only_begin bs=1
+CMAES_STAGE gen=48 stage=train_first_forward_only_end loss=4334.80761719
+CMAES_STAGE gen=48 stage=train_first_step_end
+CMAES_STAGE gen=48 stage=train_progress epoch=0 step=1 max_steps=5 pairs=26 mixer_loss=4334.80761719 mixer_loss_avg=4334.80761719
+CMAES_STAGE gen=48 stage=train_full_step_begin step=2 bs=22
+CMAES_STAGE gen=48 stage=train_full_zero_grad_begin step=2 bs=22
+CMAES_STAGE gen=48 stage=train_full_zero_grad_end step=2
+CMAES_STAGE gen=48 stage=train_full_backward_begin step=2 bs=22
+CMAES_STAGE gen=48 stage=train_full_backward_end step=2
+CMAES_STAGE gen=48 stage=train_full_scale_begin step=2
+CMAES_STAGE gen=48 stage=train_full_scale_end step=2
+CMAES_STAGE gen=48 stage=train_full_update_begin step=2 optimizer=adamw_matrix
+CMAES_STAGE gen=48 stage=train_full_update_end step=2
+CMAES_STAGE gen=48 stage=train_full_step_end step=2 loss=4338.35546875
+CMAES_STAGE gen=48 stage=train_full_step_begin step=3 bs=22
+CMAES_STAGE gen=48 stage=train_full_zero_grad_begin step=3 bs=22
+CMAES_STAGE gen=48 stage=train_full_zero_grad_end step=3
+CMAES_STAGE gen=48 stage=train_full_backward_begin step=3 bs=22
+CMAES_STAGE gen=48 stage=train_full_backward_end step=3
+CMAES_STAGE gen=48 stage=train_full_scale_begin step=3
+CMAES_STAGE gen=48 stage=train_full_scale_end step=3
+CMAES_STAGE gen=48 stage=train_full_update_begin step=3 optimizer=adamw_matrix
+CMAES_STAGE gen=48 stage=train_full_update_end step=3
+CMAES_STAGE gen=48 stage=train_full_step_end step=3 loss=2595.97778320
+CMAES_STAGE gen=48 stage=train_progress epoch=0 step=4 max_steps=5 pairs=26 mixer_loss=1861.76831055 mixer_loss_avg=3282.72729492
+CMAES_STAGE gen=48 stage=train_progress epoch=0 step=5 max_steps=5 pairs=26 mixer_loss=1591.90930176 mixer_loss_avg=2944.56372070
+CMAES_STAGE gen=48 stage=train_end teacher_pairs=26 subset=109 max_pairs=920 max_steps=5 mixer_loss_avg=2944.56372070
+CMAES_STAGE gen=48 stage=offspring_begin children=26 model_active=true model_cap=26 model_kept=25 model_throttled=0
+CMAES_STAGE gen=48 stage=offspring_classical_done model_children=25 classical_children=1
+CMAES_STAGE gen=48 stage=offspring_model_begin candidates=26
+CMAES_STAGE gen=48 stage=offspring_model_encode_begin model_children=25
+CMAES_STAGE gen=48 stage=offspring_model_encode_done model_children=25
+CMAES_STAGE gen=48 stage=offspring_model_predict_begin model_children=25
+CMAES_STAGE gen=48 stage=offspring_model_predict_done model_children=25
+CMAES_STAGE gen=48 stage=offspring_model_decode_begin model_children=25
+CMAES_STAGE gen=48 stage=offspring_model_decode_done model_children=25
+CMAES_STAGE gen=48 stage=offspring_end
+CMAES_STAGE gen=49 stage=eval_begin
+CMAES_STAGE gen=49 stage=eval_first_item_begin i=0 genome_key=6246765617425403189
+CMAES_STAGE gen=49 stage=eval_first_item_end i=0 loss=0.93153335 acc=0.08185000
+CMAES_STAGE gen=49 stage=eval_progress chunk=0 done=1/34
+CMAES_STAGE gen=49 stage=eval_progress chunk=1 done=33/34
+CMAES_STAGE gen=49 stage=eval_progress chunk=2 done=34/34
+CMAES_ACC gen=49 loss=0.9315333465 acc=0.0818500024
+CMAES_STAGE gen=49 stage=train_phase_begin
+CMAES_STAGE gen=49 stage=build_pairs_begin subset=34
+CMAES_STAGE gen=49 stage=build_pairs_end_train_begin pairs=12 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=49 stage=build_pairs_end pairs=12 lazy_encode=1
+CMAES_STAGE gen=49 stage=train_begin pairs=12 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=49 stage=train_first_batch_encode_begin bs=1 pairs=12
+CMAES_STAGE gen=49 stage=train_first_batch_encode_end bs=1
+CMAES_STAGE gen=49 stage=train_first_step_begin bs=1
+CMAES_STAGE gen=49 stage=train_first_forward_only_begin bs=1
+CMAES_STAGE gen=49 stage=train_first_forward_only_end loss=2221.78369141
+CMAES_STAGE gen=49 stage=train_first_step_end
+CMAES_STAGE gen=49 stage=train_progress epoch=0 step=1 max_steps=5 pairs=12 mixer_loss=2221.78369141 mixer_loss_avg=2221.78369141
+CMAES_STAGE gen=49 stage=train_full_step_begin step=2 bs=12
+CMAES_STAGE gen=49 stage=train_full_zero_grad_begin step=2 bs=12
+CMAES_STAGE gen=49 stage=train_full_zero_grad_end step=2
+CMAES_STAGE gen=49 stage=train_full_backward_begin step=2 bs=12
+CMAES_STAGE gen=49 stage=train_full_backward_end step=2
+CMAES_STAGE gen=49 stage=train_full_scale_begin step=2
+CMAES_STAGE gen=49 stage=train_full_scale_end step=2
+CMAES_STAGE gen=49 stage=train_full_update_begin step=2 optimizer=adamw_matrix
+CMAES_STAGE gen=49 stage=train_full_update_end step=2
+CMAES_STAGE gen=49 stage=train_full_step_end step=2 loss=2107.04394531
+CMAES_STAGE gen=49 stage=train_full_step_begin step=3 bs=12
+CMAES_STAGE gen=49 stage=train_full_zero_grad_begin step=3 bs=12
+CMAES_STAGE gen=49 stage=train_full_zero_grad_end step=3
+CMAES_STAGE gen=49 stage=train_full_backward_begin step=3 bs=12
+CMAES_STAGE gen=49 stage=train_full_backward_end step=3
+CMAES_STAGE gen=49 stage=train_full_scale_begin step=3
+CMAES_STAGE gen=49 stage=train_full_scale_end step=3
+CMAES_STAGE gen=49 stage=train_full_update_begin step=3 optimizer=adamw_matrix
+CMAES_STAGE gen=49 stage=train_full_update_end step=3
+CMAES_STAGE gen=49 stage=train_full_step_end step=3 loss=1059.59362793
+CMAES_STAGE gen=49 stage=train_progress epoch=0 step=4 max_steps=5 pairs=12 mixer_loss=445.64926147 mixer_loss_avg=1458.51770020
+CMAES_STAGE gen=49 stage=train_progress epoch=0 step=5 max_steps=5 pairs=12 mixer_loss=536.07421875 mixer_loss_avg=1274.02905273
+CMAES_STAGE gen=49 stage=train_end teacher_pairs=12 subset=109 max_pairs=920 max_steps=5 mixer_loss_avg=1274.02905273
+CMAES_STAGE gen=49 stage=offspring_begin children=26 model_active=true model_cap=26 model_kept=26 model_throttled=0
+CMAES_STAGE gen=49 stage=offspring_classical_done model_children=26 classical_children=0
+CMAES_STAGE gen=49 stage=offspring_model_begin candidates=26
+CMAES_STAGE gen=49 stage=offspring_model_encode_begin model_children=26
+CMAES_STAGE gen=49 stage=offspring_model_encode_done model_children=26
+CMAES_STAGE gen=49 stage=offspring_model_predict_begin model_children=26
+CMAES_STAGE gen=49 stage=offspring_model_predict_done model_children=26
+CMAES_STAGE gen=49 stage=offspring_model_decode_begin model_children=26
+CMAES_STAGE gen=49 stage=offspring_model_decode_done model_children=26
+CMAES_STAGE gen=49 stage=offspring_end
+CMAES_STAGE gen=50 stage=eval_begin
+CMAES_STAGE gen=50 stage=eval_first_item_begin i=0 genome_key=11930927355106391567
+CMAES_STAGE gen=50 stage=eval_first_item_end i=0 loss=0.93153335 acc=0.08185000
+CMAES_STAGE gen=50 stage=eval_progress chunk=0 done=1/34
+CMAES_STAGE gen=50 stage=eval_progress chunk=1 done=33/34
+CMAES_STAGE gen=50 stage=eval_progress chunk=2 done=34/34
+CMAES_ACC gen=50 loss=0.9315333465 acc=0.0818500024
+CMAES_STAGE gen=50 stage=train_phase_begin
+CMAES_STAGE gen=50 stage=build_pairs_begin subset=34
+CMAES_STAGE gen=50 stage=build_pairs_end_train_begin pairs=9 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=50 stage=build_pairs_end pairs=9 lazy_encode=1
+CMAES_STAGE gen=50 stage=train_begin pairs=9 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=50 stage=train_first_batch_encode_begin bs=1 pairs=9
+CMAES_STAGE gen=50 stage=train_first_batch_encode_end bs=1
+CMAES_STAGE gen=50 stage=train_first_step_begin bs=1
+CMAES_STAGE gen=50 stage=train_first_forward_only_begin bs=1
+CMAES_STAGE gen=50 stage=train_first_forward_only_end loss=411.42648315
+CMAES_STAGE gen=50 stage=train_first_step_end
+CMAES_STAGE gen=50 stage=train_progress epoch=0 step=1 max_steps=5 pairs=9 mixer_loss=411.42648315 mixer_loss_avg=411.42648315
+CMAES_STAGE gen=50 stage=train_full_step_begin step=2 bs=9
+CMAES_STAGE gen=50 stage=train_full_zero_grad_begin step=2 bs=9
+CMAES_STAGE gen=50 stage=train_full_zero_grad_end step=2
+CMAES_STAGE gen=50 stage=train_full_backward_begin step=2 bs=9
+CMAES_STAGE gen=50 stage=train_full_backward_end step=2
+CMAES_STAGE gen=50 stage=train_full_scale_begin step=2
+CMAES_STAGE gen=50 stage=train_full_scale_end step=2
+CMAES_STAGE gen=50 stage=train_full_update_begin step=2 optimizer=adamw_matrix
+CMAES_STAGE gen=50 stage=train_full_update_end step=2
+CMAES_STAGE gen=50 stage=train_full_step_end step=2 loss=411.42648315
+CMAES_STAGE gen=50 stage=train_full_step_begin step=3 bs=9
+CMAES_STAGE gen=50 stage=train_full_zero_grad_begin step=3 bs=9
+CMAES_STAGE gen=50 stage=train_full_zero_grad_end step=3
+CMAES_STAGE gen=50 stage=train_full_backward_begin step=3 bs=9
+CMAES_STAGE gen=50 stage=train_full_backward_end step=3
+CMAES_STAGE gen=50 stage=train_full_scale_begin step=3
+CMAES_STAGE gen=50 stage=train_full_scale_end step=3
+CMAES_STAGE gen=50 stage=train_full_update_begin step=3 optimizer=adamw_matrix
+CMAES_STAGE gen=50 stage=train_full_update_end step=3
+CMAES_STAGE gen=50 stage=train_full_step_end step=3 loss=366.52682495
+CMAES_STAGE gen=50 stage=train_progress epoch=0 step=4 max_steps=5 pairs=9 mixer_loss=342.18017578 mixer_loss_avg=382.88998413
+CMAES_STAGE gen=50 stage=train_progress epoch=0 step=5 max_steps=5 pairs=9 mixer_loss=299.32931519 mixer_loss_avg=366.17785645
+CMAES_STAGE gen=50 stage=train_end teacher_pairs=9 subset=109 max_pairs=920 max_steps=5 mixer_loss_avg=366.17785645
+CMAES_STAGE gen=50 stage=offspring_begin children=26 model_active=true model_cap=26 model_kept=26 model_throttled=0
+CMAES_STAGE gen=50 stage=offspring_classical_done model_children=26 classical_children=0
+CMAES_STAGE gen=50 stage=offspring_model_begin candidates=26
+CMAES_STAGE gen=50 stage=offspring_model_encode_begin model_children=26
+CMAES_STAGE gen=50 stage=offspring_model_encode_done model_children=26
+CMAES_STAGE gen=50 stage=offspring_model_predict_begin model_children=26
+CMAES_STAGE gen=50 stage=offspring_model_predict_done model_children=26
+CMAES_STAGE gen=50 stage=offspring_model_decode_begin model_children=26
+CMAES_STAGE gen=50 stage=offspring_model_decode_done model_children=26
+CMAES_STAGE gen=50 stage=offspring_end
+CMAES_STAGE gen=51 stage=eval_begin
+CMAES_STAGE gen=51 stage=eval_first_item_begin i=0 genome_key=11930927355106391567
+CMAES_STAGE gen=51 stage=eval_first_item_end i=0 loss=0.93153335 acc=0.08185000
+CMAES_STAGE gen=51 stage=eval_progress chunk=0 done=1/34
+CMAES_STAGE gen=51 stage=eval_progress chunk=1 done=33/34
+CMAES_STAGE gen=51 stage=eval_progress chunk=2 done=34/34
+CMAES_ACC gen=51 loss=0.9315333465 acc=0.0818500024
+CMAES_STAGE gen=51 stage=train_phase_begin
+CMAES_STAGE gen=51 stage=build_pairs_begin subset=34
+CMAES_STAGE gen=51 stage=build_pairs_end_train_begin pairs=26 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=51 stage=build_pairs_end pairs=26 lazy_encode=1
+CMAES_STAGE gen=51 stage=train_begin pairs=26 batch_size=22 max_steps=5 lazy_encode=1 first_batch_size=1
+CMAES_STAGE gen=51 stage=train_first_batch_encode_begin bs=1 pairs=26
+CMAES_STAGE gen=51 stage=train_first_batch_encode_end bs=1
+CMAES_STAGE gen=51 stage=train_first_step_begin bs=1
+CMAES_STAGE gen=51 stage=train_first_forward_only_begin bs=1
+CMAES_STAGE gen=51 stage=train_first_forward_only_end loss=164.26251221
+CMAES_STAGE gen=51 stage=train_first_step_end
+CMAES_STAGE gen=51 stage=train_progress epoch=0 step=1 max_steps=5 pairs=26 mixer_loss=164.26251221 mixer_loss_avg=164.26251221
+CMAES_STAGE gen=51 stage=train_full_step_begin step=2 bs=22
+CMAES_STAGE gen=51 stage=train_full_zero_grad_begin step=2 bs=22
+CMAES_STAGE gen=51 stage=train_full_zero_grad_end step=2
+CMAES_STAGE gen=51 stage=train_full_backward_begin step=2 bs=22
+CMAES_STAGE gen=51 stage=train_full_backward_end step=2
+CMAES_STAGE gen=51 stage=train_full_scale_begin step=2
+CMAES_STAGE gen=51 stage=train_full_scale_end step=2
+CMAES_STAGE gen=51 stage=train_full_update_begin step=2 optimizer=adamw_matrix
+CMAES_STAGE gen=51 stage=train_full_update_end step=2
+CMAES_STAGE gen=51 stage=train_full_step_end step=2 loss=1006.69213867
+CMAES_STAGE gen=51 stage=train_full_step_begin step=3 bs=22
+CMAES_STAGE gen=51 stage=train_full_zero_grad_begin step=3 bs=22
+CMAES_STAGE gen=51 stage=train_full_zero_grad_end step=3
+CMAES_STAGE gen=51 stage=train_full_backward_begin step=3 bs=22
+CMAES_STAGE gen=51 stage=train_full_backward_end step=3
+CMAES_STAGE gen=51 stage=train_full_scale_begin step=3
+CMAES_STAGE gen=51 stage=train_full_scale_end step=3
+CMAES_STAGE gen=51 stage=train_full_update_begin step=3 optimizer=adamw_matrix
+CMAES_STAGE gen=51 stage=train_full_update_end step=3
+CMAES_STAGE gen=51 stage=train_full_step_end step=3 loss=434.54745483
+CMAES_STAGE gen=51 stage=train_progress epoch=0 step=4 max_steps=5 pairs=26 mixer_loss=420.94662476 mixer_loss_avg=506.61218262

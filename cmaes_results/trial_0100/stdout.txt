@@ -1,0 +1,21 @@
+CMAES_STAGE gen=0 stage=eval_begin
+CMAES_STAGE gen=0 stage=eval_first_item_begin i=0 genome_key=16905625253987766454
+CMAES_STAGE gen=0 stage=eval_first_item_end i=0 loss=0.95930842 acc=0.04152041
+CMAES_STAGE gen=0 stage=eval_progress chunk=0 done=1/342
+CMAES_STAGE gen=0 stage=eval_progress chunk=1 done=33/342
+CMAES_STAGE gen=0 stage=eval_progress chunk=2 done=65/342
+CMAES_STAGE gen=0 stage=eval_progress chunk=3 done=97/342
+CMAES_STAGE gen=0 stage=eval_progress chunk=4 done=129/342
+CMAES_STAGE gen=0 stage=eval_progress chunk=5 done=161/342
+CMAES_STAGE gen=0 stage=eval_progress chunk=6 done=193/342
+CMAES_STAGE gen=0 stage=eval_progress chunk=7 done=225/342
+CMAES_STAGE gen=0 stage=eval_progress chunk=8 done=257/342
+CMAES_STAGE gen=0 stage=eval_progress chunk=9 done=289/342
+CMAES_STAGE gen=0 stage=eval_progress chunk=10 done=321/342
+CMAES_STAGE gen=0 stage=eval_progress chunk=11 done=342/342
+CMAES_ACC gen=0 loss=0.7674432967 acc=0.2453545077
+CMAES_STAGE gen=0 stage=warmup mixer_warmup_generations=2
+CMAES_STAGE gen=0 stage=offspring_begin children=242 model_active=false model_cap=0 model_kept=0 model_throttled=0
+CMAES_STAGE gen=0 stage=offspring_classical_done model_children=0 classical_children=242
+CMAES_STAGE gen=0 stage=offspring_end
+CMAES_STAGE gen=1 stage=eval_begin

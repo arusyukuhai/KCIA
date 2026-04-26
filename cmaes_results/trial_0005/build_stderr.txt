@@ -1,0 +1,83 @@
+   Compiling cgp_lcm v0.1.0 (/Users/al/Documents/GitHub/KCIA)
+error[E0277]: a value of type `[Vec<Chromosome>]` cannot be built from an iterator over elements of type `_`
+   --> src/main.rs:296:12
+    |
+296 |         }).collect();
+    |            ^^^^^^^ value of type `[Vec<Chromosome>]` cannot be built from `std::iter::Iterator<Item=_>`
+    |
+    = help: the trait `FromIterator<_>` is not implemented for `[Vec<Chromosome>]`
+note: required by a bound in `std::iter::Iterator::collect`
+   --> /private/tmp/rust-20250809-8203-kg86o9/rustc-1.89.0-src/library/core/src/iter/traits/iterator.rs:2014:5
+
+error[E0277]: the size for values of type `[Vec<Chromosome>]` cannot be known at compilation time
+   --> src/main.rs:293:13
+    |
+293 |         let layers = (0..N_LAYERS).map(|li| {
+    |             ^^^^^^ doesn't have a size known at compile-time
+    |
+    = help: the trait `Sized` is not implemented for `[Vec<Chromosome>]`
+    = note: all local variables must have a statically known size
+
+error[E0277]: the size for values of type `[Vec<Chromosome>]` cannot be known at compilation time
+   --> src/main.rs:296:12
+    |
+296 |         }).collect();
+    |            ^^^^^^^ doesn't have a size known at compile-time
+    |
+    = help: the trait `Sized` is not implemented for `[Vec<Chromosome>]`
+note: required by an implicit `Sized` bound in `std::iter::Iterator::collect`
+   --> /private/tmp/rust-20250809-8203-kg86o9/rustc-1.89.0-src/library/core/src/iter/traits/iterator.rs:2014:5
+
+error[E0308]: mismatched types
+   --> src/main.rs:298:16
+    |
+298 |         Self { layers, key }
+    |                ^^^^^^ expected `Vec<Vec<Chromosome>>`, found `[Vec<Chromosome>]`
+    |
+    = note: expected struct `Vec<Vec<Chromosome>>`
+                found slice `[Vec<Chromosome>]`
+help: try using a conversion method
+    |
+298 |         Self { layers: layers.to_vec(), key }
+    |                +++++++       +++++++++
+
+warning: unused variable: `rank_buf`
+   --> src/main.rs:600:30
+    |
+600 |     order_buf: &mut [usize], rank_buf: &mut [i64],
+    |                              ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_rank_buf`
+    |
+    = note: `#[warn(unused_variables)]` on by default
+
+warning: unused variable: `t_order_buf`
+   --> src/main.rs:601:29
+    |
+601 |     p_rank_buf: &mut [i64], t_order_buf: &mut [usize],
+    |                             ^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_t_order_buf`
+
+warning: unused variable: `ext`
+   --> src/main.rs:683:5
+    |
+683 |     ext: &[Vec<Complex<f64>>; N_INPUTS_MAIN], target: &[Complex<f64>],
+    |     ^^^ help: if this is intentional, prefix it with an underscore: `_ext`
+
+warning: unused variable: `final_s`
+   --> src/main.rs:784:14
+    |
+784 |         let (final_s, final_a) = ev.get_node_score(ds.batch_sig, out_sig, &pred, target,
+    |              ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_final_s`
+
+warning: variable does not need to be mutable
+    --> src/main.rs:3086:13
+     |
+3086 |         let mut spec_seeds: Vec<(usize, usize, u8)> = (0..n_children_pre)
+     |             ----^^^^^^^^^^
+     |             |
+     |             help: remove this `mut`
+     |
+     = note: `#[warn(unused_mut)]` on by default
+
+Some errors have detailed explanations: E0277, E0308.
+For more information about an error, try `rustc --explain E0277`.
+warning: `cgp_lcm` (bin "cgp_lcm") generated 5 warnings
+error: could not compile `cgp_lcm` (bin "cgp_lcm") due to 4 previous errors; 5 warnings emitted
