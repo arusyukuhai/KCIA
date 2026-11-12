@@ -1,4 +1,4 @@
-# Kagami v98 — carry付きfast-resumeのSQLiteスレッド不整合を修正
+# KCIA v98 — carry付きfast-resumeのSQLiteスレッド不整合を修正
 
 ## 症状
 
@@ -13,7 +13,7 @@ patchlib/elastic.py:248: self.db.execute('PRAGMA schema_version')
 
 ## 原因
 
-KagamiはSQLiteジャーナルをイベントループスレッドで開きますが、CPUの場合は`asyncio.to_thread()`、MPSの場合は専用executorを使ってモデル・ディスクI/O処理をワーカースレッドに移しています。v96/v97では `elasticnet.save_fast_resume_cache()` がすでに両ジャーナルのカーソルをイベントループスレッドで採取しているにもかかわらず、`fast_resume_v85.save()` が **carry側だけ再びSQLiteに問い合わせていました**。
+KCIAはSQLiteジャーナルをイベントループスレッドで開きますが、CPUの場合は`asyncio.to_thread()`、MPSの場合は専用executorを使ってモデル・ディスクI/O処理をワーカースレッドに移しています。v96/v97では `elasticnet.save_fast_resume_cache()` がすでに両ジャーナルのカーソルをイベントループスレッドで採取しているにもかかわらず、`fast_resume_v85.save()` が **carry側だけ再びSQLiteに問い合わせていました**。
 
 Python sqlite3の標準スレッド制約に違反します。MetalやイベントIDの衝突ではありません。
 
@@ -37,6 +37,6 @@ Python sqlite3の標準スレッド制約に違反します。Metalやイベン�
 1. GUIと学習プロセスを停止。
 2. 既存のジャーナル・carry・署名鍵・復元キャッシュをバックアップ。
 3. v98のコードに更新して同じルームで再開。`reset-local-data` は不要。
-4. `KAGAMI MATERIALIZED COMMITTED BASE` が出れば統合weightの保存が完了したことを示します。次回のRESUME時に `KAGAMI FAST RESUME loaded materialized committed base` を確認してください。
+4. `KCIA MATERIALIZED COMMITTED BASE` が出れば統合weightの保存が完了したことを示します。次回のRESUME時に `KCIA FAST RESUME loaded materialized committed base` を確認してください。
 
 **注意:** 以前の版で作ったfast-resumeのスナップショットがなければ初回は全イベントの復元が必要になる場合があります。容量不足・paged COW・両ジャーナルの同時進行など、既存の安全なfallback条件は引き続き残ります。v98は旧ジャーナルの無条件削除や世代証明書の検証条件緩和は行いません。

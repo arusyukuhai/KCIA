@@ -1,8 +1,8 @@
-# Kagami v111 — ソースマップ
+# KCIA v111 — ソースマップ
 
 ## 入口
 
-- `kagami.py` — デスクトップGUIと診断コマンドの入口
+- `kcia.py` — デスクトップGUIと診断コマンドの入口
 - `patchlib/cli.py` — CLIサブコマンドの入口。実処理は別モジュールへ委譲
 - `src/main.nim` — Nimシグナリングサーバー
 - `web/desktop_webview.html`, `web/desktop_webview.js` — 現行のデスクトップUI
@@ -42,7 +42,7 @@
 
 1. 本番のimport、CLIの文字列指定、GUIサブプロセス起動、NimのstaticReadを確認。
 2. `tests/`, `scripts/`, `tools/`, `benchmarks/` による参照も確認。
-3. `webview_diagnostic.py` は単独 `python -m` 実行ツール、`kagami_eval_worker.py` は文字列指定で起動、`training_sim.py` は開発ベンチマーク用。importされにくくても未使用ではありません。
+3. `webview_diagnostic.py` は単独 `python -m` 実行ツール、`kcia_eval_worker.py` は文字列指定で起動、`training_sim.py` は開発ベンチマーク用。importされにくくても未使用ではありません。
 4. `src/*.nim`、旧Webページ、互換性モジュールを表面的な参照数のみで削除しない。
 5. 生成キャッシュ、過去のパッチ生成器、ソースZIPに混入した実行時ルーム情報は除外する。ただし既存インストールの生きたデータには触れない。
 

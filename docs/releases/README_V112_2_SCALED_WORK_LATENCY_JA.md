@@ -1,4 +1,4 @@
-# Kagami v112.2 — 同一ローカルPT計算量 × 仮想ネットワーク遅延
+# KCIA v112.2 — 同一ローカルPT計算量 × 仮想ネットワーク遅延
 
 **GUIは使わず、実際の並列ピア・ソケットも作りません。** 小メモリMacで、1つの実物の`TinyCausalLM + LoHA/LoRA + AdamW`を共有し、仮想ピアの因子とOptimizer状態をディスクへ順番に退避して、1・2・4・8ピアのPTを比較します。
 
@@ -29,7 +29,7 @@ python -m benchmarks.bench_serial_pt_v112 \
   --output-dir benchmark-results/pt-v1122
 ```
 
-`--device cpu`が標準であり、Mac MPSは`KAGAMI_EXPERIMENTAL_MPS=1`を明示した場合のみ実験的に選択できます。`--text-file ./corpus.txt`で8MiB以下のローカルUTF-8テキストをバイト単位に学習できます。
+`--device cpu`が標準であり、Mac MPSは`KCIA_EXPERIMENTAL_MPS=1`を明示した場合のみ実験的に選択できます。`--text-file ./corpus.txt`で8MiB以下のローカルUTF-8テキストをバイト単位に学習できます。
 
 ネットワークのみを毎回同条件で比較したいときは、実測計算時間の代わりに固定の1ステップ実行時間を指定できます。このときFedSum統合時間は標準で仮想0秒になります（指定する場合は `--aggregation-ms 5` など）。これにより実測のCPUスケジューリング変動が仮想時刻に混入しません。
 
@@ -55,7 +55,7 @@ python -m benchmarks.bench_serial_pt_v112 \
 
 ### 重要なモデル化の限界
 
-- **これは同期型・中央集約（star topology）のモデルであり、Kagamiの本番非同期Gossip、WebRTC、NAT、署名、P2P接続をシミュレートしたことにはなりません。**
+- **これは同期型・中央集約（star topology）のモデルであり、KCIAの本番非同期Gossip、WebRTC、NAT、署名、P2P接続をシミュレートしたことにはなりません。**
 - 同期FedSumの**最終的なPT精度はRTTを変更しても同じ**です。レイテンシは「その精度までの仮想的経過時間」を変えます。遅延によるstale-gradient、異なるバージョン同士の混合を評価するには別途非同期実験が必要です。
 - 回線の共有キュー、RTT、ジッター、簡略化した損失再送は再現しますが、TCP輻輳制御、実パケット分割、実回線の輻輳、シリアライズ負荷、署名計算は未実装です。
 - 小型モデルで計測したステップ時間を実機の巨大LLMへ外挿するのは不適切です。`--payload-bytes`はあくまで通信の仮定を切り替えるもので、実際の通信を発生させません。

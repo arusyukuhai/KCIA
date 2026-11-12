@@ -103,7 +103,7 @@ async def test_gc_refuses_certified_pointer_substitution(tmp_path):
     source,target,carry,boot,new_journal,emit=await setup_certified(tmp_path)
     close_all(source,target,carry,new_journal)
     root=tmp_path/'epochs'
-    (root/'active-epoch.json').write_text(json.dumps({'format':'kagami-hot-pointer-v1',
+    (root/'active-epoch.json').write_text(json.dumps({'format':'kcia-hot-pointer-v1',
         'epoch':1,'genesis':'f'*64,'checkpoint':boot.manifest_hash}))
     with pytest.raises(PatchError,match='pointer'):
         collect_certified_compact_source(boot,active_pointer=root/'active-epoch.json')

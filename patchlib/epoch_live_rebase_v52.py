@@ -264,7 +264,7 @@ class StreamingCertifiedRebase:
         if not path.is_file() or path.is_symlink() or path.stat().st_size>4096:
             raise PatchError('missing or unsafe local carry handoff receipt')
         data=json.loads(path.read_bytes())
-        if (not isinstance(data,dict) or data.get('format')!='kagami-local-carry-attestation-v1'
+        if (not isinstance(data,dict) or data.get('format')!='kcia-local-carry-attestation-v1'
                 or data.get('source_genesis')!=self.source.genesis
                 or data.get('target_genesis')!=self.engine.genesis
                 or data.get('certified_manifest')!=self.proposal['manifest']
@@ -318,7 +318,7 @@ class StreamingCertifiedRebase:
         if final_rowid > self.cursor:
             raise PatchError('old journal grew during final carry; ingress is not frozen')
         count,digest=self.archive_inventory_digest()
-        receipt={'format':'kagami-local-carry-attestation-v1',
+        receipt={'format':'kcia-local-carry-attestation-v1',
                 'source_genesis':self.source.genesis,
                 'target_genesis':self.engine.genesis,
                 'certified_manifest':self.proposal['manifest'],

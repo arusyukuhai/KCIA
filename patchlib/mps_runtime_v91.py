@@ -44,7 +44,7 @@ def uses_mps(*, device: Any = None, model: Any = None) -> bool:
         if text == 'mps' or text.startswith('mps:'):
             return True
     if model is not None:
-        text = str(getattr(model, '_fedpara_compute_device', '')).lower()
+        text = str(getattr(model, '_kcia_compute_device', '')).lower()
         if text == 'mps' or text.startswith('mps:'):
             return True
         # Most models have many CPU-mapped frozen parameters. A single MPS
@@ -82,7 +82,7 @@ async def model_task(func, /, *args, device=None, model=None, **kwargs):
         return await asyncio.to_thread(func, *args, **kwargs)
     global _mps_executor
     if _mps_executor is None:
-        _mps_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix='kagami-mps-model')
+        _mps_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix='kcia-mps-model')
     context = contextvars.copy_context()
     task = partial(func, *args, **kwargs)
     loop = asyncio.get_running_loop()

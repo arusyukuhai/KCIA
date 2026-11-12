@@ -2,7 +2,7 @@
 
 [日本語の変更説明・モジュールマップ](README_V110_REFACTOR_JA.md) / [検証結果](../validation/VALIDATION_V110.md)
 
-# Kagami v109 — long-response SFT context windows
+# KCIA v109 — long-response SFT context windows
 
 長文SFTの `SFT response exceeds max_length` を修正し、PPO混合学習中でも応答を複数のコンテキスト窓へ分割して全トークンを学習できるようにしました。モデル/tokenizerの実効最大長も考慮します。詳細は [`README_V109_LONG_SFT_CONTEXT_JA.md`](README_V109_LONG_SFT_CONTEXT_JA.md) を参照してください。
 
@@ -18,7 +18,7 @@ Hugging Face SFT/PPO streams are validated before loading heavyweight Reward Mod
 
 > **v102 (HF Critic head initialisation)**: `README_V102_HF_CRITIC_BOOTSTRAP_JA.md` — pretrained scalar head を持たないHFモデルからPPOのCritic headを新規初期化できる明示的モードを追加。
 
-# Kagami v99 — PPO・SFT・混合学習の安定化
+# KCIA v99 — PPO・SFT・混合学習の安定化
 
 新しいPPO/SFTのオプトイン機能: [README_V99_TRAINING_STABILITY_JA.md](README_V99_TRAINING_STABILITY_JA.md) を参照してください。v98の既存の署名済みルーム設定との互換性を維持しています。
 
@@ -30,17 +30,17 @@ Hugging Face SFT/PPO streams are validated before loading heavyweight Reward Mod
 
 > **v95 (2026-11-04):** 1/1署名の自動世代移行がV89 HOLDで止まる際のエクスポート再試行と段階診断を修正しました。詳細は `README_V95_SOLO_EPOCH_PRESSURE_JA.md`。
 
-# Kagami v94: epoch-scoped event identity fix
+# KCIA v94: epoch-scoped event identity fix
 
 **Important:** See [README_V94_EPOCH_SCOPED_EVENT_IDS_JA.md](README_V94_EPOCH_SCOPED_EVENT_IDS_JA.md) for the fix to `conflicting event ID ... journal_sha256=missing` after a certified generation rollover. v94 keeps current-generation and old carry event IDs separate and prevents old carry from rewriting new-generation LoHA local factors. No reset is required.
 
-> **macOS / Kagami v92 MPS safety:** macOS auto-device now uses CPU by default after repeated native Metal command-buffer aborts. To explicitly try unsupported experimental MPS, launch with `KAGAMI_EXPERIMENTAL_MPS=1 python kagami.py`. Run `python kagami.py mps-smoke` for an isolated probe. See `README_V92_MPS_CRASH_CONTAINMENT_JA.md`. No room or journal migration required.
+> **macOS / KCIA v92 MPS safety:** macOS auto-device now uses CPU by default after repeated native Metal command-buffer aborts. To explicitly try unsupported experimental MPS, launch with `KCIA_EXPERIMENTAL_MPS=1 python kcia.py`. Run `python kcia.py mps-smoke` for an isolated probe. See `README_V92_MPS_CRASH_CONTAINMENT_JA.md`. No room or journal migration required.
 
 > **v90:** GUI新規ルームの認証済み世代移行は1/1・2/2・2/3委員会に対応。`README_V90_SMALL_COMMITTEE_JA.md`を参照してください。既存の署名済み委員会は人数変更しません。
 
-> **v89:** `durable update log is full` の原因確認には `python kagami.py journal-status --journal PATH`。詳細は `README_V89_EPOCH_PRESSURE_JA.md`。
+> **v89:** `durable update log is full` の原因確認には `python kcia.py journal-status --journal PATH`。詳細は `README_V89_EPOCH_PRESSURE_JA.md`。
 
-# Kagami — 軽量化ソース配布版（v85 fast-resume ベース）
+# KCIA — 軽量化ソース配布版（v85 fast-resume ベース）
 
 本配布版は、現在の学習・GUI・P2P・LoHA・Critic・認証付き世代移行に必要なコード、テスト、サーバーソースを維持し、**明らかに不要なアーカイブと旧実装**を省いたものです。Pythonの動作を軽くするための高速化とは異なり、主にソース配布物と保守対象の整理です。
 
@@ -50,8 +50,8 @@ Hugging Face SFT/PPO streams are validated before loading heavyweight Reward Mod
 WebViewによるジャーナル上限の無条件解除を修正し、標準上限4GiB・予備空き容量1GiB、送信用snapshot専用ストアと自動GC、Mac/APFSのOptimizer CoW、WAL短縮、グラフ/ログの容量上限、オフライン回収コマンドを追加しています。**容量不足に備えて安全停止する仕組みであり、署名付き現役ジャーナルを無条件削除するものではありません。**
 
 ```bash
-python kagami.py disk-report --journal /path/to/events.sqlite3
-python kagami.py disk-reclaim --journal /path/to/events.sqlite3  # Kagami停止後
+python kcia.py disk-report --journal /path/to/events.sqlite3
+python kcia.py disk-reclaim --journal /path/to/events.sqlite3  # KCIA停止後
 ```
 
 詳しくは [../guides/README_DISK_GUARD_JA.md](../guides/README_DISK_GUARD_JA.md) を参照してください。
@@ -60,7 +60,7 @@ python kagami.py disk-reclaim --journal /path/to/events.sqlite3  # Kagami停止�
 
 依存ライブラリは用途に応じて `requirements-patches.txt`、`requirements-gui.txt`、`requirements-eval.txt` 等を参照してください。
 
-- WebView GUI: `python kagami.py` または `python -m patchlib.cli gui`
+- WebView GUI: `python kcia.py` または `python -m patchlib.cli gui`
 - 学習CLI: `python -m patchlib.cli train-live --help`
 - GUI（旧Tkオプション）: `python -m patchlib.cli gui-desktop`
 - メタデータ/その他コマンド: `python -m patchlib.cli --help`
@@ -70,18 +70,18 @@ python kagami.py disk-reclaim --journal /path/to/events.sqlite3  # Kagami停止�
 
 ## デバッグ用：保存データの全初期化
 
-KagamiがGUIで保存した全ローカル状態（weight・ジャーナル・Optimizer・チェックポイント・ルーム定義・peer identity・ログ等）を初期化できます。まずプレビューを確認し、Kagamiの全プロセスを停止してから実行してください。
+KCIAがGUIで保存した全ローカル状態（weight・ジャーナル・Optimizer・チェックポイント・ルーム定義・peer identity・ログ等）を初期化できます。まずプレビューを確認し、KCIAの全プロセスを停止してから実行してください。
 
 ```bash
-python kagami.py reset-local-data
-python kagami.py reset-local-data --yes
+python kcia.py reset-local-data
+python kcia.py reset-local-data --yes
 ```
 
 CLI既定名の保存物まで削除する場合は `--include-cli-defaults` を追加します。Hugging Face共通キャッシュとユーザーの外部保存先は対象外です。詳細・注意事項は [../guides/RESET_LOCAL_DATA_JA.md](../guides/RESET_LOCAL_DATA_JA.md) に記載しています。
 
 ## 保持した機能・ソース
 
-`patchlib/` の本番インポート経路、`web/` のGUI素材、`src/*.nim`、`deploy/`、`sandbox/`、`examples/`、`scripts/`、`tools/` および現在のユニットテストを収録。`fedpara-rooms/` の部屋メタデータは破棄せず同梱しています。
+`patchlib/` の本番インポート経路、`web/` のGUI素材、`src/*.nim`、`deploy/`、`sandbox/`、`examples/`、`scripts/`、`tools/` および現在のユニットテストを収録。`kcia-rooms/` の部屋メタデータは破棄せず同梱しています。
 
 古い名前を持つモジュールでも、現行のコードからimportされるものは削除していません。特に `behavior_checkpoint_v81.py` はv82実装の依存先であり保持しています。
 
@@ -93,7 +93,7 @@ CLI既定名の保存物まで削除する場合は `--include-cli-defaults` を
 - 既存のNimソースから再生成できるmacOS arm64ビルド済み実行ファイル `src/main`
 - 最新v78/v82と無関係の旧実装 `distributed_critic_v77.py`, `trajectory_gossip_v81.py`
 - 現行ランタイムに接続されていない試作 `epoch_sharded_rcu_v56.py` および対応する単独テスト
-- 同内容のSVG重複 (`kagami.svg` と `web/kagami.svg`)
+- 同内容のSVG重複 (`kcia.svg` と `web/kcia.svg`)
 
 各ファイルを削除した根拠は `CLEANUP_MANIFEST.tsv` に記録。消した履歴が必要になった場合は元のv85 ZIPから復元してください。旧形式の通信や状態をサポートするために必要な**ライブ経路の互換コードは削除していません**。
 
@@ -120,7 +120,7 @@ PYTHONPATH=.:tests pytest -q tests/test_fast_resume_v85.py tests/test_elastic.py
 
 ## v101 HF Reward/Critic physical-disk preflight
 
-When PPO selects an external Hugging Face Reward Model or Value Critic, Kagami checks
+When PPO selects an external Hugging Face Reward Model or Value Critic, KCIA checks
 missing checkpoint bytes and disk headroom *before training begins*, and reports
 ENOSPC explicitly instead of mislabeling it an unsupported model. See
 `README_V101_HF_DISK_PREFLIGHT_JA.md` for recovery commands and limitations.
@@ -128,6 +128,6 @@ ENOSPC explicitly instead of mislabeling it an unsupported model. See
 
 ## v103 — PPO診断
 
-`python kagami.py ppo-doctor` でオフラインの小型PPO+LoRA更新を検証できます。
+`python kcia.py ppo-doctor` でオフラインの小型PPO+LoRA更新を検証できます。
 PPO初期化・報酬ゼロ・勾配・KLの診断ログを追加しました。既存学習プロトコルは不変です。
 `README_V103_PPO_DIAGNOSTICS_JA.md` を参照してください。

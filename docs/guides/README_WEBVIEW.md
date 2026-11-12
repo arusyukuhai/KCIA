@@ -1,4 +1,4 @@
-# Fedpara Desktop — Embedded WebView (Python + HTML/CSS/JS)
+# KCIA Desktop — Embedded WebView (Python + HTML/CSS/JS)
 
 This replaces both the temporary standalone browser dashboard and the default Tkinter UI. `python -m patchlib.cli gui` opens a **desktop application window** using the operating system's native WebView: WebKit on macOS, WebView2 on Windows, and an appropriate WebKit/Qt backend on Linux.
 
@@ -7,7 +7,7 @@ The dashboard is rendered from bundled HTML/CSS/JavaScript, and actions invoke *
 ## 1. Installation (macOS)
 
 ```bash
-cd fedpara
+cd kcia
 python -m pip install -r requirements-patches.txt
 python -m pip install -r requirements-gui.txt
 python -m patchlib.cli gui
@@ -33,7 +33,7 @@ The old Tkinter prototype can still be used with `python -m patchlib.cli gui-des
 ## 3. Architecture and trust boundary
 
 ```text
-Fedpara Desktop window (HTML/CSS/JS)
+KCIA Desktop window (HTML/CSS/JS)
        | pywebview.api (fixed methods, no arbitrary command execution)
 Python controller -> validated JSON room descriptors
                   -> vetted code hash registry (not execution)

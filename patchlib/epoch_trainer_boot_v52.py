@@ -44,7 +44,7 @@ def read_durable_epoch_pointer(path: Path):
         raise PatchError('corrupt committed epoch pointer') from exc
     def hex64(s):return isinstance(s,str) and len(s)==64 and all(c in '0123456789abcdef' for c in s)
     if (not isinstance(data,dict) or set(data)!={'format','epoch','genesis','checkpoint'}
-            or data['format']!='kagami-hot-pointer-v1' or
+            or data['format']!='kcia-hot-pointer-v1' or
             type(data['epoch']) is not int or not 1<=data['epoch']<2**32 or
             not hex64(data['genesis']) or not hex64(data['checkpoint'])):
         raise PatchError('invalid committed epoch pointer')
@@ -106,7 +106,7 @@ def _frozen_source_cut_with_witness(old_journal, boot, receipt):
     db=old_journal.db
     guard=old_journal.epoch_cut_guard()
     max_rowid=db.execute('SELECT COALESCE(MAX(rowid),0) FROM events').fetchone()[0]
-    key='kagami_v96_frozen_source_cut_witness'
+    key='kcia_v96_frozen_source_cut_witness'
     expected={'source_genesis':boot.previous_genesis,
               'target_genesis':boot.current_genesis,
               'manifest':boot.manifest_hash,
@@ -147,7 +147,7 @@ def verify_boot_carry(boot:CertifiedEpochBoot, archive, *, old_journal):
     try:receipt=json.loads(path.read_bytes())
     except (ValueError,UnicodeError) as exc:
         raise PatchError('malformed final carry receipt') from exc
-    if (not isinstance(receipt,dict) or receipt.get('format')!='kagami-local-carry-attestation-v1'
+    if (not isinstance(receipt,dict) or receipt.get('format')!='kcia-local-carry-attestation-v1'
             or receipt.get('epoch')!=boot.epoch or
             receipt.get('source_genesis')!=boot.previous_genesis or
             receipt.get('target_genesis')!=boot.current_genesis or

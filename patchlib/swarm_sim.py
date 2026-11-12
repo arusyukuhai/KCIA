@@ -1,4 +1,4 @@
-"""Multi-process (2–16) real-transport Fedpara swarm fault injector.
+"""Multi-process (2–16) real-transport KCIA swarm fault injector.
 
 The trainer is the ordinary train-live path; no mocked WebRTC, gradients,
 state transfers or gossip are used. The optional embedded *signaling-only*
@@ -89,7 +89,7 @@ class LocalSignaling:
                             return
                         if msg.get('topology_v2') is not True:
                             await ws.send(json.dumps({'type':'error',
-                                'message':'Unsupported client: bounded-v2 topology is required; upgrade Fedpara'}))
+                                'message':'Unsupported client: bounded-v2 topology is required; upgrade KCIA'}))
                             return
                         degree=msg.get('topology_degree',8)
                         if type(degree)!=int or degree not in (2,4,6,8):

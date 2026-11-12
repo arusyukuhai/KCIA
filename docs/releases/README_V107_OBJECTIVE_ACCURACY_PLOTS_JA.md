@@ -1,4 +1,4 @@
-# Kagami v107 — PT / SFT / PPO 学習指標を独立plot
+# KCIA v107 — PT / SFT / PPO 学習指標を独立plot
 
 v106をベースにした**観測機能のみ**の改修です。LoHA、Optimizer、P2P署名、ジャーナル、世代切替、学習ルームの署名付きプロトコルを変更しません。既存ルームの履歴を削除する必要はありません。
 
@@ -22,7 +22,7 @@ PT、SFT Top-1は追加の巨大なforward passをせず、既存forward結果�
 
 ## 導入
 
-1. KagamiのGUIと学習プロセスを停止し、ルーム保存データをバックアップします。
+1. KCIAのGUIと学習プロセスを停止し、ルーム保存データをバックアップします。
 2. v107のソースへ更新します。既存の環境設定/保存データは残します。
 3. GUIのTRAINING画面に入り、PT/SFT/PPOの各グラフを選択します。
 4. 学習方式が無効な場合や計測前には `NO MEASUREMENTS YET`、正解文のないPPOではreference plotに `NO LABELED REFERENCE` と出ます。

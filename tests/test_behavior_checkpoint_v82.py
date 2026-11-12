@@ -173,7 +173,7 @@ def test_loha_historical_base_wrong_commitment_is_rejected(tmp_path):
 def test_loha_disk_virtual_base_requires_separate_certified_snapshot(tmp_path):
     src,asrc,dst,adst,ma,mb,a,b=pair(tmp_path)
     try:
-        src.linear._fedpara_disk_path='private-layer-cow'
+        src.linear._kcia_disk_path='private-layer-cow'
         with pytest.raises(PatchError,match='certified virtual/disk base'):
             capture(src)
     finally:a.close();b.close();ma.close();mb.close()

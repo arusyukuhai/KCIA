@@ -21,7 +21,7 @@ from .core import MAX_PATCH, PatchError, decode_patch
 from .state import inspect_state
 from .transport_keepalive import signaling_keepalive
 
-log = logging.getLogger('fedpara.p2p')
+log = logging.getLogger('kcia.p2p')
 CHUNK = 16 * 1024
 WINDOW = 256 * 1024
 
@@ -450,9 +450,9 @@ class PatchNode:
 
                 @pc.on('datachannel')
                 def datachannel(ch):
-                    if ch.label == 'fedpara-patch':
+                    if ch.label == 'kcia-patch':
                         attach_channel(ch)
-                    elif ch.label == 'fedpara-state' and hasattr(self, '_attach_extra_channel'):
+                    elif ch.label == 'kcia-state' and hasattr(self, '_attach_extra_channel'):
                         self._attach_extra_channel(ch)
                     else:
                         ch.close()
@@ -488,9 +488,9 @@ class PatchNode:
                                                        if self.turn_only else pc.localDescription.sdp)})
 
                 if role == 'initiator':
-                    attach_channel(pc.createDataChannel('fedpara-patch', ordered=True))
+                    attach_channel(pc.createDataChannel('kcia-patch', ordered=True))
                     if hasattr(self, '_attach_extra_channel'):
-                        self._attach_extra_channel(pc.createDataChannel('fedpara-state', ordered=True))
+                        self._attach_extra_channel(pc.createDataChannel('kcia-state', ordered=True))
 
                 peer_left = False
                 last_signal_ping=time.monotonic()

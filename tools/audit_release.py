@@ -16,9 +16,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 LINK = re.compile(r'(?<!!)\[[^]]*\]\(([^)]+)\)')
 REQUIRED = (
-    'kagami.py', 'patchlib/cli.py', 'patchlib/elasticnet.py',
+    'kcia.py', 'patchlib/cli.py', 'patchlib/elasticnet.py',
     'patchlib/mixed_learning_v65.py', 'patchlib/fast_resume_v85.py',
-    'patchlib/kagami_eval_worker.py', 'patchlib/webview_diagnostic.py',
+    'patchlib/kcia_eval_worker.py', 'patchlib/webview_diagnostic.py',
     'patchlib/training_sim.py', 'web/desktop_webview.html',
     'web/desktop_webview.js', 'web/index.html', 'web/patches.html',
     'src/main.nim', 'docs/INDEX.md', 'docs/SOURCE_LAYOUT_JA.md',
@@ -41,7 +41,7 @@ def audit(root: Path = ROOT) -> dict:
     for path in root.rglob('*'):
         if '__pycache__' in path.parts or '.pytest_cache' in path.parts:
             problems.append(f'generated cache in release: {path.relative_to(root)}')
-        if path.is_file() and path.parent == root / 'fedpara-rooms':
+        if path.is_file() and path.parent == root / 'kcia-rooms':
             problems.append(f'private/runtime room data in source release: {path.relative_to(root)}')
     docs = sorted([root / 'README.md', *((root / 'docs').rglob('*.md'))])
     for file in docs:
@@ -74,7 +74,7 @@ def main() -> int:
     if args.json:
         print(json.dumps(result, ensure_ascii=False, indent=2))
     else:
-        print(f"Kagami source audit: {result['status']} | "
+        print(f"KCIA source audit: {result['status']} | "
               f"{result['python_runtime_modules']} Python runtime modules | "
               f"{result['top_level_file_count']} root files")
         for p in result['problems']:

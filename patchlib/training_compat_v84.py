@@ -1,4 +1,4 @@
-"""Kagami v84: conservative training compatibility fixes.
+"""KCIA v84: conservative training compatibility fixes.
 
 No architecture is assumed to work merely because it can be constructed:
 forward/backward must still be checked on a real representative training batch.
@@ -37,13 +37,13 @@ def _force_input_embedding_output_grad(model: nn.Module) -> str:
             'Legacy gradient checkpointing requires a usable input embedding ' 
             'or enable_input_require_grads(); disable --gradient-checkpointing '
             'or upgrade the model/Transformers implementation.')
-    if getattr(model,'_kagami_v84_input_grad_hook',None) is None:
+    if getattr(model,'_kcia_v84_input_grad_hook',None) is None:
         def make_require_grad(_module, _inputs, output):
             if not isinstance(output,torch.Tensor) or not output.is_floating_point():
                 raise RuntimeError('embedding output must be a floating tensor for legacy checkpointing')
             output.requires_grad_(True)
         handle = embedding.register_forward_hook(make_require_grad)
-        object.__setattr__(model,'_kagami_v84_input_grad_hook',handle)
+        object.__setattr__(model,'_kcia_v84_input_grad_hook',handle)
     return 'embedding_output_hook'
 
 

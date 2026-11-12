@@ -1,4 +1,4 @@
-# Kagami v110 — 検証結果と既知の制限
+# KCIA v110 — 検証結果と既知の制限
 
 実行環境: Linux / Python 3.13 / PyTorch CPU。Apple Silicon の MPS と、実ユーザーの HF 数 GiB チェックポイント・ジャーナルは利用していません。
 

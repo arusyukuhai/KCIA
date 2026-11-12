@@ -1,16 +1,16 @@
 > **この文書は旧仕様（v88/v89）です。** 少数ピア対応の変更は `README_V90_SMALL_COMMITTEE_JA.md` を参照してください。
 
-# Kagami v89 — durable update log 4 GiB 上限対策
+# KCIA v89 — durable update log 4 GiB 上限対策
 
 ## 何が起きているか
 
-`durable update log is full (signed payload=3.999 GiB, incoming=0.010 GiB, configured cap=4.000 GiB)` は物理ディスク満杯ではなく、Kagamiの論理ジャーナル上限エラーです。従来v88では、3署名ピア委員会・2署名の認証済み世代移行が不成立のままログを4GiBまで増やし、`PatchError` で停止し得ました。すでに4GiBに達した既存ジャーナルは、v89へ置き換える**だけ**では小さくなりません。
+`durable update log is full (signed payload=3.999 GiB, incoming=0.010 GiB, configured cap=4.000 GiB)` は物理ディスク満杯ではなく、KCIAの論理ジャーナル上限エラーです。従来v88では、3署名ピア委員会・2署名の認証済み世代移行が不成立のままログを4GiBまで増やし、`PatchError` で停止し得ました。すでに4GiBに達した既存ジャーナルは、v89へ置き換える**だけ**では小さくなりません。
 
 ## v89の変更
 
 1. 認証済み世代移行の先行提案を、上限の65%から35%へ早めました。
 2. 新しいGUIルームの自動委員会モードでは、80%に達すると**ローカル学習の追加更新を一時停止**し、WebRTC通信、認証済み証明書の取得、旧世代切替、既存の認証済みGCを継続します。条件成立後は再開します。署名済み履歴は勝手に削除しません。受信更新がさらに多い場合は上限に到達することがあります。
-3. `python kagami.py journal-status --journal PATH` を追加。ルームの世代管理、署名委員会、提案、投票、確定証明書、アクティブ世代ポインタの**保存済みメタデータ**を読み取り専用で表示します。出力は問題切り分け専用で、署名検証や削除承認の代用ではありません。
+3. `python kcia.py journal-status --journal PATH` を追加。ルームの世代管理、署名委員会、提案、投票、確定証明書、アクティブ世代ポインタの**保存済みメタデータ**を読み取り専用で表示します。出力は問題切り分け専用で、署名検証や削除承認の代用ではありません。
 4. 上限エラー本文に `journal-status` を案内するよう修正。
 
 ## 手順（まずデータをバックアップ）
@@ -19,11 +19,11 @@
 
 ```
 # リポジトリで、GUIが使用している正確なジャーナルを探す
-find .fedpara-gui/rooms -name events.sqlite3 -type f
+find .kcia-gui/rooms -name events.sqlite3 -type f
 
 # GUIの実際のジャーナルパスを指定する
-python kagami.py journal-status --journal .fedpara-gui/rooms/ROOM/peers/PROFILE/events.sqlite3
-python kagami.py disk-report --journal .fedpara-gui/rooms/ROOM/peers/PROFILE/events.sqlite3
+python kcia.py journal-status --journal .kcia-gui/rooms/ROOM/peers/PROFILE/events.sqlite3
+python kcia.py disk-report --journal .kcia-gui/rooms/ROOM/peers/PROFILE/events.sqlite3
 ```
 
 - `GUI pinned generation owner: False` → v88以前から使っている既存ルーム等で、自動世代管理の対象外。**既存の署名ルームのマニフェストを後付けで改変しない**こと。

@@ -41,7 +41,7 @@ class CertifiedCompactTrainerLedger:
         parent=(predecessor if isinstance(predecessor,str)
                 else _digest(predecessor['proposal']))
         projected=dict(signed)
-        projected.update({'protocol':'kagami-local-compact-trainer-projection-v57',
+        projected.update({'protocol':'kcia-local-compact-trainer-projection-v57',
             'parent':parent, 'cutoffs':cutoffs, 'cut':signed['inventory'],
             'compact_proposal_digest':_digest(signed)})
         self._projection[epoch]=projected

@@ -99,7 +99,7 @@ def inspect(journal, manifest=None):
 
 def report(journal,manifest=None):
     s=inspect(journal,manifest)
-    print('KAGAMI JOURNAL / CERTIFIED EPOCH STATUS (read only)')
+    print('KCIA JOURNAL / CERTIFIED EPOCH STATUS (read only)')
     print('journal:',s['journal'])
     print(f'physical free: {s["physical_free"]/GIB:.2f} GiB')
     if s['signed_log_usage']:

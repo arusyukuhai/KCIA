@@ -118,7 +118,7 @@ class CrossEpochCarryArchive:
         # No older bytes need decoding for anti-entropy: the archive SQLite
         # PK index already authenticates membership of stored signed bytes.
         self._replayed_count=self.journal.count()
-        print(f'KAGAMI FAST RESUME carry restored suffix={count} archived_total={self._replayed_count}',flush=True)
+        print(f'KCIA FAST RESUME carry restored suffix={count} archived_total={self._replayed_count}',flush=True)
         return count
 
     def accept(self,engine,wire:bytes):

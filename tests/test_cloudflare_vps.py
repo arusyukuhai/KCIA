@@ -11,7 +11,7 @@ ROOT=Path(__file__).resolve().parents[1]
 
 
 def _setup():
-    spec=importlib.util.spec_from_file_location('kagami_setup_env',ROOT/'deploy/vps/setup_env.py')
+    spec=importlib.util.spec_from_file_location('kcia_setup_env',ROOT/'deploy/vps/setup_env.py')
     module=importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -27,7 +27,7 @@ def test_separate_domains_and_fresh_secrets():
     assert a['TURN_HOST']=='turn.example.com'
     assert a['TURN_REALM']=='turn.example.com'
     assert a['CF_TUNNEL_TOKEN']=='PASTE_CLOUDFLARE_TUNNEL_TOKEN_HERE'
-    for key in ('APP_TOKEN','ROOM_PUBLISH_TOKEN','TURN_SECRET'):
+    for key in ('TURN_SECRET',):
         assert re.fullmatch('[0-9a-f]{64}',a[key]);assert a[key]!=b[key]
 
 
@@ -73,7 +73,7 @@ def test_turn_only_filters_both_directions():
 
 
 def test_notebook_source_parses_and_uses_no_hardcoded_tokens():
-    nb=json.loads((ROOT/'notebooks/Kagami_Cloudflare_Mac_Colab.ipynb').read_text())
+    nb=json.loads((ROOT/'notebooks/KCIA_Cloudflare_Mac_Colab.ipynb').read_text())
     assert nb['nbformat']==4
     for cell in nb['cells']:
         if cell['cell_type']!='code':continue
@@ -81,6 +81,6 @@ def test_notebook_source_parses_and_uses_no_hardcoded_tokens():
         if source.startswith('%'):continue
         ast.parse(source)
     text=json.dumps(nb)
-    assert 'getpass' in text
-    assert 'APP_TOKEN=' not in text
+    assert 'app_token' not in text and 'getpass' not in text
+    assert 'APP_TOKEN' not in text and 'ROOM_PUBLISH_TOKEN' not in text
     assert 'await connect(args)' in text

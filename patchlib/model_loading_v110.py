@@ -37,7 +37,7 @@ def _untrusted_guard(args):
     custom = bool(getattr(args,'trust_remote_code',False) or getattr(args,'factory_file',None))
     if not custom:
         return
-    if os.environ.get('FEDPARA_ISOLATED_RUNTIME') != '1':
+    if os.environ.get('KCIA_ISOLATED_RUNTIME') != '1':
         raise PermissionError('Custom Python code requires the offline Docker sandbox; see sandbox/run_untrusted.sh')
     if os.environ.get('HF_HUB_OFFLINE') != '1' or os.environ.get('TRANSFORMERS_OFFLINE') != '1':
         raise PermissionError('Custom Python code can only run in explicitly offline runtime')
@@ -56,7 +56,7 @@ def _create_factory(args):
     factory = Path(args.factory_file)
     if not factory.is_file() or factory.suffix != '.py':
         raise ValueError('factory-file must be a local .py file')
-    spec = importlib.util.spec_from_file_location('_fedpara_user_factory', factory)
+    spec = importlib.util.spec_from_file_location('_kcia_user_factory', factory)
     if spec is None or spec.loader is None:
         raise ValueError('could not load factory')
     module = importlib.util.module_from_spec(spec)
@@ -92,8 +92,8 @@ def resolve_device(device):
 def input_device(model, fallback):
     """Use the compute device, not a frozen CPU-mapped disk weight."""
     for mod in model.modules():
-        if getattr(mod,'_fedpara_disk_path',None):
-            overlay=getattr(mod,'_fedpara_disk_overlay',None)
+        if getattr(mod,'_kcia_disk_path',None):
+            overlay=getattr(mod,'_kcia_disk_overlay',None)
             if overlay is not None:
                 return overlay.local.parts[0].device
             return resolve_device(fallback)
@@ -117,8 +117,8 @@ def check_adapter_placement(adapter):
         modpath, _, name = group.aliases[0].rpartition('.')
         original = adapter.model.get_submodule(modpath).parametrizations[name].original
         module=adapter.model.get_submodule(modpath)
-        expected=(resolve_device(getattr(adapter.model,'_fedpara_compute_device','cpu'))
-                  if hasattr(module,'_fedpara_disk_source') else original.device)
+        expected=(resolve_device(getattr(adapter.model,'_kcia_compute_device','cpu'))
+                  if hasattr(module,'_kcia_disk_source') else original.device)
         for factor in group.overlay.local.parts:
             if factor.device != expected:
                 raise RuntimeError(f'LoRA/LoHA factor for {group.canonical} on {factor.device}; expected {expected}')
@@ -202,7 +202,7 @@ def load_model(args, *, use_adapter: bool):
                 scratch_dir=getattr(args,'streaming_scratch_dir',None),
                 chunk_mib=getattr(args,'stream_chunk_mib',8),strict=True,
                 hash_genesis=getattr(args,'cmd','') in ('train-live','train-elastic'))
-            print('STREAMING BASE:',json.dumps(mdl._fedpara_streaming_base_info),flush=True)
+            print('STREAMING BASE:',json.dumps(mdl._kcia_streaming_base_info),flush=True)
         else:
             from .hf_compat_v63 import validate_training_config
             # Give actionable errors for unsupported DeepSeek FP8/MoE families.
@@ -310,17 +310,24 @@ def load_model(args, *, use_adapter: bool):
     # The adapter records each selected layer's kind/rank in the layout digest
     # so incompatible P2P updates are rejected before application.
     args.target_scope=resolved_scope
+    local_rank = None
+    if args.kind == 'loha' and getattr(args,'cmd','') in ('train','train-p2p','train-live','train-elastic'):
+        from .local_rank_v116 import choose_physical_rank
+        local_plan=choose_physical_rank(mdl, args, device=str(device))
+        local_rank=local_plan['physical_rank']
+        print('LOCAL LoHA PHYSICAL RANK:',json.dumps(local_plan),flush=True)
     adapter = UniversalAdapter(mdl, model_id, revision,
                                kind=args.kind,rank=args.rank,alpha=args.alpha,
                                max_peers=args.max_peers,target_scope=resolved_scope,
                                init_style=getattr(args,'init_style','balanced'),
-                               wide_lora_rank=getattr(args,'wide_lora_rank',4))
+                               wide_lora_rank=getattr(args,'wide_lora_rank',4),
+                               local_rank=local_rank)
     print(f'adapter policy scope={resolved_scope} init={getattr(args,"init_style","balanced")}',flush=True)
     check_adapter_placement(adapter)
     if getattr(args,'disk_linear_dir',None) or streaming:
         from .layer_offload import install_disk_linear_offload
         dest=(getattr(args,'disk_linear_dir',None) or
-              (Path(getattr(args,'streaming_scratch_dir',None) or '.') / '.fedpara-linear-pages'))
+              (Path(getattr(args,'streaming_scratch_dir',None) or '.') / '.kcia-linear-pages'))
         info=install_disk_linear_offload(mdl,adapter,dest,
             min_weight_mib=(getattr(args,'disk_linear_min_mib',0.) or (1. if streaming else 0.)),
             cache_fraction=getattr(args,'disk_cache_fraction',.6),
@@ -332,10 +339,10 @@ def load_model(args, *, use_adapter: bool):
         print('DISK LINEAR OFFLOAD:',json.dumps(info),flush=True)
         if streaming and device.type!='cpu':
             from .layer_offload import place_streaming_compute_device
-            offload_cache=next((getattr(module,'_fedpara_disk_cache')
-                          for module in mdl.modules() if hasattr(module,'_fedpara_disk_cache')),None)
+            offload_cache=next((getattr(module,'_kcia_disk_cache')
+                          for module in mdl.modules() if hasattr(module,'_kcia_disk_cache')),None)
             placement=place_streaming_compute_device(mdl,adapter,device,cache=offload_cache)
-            object.__setattr__(mdl,'_fedpara_compute_device',str(device))
+            object.__setattr__(mdl,'_kcia_compute_device',str(device))
             print('STREAMING ACCELERATOR PLACEMENT:',json.dumps(placement),flush=True)
             # Recheck factor placements after custom CPU/GPU dispatch.
             check_adapter_placement(adapter)

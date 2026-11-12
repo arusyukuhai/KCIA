@@ -18,7 +18,7 @@ def test_pressure_preempt_and_hold():
 
 
 def test_status_detects_legacy_and_pinned_gui(tmp_path, capsys):
-    room=tmp_path/'.fedpara-gui'/'rooms'/'abc123'
+    room=tmp_path/'.kcia-gui'/'rooms'/'abc123'
     peer=room/'peers'/'peer-1234567890abcdef'
     peer.mkdir(parents=True)
     journal=peer/'events.sqlite3'

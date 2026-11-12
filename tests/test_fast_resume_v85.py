@@ -171,7 +171,7 @@ def test_retired_generation_source_requires_durable_gc_proof(tmp_path):
         tmp_path/'manifest',tmp_path/'store',target,carry.journal.path,source)
     marker={'epoch':1,'manifest':manifest,'new_journal':str(target.resolve())}
     Path(str(source)+'.retired.json').write_bytes(_canonical_json(marker))
-    receipt={'format':'kagami-local-carry-attestation-v1',
+    receipt={'format':'kcia-local-carry-attestation-v1',
              'source_genesis':prev,'target_genesis':nxt,
              'certified_manifest':manifest,'epoch':1,'source_rowid':0,
              'total_archived':0,'archive_digest':hashlib.sha256(b'').hexdigest(),

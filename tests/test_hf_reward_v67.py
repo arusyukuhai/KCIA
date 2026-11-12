@@ -163,7 +163,7 @@ def test_gui_has_live_fields():
 
 def test_hf_reward_metadata_discovery_and_revision_pin(tmp_path,monkeypatch):
     from patchlib.webview_controller import WebviewController
-    from patchlib.webview_gui import FedparaBridge
+    from patchlib.webview_gui import KCIABridge
     class PublicModel:
         id='ExampleCorp/quality-rm';sha=REV;pipeline_tag='text-classification';gated=False
     class Hub:
@@ -174,7 +174,7 @@ def test_hf_reward_metadata_discovery_and_revision_pin(tmp_path,monkeypatch):
             assert repo==PublicModel.id
             return PublicModel()
     monkeypatch.setitem(sys.modules,'huggingface_hub',types.SimpleNamespace(HfApi=Hub))
-    bridge=FedparaBridge(WebviewController(tmp_path))
+    bridge=KCIABridge(WebviewController(tmp_path))
     assert bridge.search_reward_models({'query':'quality'})['models'][0]['id']==PublicModel.id
     info=bridge.inspect_reward_model({'repo':PublicModel.id})
     assert info['revision']==REV
@@ -184,7 +184,7 @@ def test_hf_reward_metadata_discovery_and_revision_pin(tmp_path,monkeypatch):
 
 def test_gui_to_real_training_command_with_selected_reward(tmp_path,monkeypatch):
     from patchlib.webview_controller import WebviewController
-    from patchlib.webview_gui import FedparaBridge
+    from patchlib.webview_gui import KCIABridge
     from patchlib.roomid import create_room_id
     c=WebviewController(tmp_path)
     room=create_room_id()
@@ -199,7 +199,7 @@ def test_gui_to_real_training_command_with_selected_reward(tmp_path,monkeypatch)
     values={**DEFAULT,'enabled':True,'ppo_jsonl':str(path),
             'ppo_reward':'hf_model','reward_model_id':'ExampleCorp/quality-rm',
             'reward_model_revision':REV,'sft_weight':0.}
-    r=FedparaBridge(c).start_training({'room':room,'ws':'ws://127.0.0.1:8080/ws',
+    r=KCIABridge(c).start_training({'room':room,'ws':'ws://127.0.0.1:8080/ws',
         'streaming_base':True,'kind':'loha','rank':16,'mixed_training':values})
     assert r['mixed_enabled'] is True
     cmd=called[-1]

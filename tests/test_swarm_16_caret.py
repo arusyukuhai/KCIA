@@ -135,7 +135,7 @@ async def _real_tcp_all_64_pair_signals():
     async with LocalSignaling(limit=16) as server:
         async def check_link(a,b):
             # Each symmetric graph edge gets its own genuine TCP WS pair.
-            # Pair rooms match the live Fedpara pair_room scheme.
+            # Pair rooms match the live KCIA pair_room scheme.
             ra=pair_room(room,a,b)
             alice=await websockets.connect(server.url)
             bob=await websockets.connect(server.url)

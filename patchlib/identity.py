@@ -10,7 +10,7 @@ import struct
 from pathlib import Path
 from .core import PatchError
 
-DOMAIN = b'Fedpara/WebRTC-artifact/v1\x00'
+DOMAIN = b'KCIA/WebRTC-artifact/v1\x00'
 
 
 def _message(size: int, sha256: str) -> bytes:

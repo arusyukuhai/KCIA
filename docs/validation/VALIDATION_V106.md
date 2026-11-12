@@ -1,6 +1,6 @@
-# Kagami v106 validation
+# KCIA v106 validation
 
-- Source base: Kagami v105 (ppo_critic_startup_guard)
+- Source base: KCIA v105 (ppo_critic_startup_guard)
 - Static: Python compileall; Node.js `node --check web/desktop_webview.js`
 - New tests: tests/test_v106_hf_schema_guard.py
 - Covered: alias mapping for SFT/PPO, no-loss first-row peeking, correct chat completion isolation, fail-closed ambiguous mappings, missing follow-up row, no reference for ground-truth PPO, SFT preflight before Reward/Critic loading, prefetch errors preserved, GUI probe returns field names only.

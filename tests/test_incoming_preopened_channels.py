@@ -15,7 +15,7 @@ from patchlib.shards import export_state_sharded
 
 
 class Channel:
-    def __init__(self, state='open', label='fedpara-state'):
+    def __init__(self, state='open', label='kcia-state'):
         self.readyState=state
         self.label=label
         self.id=1
@@ -99,7 +99,7 @@ def test_preopened_incoming_elastic_control_immediately_sends_signed_hello(tmp_p
         remote,_,_,_=auto_identity(tmp_path/'b.pem')
         n=ElasticNode('ws://localhost:8080/ws','x'*32,origin=local,remote=remote,
                       genesis='a'*64,public_key=pub,signer=signer)
-        channel=Channel('open',label='fedpara-patch')
+        channel=Channel('open',label='kcia-patch')
         n._attach_channel(channel)
         assert n.connected.is_set()
         assert n.hello_sent
@@ -115,7 +115,7 @@ def test_preopened_incoming_elastic_control_immediately_sends_signed_hello(tmp_p
 def test_preopened_patch_channel_opens_and_has_single_pump():
     async def test():
         n=PatchNode('ws://localhost:8080/ws','x'*32)
-        c=Channel('open',label='fedpara-patch')
+        c=Channel('open',label='kcia-patch')
         n._attach_channel(c)
         assert n.connected.is_set()
         first=n._send_task

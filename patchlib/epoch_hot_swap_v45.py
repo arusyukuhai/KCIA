@@ -1,4 +1,4 @@
-"""Kagami v45: opt-in trainer-boundary hot handoff primitives.
+"""KCIA v45: opt-in trainer-boundary hot handoff primitives.
 
 This module intentionally does NOT change the v1 WebRTC genesis negotiation:
 calling swap locally without coordinated generation routing is unsafe. It
@@ -49,7 +49,7 @@ def durable_pointer(path: Path, *, epoch: int, genesis: str, checkpoint_hash: st
     if p.is_symlink():
         raise PatchError('refusing symlink pointer')
     p.parent.mkdir(parents=True, exist_ok=True)
-    raw = _canonical_json({'format': 'kagami-hot-pointer-v1', 'epoch': epoch,
+    raw = _canonical_json({'format': 'kcia-hot-pointer-v1', 'epoch': epoch,
                            'genesis': genesis, 'checkpoint': checkpoint_hash})
     temp = p.with_name(p.name+'.new-'+os.urandom(8).hex())
     fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os,'O_NOFOLLOW',0), 0o600)

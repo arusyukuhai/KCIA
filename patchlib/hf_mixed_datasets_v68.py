@@ -214,7 +214,7 @@ class HFRowCycle:
                 other='response' if self.role=='sft' else 'reference'
                 display=f'{fields[0]} -> prompt; {fields[1]} -> {other}'
             # Only field names are logged, never dataset contents.
-            print(f'KAGAMI HF DATASET MAP role={self.role} repo={self.spec["repo"]} {display}',flush=True)
+            print(f'KCIA HF DATASET MAP role={self.role} repo={self.spec["repo"]} {display}',flush=True)
         mode,fields=self._resolved_mapping
         if mode=='messages':
             return _chat_sft(row)

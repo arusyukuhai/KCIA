@@ -1,4 +1,4 @@
-"""Offline causal-LM effectiveness study using Fedpara's actual UniversalAdapter.
+"""Offline causal-LM effectiveness study using KCIA's actual UniversalAdapter.
 
 NOT a network test. Peer updates run serially in this process; dividing their
 compute seconds by the number of peers is a counterfactual *ideal parallel*
@@ -223,7 +223,7 @@ def _plot(path: Path, rows: list[dict]):
     ax.plot([r['tokens_seen'] for r in rows], [r['p2p_valid_loss'] for r in rows],
             marker='s',label='Continual peer LoHa / dense-delta SUM (FedSum)')
     ax.set(xlabel='Total training tokens (equal budget)',ylabel='Heldout cross-entropy (nats)',
-           title='Fedpara offline optimizer effectiveness (NOT WebRTC)')
+           title='KCIA offline optimizer effectiveness (NOT WebRTC)')
     if rows and 'initial_valid_loss' in rows[0]:
         ax.axhline(rows[0]['initial_valid_loss'],linestyle='--',color='gray',label='Initial frozen-base baseline')
     ax.grid(alpha=.25);ax.legend();fig.tight_layout()
@@ -488,7 +488,7 @@ def run_effectiveness_benchmark(*, peers=4, rounds=5, local_steps=2, batch_size=
             make_trainable=lambda: _create_model(base,vocab=vocab,width=width,
                     context=context,kind=kind,rank=rank,init_seed=seed+12345)
             make_evaluator=lambda: TinyCausalLM(vocab,width,context)
-            model_id='fedpara:toy-causal-lm'
+            model_id='kcia:toy-causal-lm'
             model_revision='benchmark-v1'
         else:
             try:
@@ -724,7 +724,7 @@ def run_effectiveness_benchmark(*, peers=4, rounds=5, local_steps=2, batch_size=
                   'approx_dense_update_bytes_no_network':transmitted_bytes,
                   'estimated_before_after_factor_patch_bytes':factor_bytes},
              'trace':epoch_rows,
-             'limitations':['No actual network or churn; not a Fedpara signed-event Gossip benchmark.',
+             'limitations':['No actual network or churn; not a KCIA signed-event Gossip benchmark.',
                             'FedSum is an intentionally stronger update than FedAvg: effective update magnitude can grow with the number of peers; divergence is possible.',
                             'Random TinyStories-1M has a FROZEN random base: only LoHa/LoRA learns, with continual before/after factor deltas merged into the base each synchronization round.' if model=='tinystories-1m' and initialization=='random' else ('Pretrained weights: fine-tuning experiment.' if model=='tinystories-1m' else 'Toy Markov task, not text generation.'),
                             'Live asynchronous gossip does not use this offline benchmark synchronization barrier.',

@@ -17,7 +17,7 @@ p=Path(sys.argv[1]); mode=p.stat().st_mode
 if mode & 0o077:
     raise SystemExit('.env must have permissions 0600 (chmod 600 deploy/vps/.env)')
 env=dict(line.split('=',1) for line in p.read_text().splitlines() if line and not line.startswith('#') and '=' in line)
-for key in ('CF_TUNNEL_TOKEN','APP_TOKEN','TURN_SECRET','ROOM_PUBLISH_TOKEN'):
+for key in ('CF_TUNNEL_TOKEN','TURN_SECRET'):
     value=env.get(key,'')
     if not value or any(word in value.upper() for word in ('PASTE_', 'REPLACE_', 'YOUR_')):
         raise SystemExit(f'Set real {key} in deploy/vps/.env before starting')
@@ -30,4 +30,4 @@ docker compose --env-file "$CONF/.env" -f "$CONF/compose.yml" up --detach --buil
 docker compose --env-file "$CONF/.env" -f "$CONF/compose.yml" ps
 printf '\nSignaling (Cloudflare Tunnel): wss://%s/ws\n' "$(sed -n 's/^SIGNAL_HOST=//p' "$CONF/.env")"
 echo 'STUN/TURN connects directly to TURN_HOST (Cloudflare DNS only, NOT proxied).'
-echo 'Next: python scripts/check_signaling_vps.py --ws wss://SIGNAL_HOST/ws --token YOUR_APP_TOKEN'
+echo 'Next: python scripts/check_signaling_vps.py --ws wss://SIGNAL_HOST/ws'

@@ -1,6 +1,6 @@
-# Kagami v112.2: Cloudflare Tunnel for HTTPS/WSS, direct coturn for WebRTC UDP.
+# KCIA v112.2: Cloudflare Tunnel for HTTPS/WSS, direct coturn for WebRTC UDP.
 # From repository root: ./deploy/vps/start.sh
-name: kagami-vps
+name: kcia-vps
 services:
   signal:
     build:
@@ -11,16 +11,14 @@ services:
     tmpfs:
       - /tmp:size=32m,mode=1777
     volumes:
-      - rooms:/var/lib/kagami/rooms
+      - rooms:/var/lib/kcia/rooms
     # NO PUBLIC PORT: signal is reachable only by cloudflared on Docker's bridge.
     expose:
       - "8080"
     environment:
       BIND_ADDR: 0.0.0.0
       PORT: "8080"
-      ROOM_DATA_DIR: /var/lib/kagami/rooms
-      APP_TOKEN: ${APP_TOKEN:?Set APP_TOKEN in .env}
-      ROOM_PUBLISH_TOKEN: ${ROOM_PUBLISH_TOKEN:?Set ROOM_PUBLISH_TOKEN in .env}
+      ROOM_DATA_DIR: /var/lib/kcia/rooms
       TURN_SECRET: ${TURN_SECRET:?Set TURN_SECRET in .env}
       TURN_HOST: ${TURN_HOST:?Set TURN_HOST in .env}
       TURN_PORT: "3478"

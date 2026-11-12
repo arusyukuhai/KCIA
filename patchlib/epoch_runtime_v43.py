@@ -1,4 +1,4 @@
-"""Crash-safe, bounded generation handoff state machine (Kagami v43).
+"""Crash-safe, bounded generation handoff state machine (KCIA v43).
 
 This is a coordinator, NOT an untrusted remote command to delete journal data.
 Every step requires positive, independently verified runtime acknowledgements.

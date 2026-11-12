@@ -34,7 +34,7 @@ def round_anchor(previous: str, round_num: int, patches: dict[str, bytes]) -> st
     """Deterministic logical revision; identical accepted wires imply identical anchor."""
     hashes = {peer: hashlib.sha256(wire).hexdigest() for peer, wire in sorted(patches.items())}
     return hashlib.sha256(_canonical_json({
-        'protocol': 'fedpara-live-fedavg-v1', 'previous': previous,
+        'protocol': 'kcia-live-fedavg-v1', 'previous': previous,
         'round': round_num, 'patches': hashes,
     })).hexdigest()
 
@@ -47,7 +47,10 @@ def _delta_block(spec: FactorDelta, parts: list[torch.Tensor], start: int, stop:
     a = _cp([parts[0][start:stop], *parts[1:ndim]])
     if spec.kind == 'loha':
         a = a * _cp([parts[ndim][start:stop], *parts[ndim+1:]])
-    return a * (spec.alpha / spec.rank)
+    # A remote signed LoHA update may use a different PHYSICAL rank than the
+    # recipient. Divide by the sender's authenticated factor width, never the
+    # receiver's local rank (which would make replay device-dependent).
+    return a * (spec.alpha / parts[0].shape[-1])
 
 
 @dataclass(frozen=True)
@@ -99,7 +102,7 @@ class FedAvgRound:
         meta, weights = decode_patch(wire)
         if meta.get('peer_id') != peer:
             raise PatchError('sender peer identity does not match pinned connection')
-        if meta.get('live_protocol') != 'fedpara-live-fedavg-v1':
+        if meta.get('live_protocol') != 'kcia-live-fedavg-v1':
             raise PatchError('not a live FedAvg patch')
         if type(meta.get('round')) is not int or meta['round'] != self.round:
             raise PatchError('stale/future FedAvg round')
@@ -130,7 +133,7 @@ class FedAvgRound:
                 return self.patches[self.self_id]
             wire = self.adapter.export(
                 self.self_id, seq=self.round, dtype=wire_dtype,
-                extra_meta={'live_protocol':'fedpara-live-fedavg-v1',
+                extra_meta={'live_protocol':'kcia-live-fedavg-v1',
                             'round':self.round, 'base_anchor':self.anchor,
                             'participants':list(self.participants)},
             )

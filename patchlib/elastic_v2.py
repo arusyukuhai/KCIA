@@ -1,4 +1,4 @@
-"""Fedpara Elastic v2 prototype: deterministic, epoch-anchored buffered aggregation.
+"""KCIA Elastic v2 prototype: deterministic, epoch-anchored buffered aggregation.
 
 This is a *separate* mathematical aggregation engine. It intentionally does NOT
 replace the live v1 optimizer: a correct live v2 needs an agreed immutable epoch
@@ -242,7 +242,7 @@ def compare_legacy_swarm_trace(root, *, cap_per_peer: int = 8, eta: float = 1.0,
             'heldout_loss':sum(losses)/len(losses),'digest':buffer.digest(),
             'warning':'V1 patches used moving peer-specific bases: this is NOT a true V2 training run or fair accuracy benchmark.'}
 
-PROTOCOL_V2 = 'fedpara-epoch-buffer-v2'
+PROTOCOL_V2 = 'kcia-epoch-buffer-v2'
 
 
 def pack_epoch_proposal(adapter, origin: str, seq: int, epoch: str,

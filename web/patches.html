@@ -1,11 +1,10 @@
 <!DOCTYPE html>
 <html lang="ja"><head><meta charset="utf-8"/><meta content="width=device-width,initial-scale=1" name="viewport"/>
-<title>Fedpara P2P Patch Exchange</title>
+<title>KCIA P2P Patch Exchange</title>
 
-<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.1.10"></script></head><body class="min-h-screen bg-[#080e0b] text-[#e5f6ec] font-mono text-sm antialiased selection:bg-emerald-500 selection:text-[#080e0b] mx-auto max-w-[1100px] px-4 pb-16 pt-9 sm:px-7"><h1 class="mb-5 border-b-2 border-emerald-500 pb-3 text-3xl font-extrabold tracking-tight text-emerald-300 sm:text-4xl">Fedpara — WebRTCパッチ送受信</h1>
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.1.10"></script></head><body class="min-h-screen bg-[#080e0b] text-[#e5f6ec] font-mono text-sm antialiased selection:bg-emerald-500 selection:text-[#080e0b] mx-auto max-w-[1100px] px-4 pb-16 pt-9 sm:px-7"><h1 class="mb-5 border-b-2 border-emerald-500 pb-3 text-3xl font-extrabold tracking-tight text-emerald-300 sm:text-4xl">KCIA — WebRTCパッチ送受信</h1>
 <p class="my-3 leading-relaxed text-[#91a79b]"><small class="text-xs leading-relaxed text-[#91a79b]">Mummyをシグナリングに使い、LoRA/LoHAパッチのバイト列そのものは暗号化されたDataChannelでピア間転送します。同じルームIDを双方で設定してください。</small></p>
 <label class="my-3 block text-xs font-bold text-emerald-50">ルームID <input autocomplete="off" class="mt-1 min-w-0 w-full border border-emerald-900 bg-[#0c1912] px-3 py-2.5 text-sm text-emerald-50 placeholder:text-[#89a596] caret-emerald-400 focus:outline-2 focus:outline-offset-2 focus:outline-emerald-500 disabled:opacity-50" id="room" type="text"/></label>
-<label class="my-3 block text-xs font-bold text-emerald-50">APP_TOKEN <input class="mt-1 min-w-0 w-full border border-emerald-900 bg-[#0c1912] px-3 py-2.5 text-sm text-emerald-50 placeholder:text-[#89a596] caret-emerald-400 focus:outline-2 focus:outline-offset-2 focus:outline-emerald-500 disabled:opacity-50" id="token" type="password"/></label>
 <button class="inline-flex min-h-10 cursor-pointer items-center justify-center border border-emerald-500 bg-emerald-500 px-4 py-2 text-xs font-bold text-[#03170f] hover:bg-emerald-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 disabled:cursor-not-allowed disabled:opacity-50 mr-2 mt-2 mb-1" id="connect">接続</button> <button class="inline-flex min-h-10 cursor-pointer items-center justify-center border border-emerald-800 bg-[#0d1b13] px-4 py-2 text-xs font-bold text-emerald-100 hover:bg-emerald-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 disabled:cursor-not-allowed disabled:opacity-50 mr-2 mt-2 mb-1" id="close">切断</button>
 <p class="my-3 leading-relaxed text-[#91a79b]">接続状態：<b id="state">未接続</b></p>
 <label class="my-3 block text-xs font-bold text-emerald-50">送信する .fpatch <input accept=".fpatch" class="my-2 block w-full text-xs file:mr-3 file:cursor-pointer file:border file:border-emerald-600 file:bg-[#0d1b13] file:px-3 file:py-2 file:text-emerald-100" id="file" type="file"/></label>
@@ -22,7 +21,7 @@ function signal(msg){if(ws?.readyState===WebSocket.OPEN)ws.send(JSON.stringify(m
 function display(s){$('state').textContent=s;}
 function close(){if(dc){dc.close();dc=null;}if(pc){pc.close();pc=null;}if(ws){ws.close();ws=null;}$('send').disabled=true;display('切断');rx=null;rxPieces=[];}
 function acceptChannel(channel){
- if(channel.label!=='fedpara-patch'){channel.close();return;}
+ if(channel.label!=='kcia-patch'){channel.close();return;}
  dc=channel;dc.binaryType='arraybuffer';dc.bufferedAmountLowThreshold=128*1024;
  dc.onopen=()=>{display('接続済み');$('send').disabled=false;log('DataChannel connected');};
  dc.onclose=()=>{display('切断');$('send').disabled=true;};
@@ -61,7 +60,7 @@ async function setup(servers, role){
  pc.onconnectionstatechange=()=>display(pc.connectionState);
  pc.ondatachannel=e=>acceptChannel(e.channel);
  pc.onicecandidate=e=>{let msg={type:'candidate',candidate:e.candidate?.toJSON()||null};if(canSendLocal)signal(msg);else pendingLocal.push(msg);};
- if(role==='initiator')acceptChannel(pc.createDataChannel('fedpara-patch',{ordered:true}));
+ if(role==='initiator')acceptChannel(pc.createDataChannel('kcia-patch',{ordered:true}));
 }
 function flushCandidates(){canSendLocal=true;for(const m of pendingLocal)signal(m);pendingLocal=[];}
 async function setRemote(sdp,type){await pc.setRemoteDescription({sdp,type});readyRemote=true;for(const item of waitingIce)await pc.addIceCandidate(item);waitingIce=[];}
@@ -79,7 +78,7 @@ async function handle(msg){
 $('connect').onclick=()=>{
  close();location.hash=$('room').value;
  const proto=location.protocol==='https:'?'wss://':'ws://';ws=new WebSocket(proto+location.host+'/ws');
- ws.onopen=()=>{signal({type:'join',mode:'p2p',room:$('room').value,token:$('token').value});display('接続待機');};
+ ws.onopen=()=>{signal({type:'join',mode:'p2p',room:$('room').value,token:''});display('接続待機');};
  ws.onmessage=e=>{handle(JSON.parse(e.data)).catch(err=>log('Signal: '+err.message));};
  ws.onerror=()=>log('WebSocket error');
  ws.onclose=()=>display('シグナリング切断');

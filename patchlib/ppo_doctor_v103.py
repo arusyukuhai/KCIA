@@ -41,7 +41,7 @@ def main(argv=None):
 
     check_device(options.device,field='ppo-doctor device')
     if options.device=='mps' and not torch.backends.mps.is_available():
-        print('KAGAMI PPO DOCTOR FAIL: torch.backends.mps.is_available()=False',flush=True)
+        print('KCIA PPO DOCTOR FAIL: torch.backends.mps.is_available()=False',flush=True)
         return 2
     device=torch.device(options.device)
     class TinyTokenizer:
@@ -58,11 +58,11 @@ def main(argv=None):
         def forward(self,input_ids,attention_mask=None):
             return {'logits':self.head(self.embed(input_ids))}
 
-    print('KAGAMI PPO DOCTOR platform=' + str(__import__('sys').platform)
+    print('KCIA PPO DOCTOR platform=' + str(__import__('sys').platform)
           + ' torch=' + str(torch.__version__) + ' device=' + options.device,flush=True)
     # Never modify persistent room state, checkpoint, cache, or user datasets.
     try:
-        with tempfile.TemporaryDirectory(prefix='kagami-ppo-doctor-') as directory:
+        with tempfile.TemporaryDirectory(prefix='kcia-ppo-doctor-') as directory:
             path=Path(directory)/'reference.jsonl'
             path.write_text(json.dumps({'prompt':'abc','reference':'xyz'})+'\n',encoding='utf8')
             torch.manual_seed(103)
@@ -97,19 +97,19 @@ def main(argv=None):
                     if device.type=='mps':torch.mps.synchronize()
                     elapsed=time.perf_counter()-started
                     durations.append(elapsed)
-                    print(f'KAGAMI PPO DOCTOR step={step} seconds={elapsed:.3f} loss={loss:.6g} '
+                    print(f'KCIA PPO DOCTOR step={step} seconds={elapsed:.3f} loss={loss:.6g} '
                           f'actor_grad_norm={metrics["actor_grad_norm"]:.6g} '
                           f'reward={metrics["reward"]:.5g}',flush=True)
                 total=sum(float((p.detach().cpu()-prev).abs().sum()) for p,prev in zip(params,initial))
                 if not total>0:raise RuntimeError('PPO did not update adapter weights')
-                print(f'KAGAMI PPO DOCTOR PASS adapter_weight_change_l1={total:.6g} '
+                print(f'KCIA PPO DOCTOR PASS adapter_weight_change_l1={total:.6g} '
                       f'avg_step_seconds={sum(durations)/len(durations):.4f}',flush=True)
                 print('This tests local tiny PPO only; HF Reward/Critic, P2P signed epochs and native Metal stability are not certified.',flush=True)
                 return 0
             finally:
                 mixer.close()
     except Exception as exc:
-        print('KAGAMI PPO DOCTOR FAIL: '+str(exc),flush=True)
+        print('KCIA PPO DOCTOR FAIL: '+str(exc),flush=True)
         traceback.print_exc()
         return 1
 

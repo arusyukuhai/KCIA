@@ -30,7 +30,7 @@ def test_compact_cert_only_is_not_a_trainer_cut(tmp_path):
         cp=adapter.certified_epoch(1)['proposal']
         assert cp['cut']==p['inventory']
         assert cp['cutoffs']['p04095']==1
-        assert cp['protocol']=='kagami-local-compact-trainer-projection-v57'
+        assert cp['protocol']=='kcia-local-compact-trainer-projection-v57'
         assert cp['compact_proposal_digest']==_digest(p)
         # Recipient C received only the SIGNED certificate, not Merkle pages.
         deliver(bridges,'a','c',500)

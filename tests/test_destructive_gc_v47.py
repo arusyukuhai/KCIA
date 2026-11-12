@@ -1,4 +1,4 @@
-"""Regression tests for Kagami v47 GC after verified generation cutover.
+"""Regression tests for KCIA v47 GC after verified generation cutover.
 
 These tests deliberately do not claim to exercise autonomous live-worker
 cutover: the v46 trainer does not yet provide that capability.

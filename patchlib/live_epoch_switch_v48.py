@@ -6,7 +6,7 @@ verified checkpoint->new model/optimizer/journal constructor and transport
 handoff: legacy v1 WebRTC links cannot accept a different genesis in place.
 
 This is a *real* model/optimizer step-boundary switch, not a claim that
-Kagami's existing ElasticNode is generation-multiplexed. No auto-GC is
+KCIA's existing ElasticNode is generation-multiplexed. No auto-GC is
 permitted without a new-generation peer transport and durable carry proof.
 """
 from __future__ import annotations
@@ -36,7 +36,7 @@ def certified_genesis(proposal):
             or not _sha(proposal.get('semantic')) or not _sha(proposal.get('parent'))
             or not isinstance(proposal.get('room'),str)):
         raise PatchError('invalid certified genesis derivation fields')
-    return hashlib.sha256(_canonical_json(['kagami-certified-epoch-genesis-v1',
+    return hashlib.sha256(_canonical_json(['kcia-certified-epoch-genesis-v1',
         proposal['room'],proposal['epoch'],_digest(proposal),proposal['manifest'],
         proposal['semantic']])).hexdigest()
 
@@ -147,7 +147,7 @@ class LiveEpochSwitchService:
                 raise PatchError('unsafe active epoch pointer')
             saved = json.loads(self.pointer.read_text())
             current = router.current
-            if (saved.get('format') != 'kagami-hot-pointer-v1' or
+            if (saved.get('format') != 'kcia-hot-pointer-v1' or
                     saved.get('epoch') != current.epoch or
                     saved.get('genesis') != current.genesis or
                     saved.get('checkpoint') != current.checkpoint_hash):

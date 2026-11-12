@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read-only report of Kagami model IDs with identical immutable manifests.
+"""Read-only report of KCIA model IDs with identical immutable manifests.
 
 This does not delete, merge, move, or modify checkpoints or journal files.
 """
@@ -16,7 +16,7 @@ from patchlib.room_manifest import load_manifest, manifest_digest
 
 
 def duplicate_groups(workdir: Path) -> list[dict]:
-    base = Path(workdir) / '.fedpara-gui' / 'rooms'
+    base = Path(workdir) / '.kcia-gui' / 'rooms'
     groups: dict[str,list[dict]] = collections.defaultdict(list)
     if not base.exists():
         return []
@@ -44,8 +44,8 @@ def duplicate_groups(workdir: Path) -> list[dict]:
 
 
 def main():
-    parser=argparse.ArgumentParser(description='List identically configured Kagami model rooms without changing them')
-    parser.add_argument('--workdir',default='.',help='Same workdir used to launch Kagami')
+    parser=argparse.ArgumentParser(description='List identically configured KCIA model rooms without changing them')
+    parser.add_argument('--workdir',default='.',help='Same workdir used to launch KCIA')
     args=parser.parse_args()
     result=duplicate_groups(Path(args.workdir))
     print(json.dumps({'duplicate_groups':result,'group_count':len(result),'read_only':True},ensure_ascii=False,indent=2))

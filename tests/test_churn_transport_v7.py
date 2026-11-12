@@ -106,7 +106,7 @@ def test_pause_resume_and_simultaneous_join_reject_late_offer(monkeypatch):
     import sys
     import types
     class Channel:
-        readyState='open';bufferedAmount=0;label='fedpara-patch'
+        readyState='open';bufferedAmount=0;label='kcia-patch'
         def __init__(self):self.callbacks={}
         def on(self,name):
             def wrap(cb):self.callbacks[name]=cb;return cb

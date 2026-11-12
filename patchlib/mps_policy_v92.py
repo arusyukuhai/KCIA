@@ -10,7 +10,7 @@ from __future__ import annotations
 import os
 import sys
 
-_ENV = "KAGAMI_EXPERIMENTAL_MPS"
+_ENV = "KCIA_EXPERIMENTAL_MPS"
 _TRUTHY = frozenset(("1", "true", "yes", "on"))
 _reported = False
 
@@ -39,9 +39,9 @@ def check_device(device, *, field: str = "device") -> None:
     name = str(device).lower()
     if (name == "mps" or name.startswith("mps:")) and not mps_allowed():
         raise RuntimeError(
-            f"{field}=mps is disabled by Kagami v92 on macOS because native "
+            f"{field}=mps is disabled by KCIA v92 on macOS because native "
             "Metal command-buffer assertions abort the interpreter and may "
-            "leave optimizer state unpublished. Set KAGAMI_EXPERIMENTAL_MPS=1 "
+            "leave optimizer state unpublished. Set KCIA_EXPERIMENTAL_MPS=1 "
             "to opt in explicitly; or use device=cpu (recommended for stability)."
         )
 
@@ -55,7 +55,7 @@ def notify_safe_cpu() -> None:
     global _reported
     if is_macos() and not experimental_mps() and not _reported:
         _reported = True
-        print("KAGAMI MPS SAFE MODE: automatic device=cpu on macOS. "
+        print("KCIA MPS SAFE MODE: automatic device=cpu on macOS. "
               "Existing signed logs, weights and network protocol are unchanged. "
-              "For experimental GPU, set KAGAMI_EXPERIMENTAL_MPS=1 before launch.",
+              "For experimental GPU, set KCIA_EXPERIMENTAL_MPS=1 before launch.",
               file=sys.stderr, flush=True)

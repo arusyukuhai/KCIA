@@ -27,8 +27,6 @@ def configuration(signal_host: str, turn_host: str, public_ip: str) -> str:
         'TURN_REALM': turn_host.lower(),
         'PUBLIC_IP': public_ip,
         'CF_TUNNEL_TOKEN': PLACEHOLDER,
-        'APP_TOKEN': secrets.token_hex(32),
-        'ROOM_PUBLISH_TOKEN': secrets.token_hex(32),
         'TURN_SECRET': secrets.token_hex(32),
     }
     return ''.join(f'{key}={value}\n' for key, value in entries.items())

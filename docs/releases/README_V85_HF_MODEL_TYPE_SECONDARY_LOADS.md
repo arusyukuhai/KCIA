@@ -1,4 +1,4 @@
-# Kagami v85 — `Should have model_type key in config.json` recurrence fix
+# KCIA v85 — `Should have model_type key in config.json` recurrence fix
 
 ## Why v83/v84 still failed
 
@@ -7,7 +7,7 @@ Hugging Face `AutoTokenizer.from_pretrained()` often invokes `AutoConfig.from_pr
 - CLI local text training / adapter preflight (`patchlib.cli.training_batches`)
 - P2P Hugging Face dataset training (`patchlib.hf_datasets.batches_from_room`)
 - SFT / PPO mixed learning (`patchlib.mixed_learning_v65.build`)
-- GUI evaluation/inference (`patchlib.kagami_eval_worker.run`)
+- GUI evaluation/inference (`patchlib.kcia_eval_worker.run`)
 - separate external reward model and Hugging Face Critic (both model and tokenizer loads)
 - pinned TinyStories random initialization / benchmark and training simulator utilities
 
@@ -23,7 +23,7 @@ The error thus resurfaced when the model loaded correctly but an independent `Au
 
 ## Verify the specific failing model
 
-Inside the extracted `kagami-v85` folder:
+Inside the extracted `kcia-v85` folder:
 
 ```bash
 python -m patchlib.cli hf-diagnose --model org/model --revision main
@@ -46,6 +46,6 @@ python scripts/fix_hf_model_type_v83.py /path/to/model --model-type gpt2 --write
 ## Validation and limitations
 
 - Added v85 regression tests; 89 targeted tests pass (from HF adapters, configs, reward/Critic, dataset, LoHA trainability, room identity).
-- The legacy `test_kagami_v35_eval_errors.py` test module contains 4 pre-existing failures with a fake Transformers module that does not expose `AutoConfig`; reproduces on unmodified v84. This is not evidence of a real user model failure or of v85 correcting it.
+- The legacy `test_kcia_v35_eval_errors.py` test module contains 4 pre-existing failures with a fake Transformers module that does not expose `AutoConfig`; reproduces on unmodified v84. This is not evidence of a real user model failure or of v85 correcting it.
 - This environment does not contain the actual Transformers package or the user's failing model weights, so an end-to-end load for that particular model remains unverified. Supply the model repository ID/commit and complete traceback to make a model-specific diagnosis.
 - Model checkpoint, LoHA math, signatures, P2P protocol and the trained-weight representation are unchanged. Consistently deploy to every affected peer to avoid mixed runtime behavior.

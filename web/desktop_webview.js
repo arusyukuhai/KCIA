@@ -1,5 +1,5 @@
 'use strict';
-// Kagami: local WebView controller. Fixed Python RPC allowlist; no HTTP listener.
+// KCIA: local WebView controller. Fixed Python RPC allowlist; no HTTP listener.
 const $ = (id) => document.getElementById(id);
 const translations = {
   ja: {
@@ -33,7 +33,7 @@ const translations = {
     appliedEvents:'適用した更新',inbox:'受信キュー',
     networkNote:'直接接続した隣接ピアのみ表示します。他ピア間の接続は観測できないため描きません。',
     newIntro:'アーキテクチャ、データセット集合、実行設定を固定して新規モデルを作成します。',
-    newId:'新しいID',createModel:'モデルを作成',identity:'モデルの識別情報',
+    newId:'新しいID',createModel:'モデルを作成',browseModels:'モデルを検索',identity:'モデルの識別情報',
     modelId:'Hugging FaceモデルID',modelRevision:'リビジョン（コミットSHA推奨）',
     creationMode:'作成方式',tokenizerModel:'使用するTokenizer',tokenizerRevision:'Tokenizerリビジョン',copyWeights:'既存モデルを重みごとコピー',copyArchitecture:'既存モデルの構造だけコピー',codeArchitecture:'Pythonで構造を設計（Transformers Config）',configInit:'構造から再初期化',initialization:'初期化',randomInit:'TinyStoriesランダム初期化',pretrained:'事前学習済み',task:'タスク',
     visibility:'公開範囲',private:'非公開',signaling:'シグナリング WebSocket',networkId:'ネットワーク識別子',
@@ -77,7 +77,7 @@ const translations = {
     searchHF:'Search Hugging Face datasets',searchToStart:'Search the public Hugging Face Hub to begin.',
     hubCatalog:'Hugging Face catalog',attachedDatasets:'DATASETS ATTACHED TO DRAFT',datasetRepo:'Repository',
     weight:'Mix weight',columnMap:'Column mapping (e.g. text=text)',addDataset:'＋ Add dataset',
-    evalIntro:'Generate from the actual trained Kagami checkpoint.',trainedEval:'TRAINED CHECKPOINT',evalScope:'WEIGHTS SOURCE',captureSnapshot:'Save current weights',baseOnly:'Original HF base (explicit)',currentModel:'CURRENT MODEL',
+    evalIntro:'Generate from the actual trained KCIA checkpoint.',trainedEval:'TRAINED CHECKPOINT',evalScope:'WEIGHTS SOURCE',captureSnapshot:'Save current weights',baseOnly:'Original HF base (explicit)',currentModel:'CURRENT MODEL',
     prompt:'PROMPT',precision:'PRECISION / QUANTIZATION',maxTokens:'MAX NEW TOKENS',generate:'▶ Generate',cancel:'Cancel',
     evalDisclaimer:'Verified effective-weight shards are loaded. Quantization may need substantial temporary disk space.',
     output:'OUTPUT',networkIntro:'Visualize real WebRTC links observable from this local peer.',
@@ -86,7 +86,7 @@ const translations = {
     appliedEvents:'Applied updates',inbox:'Inbound queue',
     networkNote:'Only directly observed links are drawn. The links between other peers are not observable.',
     newIntro:'Create a model with immutable architecture, dataset collection, and training config.',
-    newId:'New ID',createModel:'Create model',identity:'MODEL IDENTITY',
+    newId:'New ID',createModel:'Create model',browseModels:'Browse models',identity:'MODEL IDENTITY',
     modelId:'Hugging Face model ID',modelRevision:'Revision (commit SHA recommended)',
     creationMode:'CREATE FROM',tokenizerModel:'Tokenizer (HF repository)',tokenizerRevision:'Tokenizer revision',copyWeights:'Copy pretrained model and weights',copyArchitecture:'Copy architecture, initialize new weights',codeArchitecture:'Build architecture in Python (HF Config)',configInit:'Seeded configuration',initialization:'Initialization',randomInit:'Random TinyStories initialization',pretrained:'Pretrained',task:'Task',
     visibility:'Visibility',private:'Private',signaling:'Signaling WebSocket',networkId:'Network identifier',
@@ -119,7 +119,7 @@ const short=(s,n=18)=>String(s||'—').length>n?String(s).slice(0,n)+'…':Strin
 function translate(){document.documentElement.lang=lang;document.querySelectorAll('[data-t]').forEach(n=>{n.textContent=t(n.dataset.t)});document.querySelectorAll('[data-ph]').forEach(n=>n.placeholder=t(n.dataset.ph));$('screenSubtitle').textContent=t(currentTab==='models'?'modelsSubtitle':currentTab==='training'?'trainingIntro':currentTab==='datasets'?'datasetsIntro':currentTab==='eval'?'evalIntro':currentTab==='network'?'networkIntro':'newIntro');drawModels();drawSources();drawHub();drawSelection();drawRun();drawGraph();}
 let toastTimer=null;
 function notify(msg,error=false){const node=$('feedback');node.textContent=String(msg);node.classList.toggle('error',error);node.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>node.classList.remove('show'),6500);}
-function navigate(id){currentTab=id;for(const b of document.querySelectorAll('[data-tab]')){const active=b.dataset.tab===id;b.classList.toggle('current',active);b.setAttribute('aria-selected',active?'true':'false');}for(const panel of document.querySelectorAll('.screen'))panel.classList.toggle('active',panel.id==='panel-'+id);if(id==='training'&&run.model_id)void refreshChartHistory().catch(()=>{});if(id==='datasets'&&!hubResults.length)void searchDatasets().catch(e=>{setText('datasetCount','Hub unavailable');$('datasetInspectNote').textContent=String(e.message||e);});$('breadcrumb').textContent='KAGAMI / '+(id==='new'?'NEW MODEL':id.toUpperCase());$('screenSubtitle').textContent=t(id==='models'?'modelsSubtitle':id==='training'?'trainingIntro':id==='datasets'?'datasetsIntro':id==='eval'?'evalIntro':id==='network'?'networkIntro':'newIntro');}
+function navigate(id){currentTab=id;for(const b of document.querySelectorAll('[data-tab]')){const active=b.dataset.tab===id;b.classList.toggle('current',active);b.setAttribute('aria-selected',active?'true':'false');}for(const panel of document.querySelectorAll('.screen'))panel.classList.toggle('active',panel.id==='panel-'+id);if(id==='new' && activatedRoom===get('room'))void prepareNewDraft().catch(e=>notify(e.message,true));if(id==='training'){ensureDeviceCapabilities();scheduleChartPaint(true);if(run.model_id)void refreshChartHistory().catch(()=>{});void safe('Auto tuning',refreshAutoPlan)();}if(id==='eval'){void loopEval();void updateCheckpoints().catch(()=>{});}if(id==='new'){ensureDeviceCapabilities();void safe('Auto tuning',refreshAutoPlan)();}if(id==='datasets'&&!hubResults.length)void searchDatasets().catch(e=>{setText('datasetCount','Hub unavailable');$('datasetInspectNote').textContent=String(e.message||e);});$('breadcrumb').textContent='KCIA / '+(id==='new'?'NEW MODEL':id.toUpperCase());$('screenSubtitle').textContent=t(id==='models'?'modelsSubtitle':id==='training'?'trainingIntro':id==='datasets'?'datasetsIntro':id==='eval'?'evalIntro':id==='network'?'networkIntro':'newIntro');}
 document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>navigate(b.dataset.tab)));
 $('language').addEventListener('change',()=>{lang=$('language').value;translate();updateWsNotice();});
 function get(id){return String($(id).value||'').trim();}
@@ -131,21 +131,49 @@ function updateWsNotice(){
   }catch(_){msg=lang==='ja'?'WebSocketのURLを確認してください。':'Check WebSocket URL.';}
   setText('wsNotice',msg);
 }
-$('ws').addEventListener('input',updateWsNotice);
+$('ws').addEventListener('input',()=>{updateWsNotice();setText('signalConnectivity','NOT TESTED');});
+let previousRemoteWs='';
+$('networkMode').addEventListener('change',()=>{
+  const mode=get('networkMode');
+  if(mode==='local'){
+    if(get('ws').startsWith('wss://'))previousRemoteWs=get('ws');
+    $('ws').value='ws://127.0.0.1:8080/ws';
+  }else if(!get('ws').startsWith('wss://')){
+    $('ws').value=previousRemoteWs;
+  }
+  updateWsNotice();drawSelection();setText('signalConnectivity','NOT TESTED');
+});
+$('connectNetwork').addEventListener('click',safe('Network',async()=>{
+  const url=get('ws');
+  await api('setNetwork',{ws:url});
+  setText('signalConnectivity','CHECKING');
+  try{
+    const result=await api('probeNetwork',{ws:url});
+    setText('signalConnectivity','CONNECTED');
+    setText('networkConnectionDetail','HTTP directory reachable · '+result.public_rooms+' published models · '+result.mode);
+    notify('Signaling connected · '+result.ws);
+    await refreshModels();
+  }catch(e){
+    setText('signalConnectivity','OFFLINE');
+    setText('networkConnectionDetail','接続先は保存しました。再接続時に試してください: '+String(e.message||e));
+    notify('Saved, but signaling cannot be reached: '+String(e.message||e),true);
+  }
+}));
 function get(id){return String($(id).value||'').trim();}
-const routes=Object.freeze({defaults:'defaults',newRoom:'new_room',save:'save_room',join:'join_room',register:'register_room',
+const routes=Object.freeze({defaults:'defaults',newRoom:'new_room',setNetwork:'configure_network',probeNetwork:'probe_network',save:'save_room',join:'join_room',register:'register_room',
   publicModels:'list_rooms',localModels:'local_models',select:'select_model',compat:'model_compatibility',
   mixedSettings:'mixed_settings',pickMixFile:'pick_training_file',
   mixPinDataset:'pin_mixed_dataset',mixProbeDataset:'probe_mixed_dataset',hubDiscover:'discover_hub_assets',rewardSearch:'search_reward_models',rewardInspect:'inspect_reward_model',device:'device_capabilities',datasets:'search_datasets',inspect:'inspect_dataset',plan:'recommend_training',code:'register_code',start:'start_training',
   status:'training_status',history:'training_history',pause:'stop_training',resume:'resume_training',disconnect:'disconnect_training',
+  resetPreview:'preview_full_reset',resetRequest:'request_full_reset',
   open:'open_storage',paths:'storage_paths',copy:'copy_logs',saveLog:'save_logs',eval:'evaluate',evalStatus:'eval_status',cancelEval:'cancel_eval',evalCheckpoints:'available_checkpoints',captureSnapshot:'request_eval_snapshot',snapshotStatus:'eval_snapshot_status'});
 let bridgeWait;
 function ready(){return !!window.pywebview?.api&&typeof window.pywebview.api.defaults==='function';}
 async function waitBridge(){if(ready())return window.pywebview.api;if(bridgeWait)return bridgeWait;bridgeWait=new Promise((resolve,reject)=>{const started=Date.now();let timer=null;function check(){if(ready()){clearTimeout(timer);resolve(window.pywebview.api);return;}if(Date.now()-started>9000){reject(new Error(t('noBrowser')));return;}timer=setTimeout(check,110);}check();}).finally(()=>{bridgeWait=null;});return bridgeWait;}
 async function api(action,payload={}){const name=routes[action];if(!name)throw Error('Unknown RPC route');const bridge=await waitBridge();if(typeof bridge[name]!=='function')throw Error('Missing Python RPC: '+name);
-  const ms=(action==='hubDiscover'||action==='datasets'||action==='inspect'||action==='plan'||action==='publicModels'||action==='join'||action==='select'||action==='rewardSearch'||action==='rewardInspect'||action==='mixPinDataset')?16500:(action==='eval'||action==='captureSnapshot'||action==='mixProbeDataset')?45000:action==='status'?4500:10000;
+  const ms=(action==='publicModels')?7500:(action==='hubDiscover'||action==='datasets'||action==='inspect'||action==='plan'||action==='publicModels'||action==='join'||action==='select'||action==='rewardSearch'||action==='rewardInspect'||action==='mixPinDataset')?16500:(action==='eval'||action==='captureSnapshot'||action==='mixProbeDataset')?45000:action==='status'?4500:10000;
   let timer;try{return await Promise.race([Promise.resolve().then(()=>bridge[name](payload)),new Promise((_,reject)=>timer=setTimeout(()=>reject(Error('RPC timeout: '+action)),ms))]);}finally{clearTimeout(timer);}}
-const safe=(title,call)=>async (...args)=>{try{return await call(...args);}catch(e){notify(title+': '+String(e.message||e),true);return null;}};
+function safe(title,call){return async (...args)=>{try{return await call(...args);}catch(e){notify(title+': '+String(e.message||e),true);return null;}};}
 function create(tag,cls,text){const el=document.createElement(tag);if(cls)el.className=cls;if(text!==undefined)el.textContent=String(text);return el;}
 function setText(id,text){$(id).textContent=String(text);}
 function taglist(container,arr){container.replaceChildren();if(!arr||!arr.length){container.append(create('span','muted','—'));return;}for(const v of arr.slice(0,12))container.append(create('span','tag',v));}
@@ -165,7 +193,14 @@ function drawModels(){const list=modelFiltered();const pages=Math.max(1,Math.cei
   }setPageControls('model',modelPage,pages,list.length);setText('modelsCounter',models.length);
   // Probe only the visible page, without blocking rendering or flooding the Hub.
   if(ready())for(const item of list.slice(modelPage*4,(modelPage+1)*4))queueCompatibility(item);}
-function drawSelection(){const x=selected;setText('selectedModelTitle',x?x.model.split('/').pop(): '—');setText('selectedModelId',x?x.model:'—');setText('modelPeerCount',x?m(x.online):'—');setText('modelTask',x?.task||'causal-lm');setText('modelRevision',x?short(x.revision||'—',15):'—');setText('modelSize',x?.compatibility?.parameters?formatParams(x.compatibility.parameters):'—');taglist($('modelDatasets'),x?.datasets||[]);
+function inviteUrl(ws,room){
+  if(!room||!/^[A-Za-z0-9_-]{24,64}$/.test(room))return '';
+  const u=new URL('kcia://join');
+  u.searchParams.set('ws',ws);u.searchParams.set('room',room);
+  return u.toString();
+}
+function drawSelection(){const x=selected;
+  $('inviteLink').value=x?inviteUrl(get('ws'),x.room_id):'';setText('selectedModelTitle',x?x.model.split('/').pop(): '—');setText('selectedModelId',x?x.model:'—');setText('modelPeerCount',x?m(x.online):'—');setText('modelTask',x?.task||'causal-lm');setText('modelRevision',x?short(x.revision||'—',15):'—');setText('modelSize',x?.compatibility?.parameters?formatParams(x.compatibility.parameters):'—');taglist($('modelDatasets'),x?.datasets||[]);
   // Telemetry belongs to the active room, never to an arbitrary selected card.
   const sample=x?.room_id===run.model_id?latestTelemetry.at(-1):null;
   const lastLoss=sample?.loss,lastAccuracy=sample?.accuracy;
@@ -188,12 +223,38 @@ function drainCompatibility(){
   }
 }
 function checkCompatibility(item){queueCompatibility(item);}
-async function refreshModels(){const local=await api('localModels');const remote=await api('publicModels',{ws:get('ws')}).catch(e=>{notify('Public directory: '+e.message,true);return {rooms:[]};});const map=new Map();for(const x of remote.rooms||[])map.set(x.room_id,{...x,local:false});for(const x of local.models||[]){const prev=map.get(x.room_id);map.set(x.room_id,{...prev,...x,online:prev?.online||0,local:true});}
-  models=Array.from(map.values()).slice(0,250).sort((a,b)=>Number(b.is_training||false)-Number(a.is_training||false)||Number(b.online)-Number(a.online));
-  if(selected){selected=models.find(x=>modelKey(x)===modelKey(selected))||null;}if(!selected&&models.length)selected=models[0];drawModels();drawSelection();if(selected)void checkCompatibility(selected);}
+let directoryRequestId=0;
+let cachedLocalRooms=[], cachedPublicRooms=[];
+function updateModelDirectory(){
+ const map=new Map();
+ for(const x of cachedPublicRooms)map.set(x.room_id,{...x,local:false});
+ for(const x of cachedLocalRooms){const prev=map.get(x.room_id);map.set(x.room_id,{...prev,...x,online:prev?.online||0,local:true});}
+ models=Array.from(map.values()).slice(0,250).sort((a,b)=>Number(b.is_training||false)-Number(a.is_training||false)||Number(b.online)-Number(a.online));
+ if(selected)selected=models.find(x=>modelKey(x)===modelKey(selected))||null;
+ if(!selected&&models.length)selected=models[0];
+ drawModels();drawSelection();if(selected)void checkCompatibility(selected);
+}
+async function refreshModels(){
+ const serial=++directoryRequestId;
+ // Render local state as soon as possible; unreachable Cloudflare must not
+ // postpone model selection, new-model clicks or first paint.
+ const local=await api('localModels');
+ if(serial!==directoryRequestId)return;
+ cachedLocalRooms=(local.models||[]).slice(0,250);
+ updateModelDirectory();
+ const url=get('ws');
+ void api('publicModels',{ws:url}).then(remote=>{
+   if(serial!==directoryRequestId||get('ws')!==url)return;
+   cachedPublicRooms=(remote.rooms||[]).slice(0,250);
+   updateModelDirectory();
+ }).catch(e=>{
+   // Offline is normal for a local-first desktop app. Keep existing results.
+   setText('networkConnectionDetail','Directory offline · '+String(e.message||e));
+ });
+}
 $('refreshModels').addEventListener('click',safe('MODELS',refreshModels));$('modelFilter').addEventListener('input',()=>{modelPage=0;drawModels();});$('modelScope').addEventListener('change',()=>{modelPage=0;drawModels();});
 $('modelPrev').addEventListener('click',()=>{modelPage=Math.max(0,modelPage-1);drawModels();});$('modelNext').addEventListener('click',()=>{modelPage++;drawModels();});
-function applyManifest(info,room){const v=info.manifest;if(!v?.model||!Array.isArray(v.datasets?.sources))throw Error('Invalid manifest');$('room').value=room;$('model').value=v.model.id;$('revision').value=v.model.revision;$('task').value=v.model.architecture;if(v.adapter?.kind)$('kind').value=v.adapter.kind;$('adapterScope').value=v.adapter?.target_scope||'auto';$('creationMode').value=v.design?.mode==='code'?'code':v.design?.mode==='architecture'?'architecture':'weights';$('modelInitialization').value=v.design?'config':v.model.description==='fedpara:random-tinystories-1m:v1'?'random':'pretrained';$('base').value='';syncCreationMode(false);$('seed').value=v.datasets.seed;$('codeUrl').value=v.code?.source||'';$('tokenizerModel').value=v.design?.tokenizer?.id||v.model.id;$('tokenizerRevision').value=v.design?.tokenizer?.revision||v.model.revision;sources=v.datasets.sources.map(s=>({...s,columns:{...s.columns}}));codePath='';$('codeEditor').value='';setText('codeStatus',v.code?.sha256?'SHA-256 '+v.code.sha256:'—');setText('fingerprint','SHA-256 '+info.sha256);drawSources();void refreshAutoPlan();}
+function applyManifest(info,room){const v=info.manifest;if(!v?.model||!Array.isArray(v.datasets?.sources))throw Error('Invalid manifest');$('room').value=room;$('model').value=v.model.id;$('revision').value=v.model.revision;lastModelForRevision=v.model.id;$('task').value=v.model.architecture;if(v.adapter?.kind)$('kind').value=v.adapter.kind;$('adapterScope').value=v.adapter?.target_scope||'auto';$('creationMode').value=v.design?.mode==='code'?'code':v.design?.mode==='architecture'?'architecture':'weights';$('modelInitialization').value=v.design?'config':v.model.description==='kcia:random-tinystories-1m:v1'?'random':'pretrained';$('base').value='';syncCreationMode(false);$('seed').value=v.datasets.seed;$('codeUrl').value=v.code?.source||'';$('tokenizerModel').value=v.design?.tokenizer?.id||v.model.id;$('tokenizerRevision').value=v.design?.tokenizer?.revision||v.model.revision;sources=v.datasets.sources.map(s=>({...s,columns:{...s.columns}}));codePath='';$('codeEditor').value='';setText('codeStatus',v.code?.sha256?'SHA-256 '+v.code.sha256:'—');setText('fingerprint','SHA-256 '+info.sha256);drawSources();void refreshAutoPlan();}
 async function selectModel(){
   if(!selected)throw Error(t('needSelect'));
   // Allow selecting existing models even when this device can only relay.
@@ -211,31 +272,116 @@ async function selectModel(){
   activatedRoom=selected.room_id;
   setText('evalModel',selected.model);notify(t('modelSelected'));
 }
+$('copyInvite').addEventListener('click',safe('Copy invite',async()=>{
+  const link=$('inviteLink').value;
+  if(!link)throw Error('Select a model first');
+  $('inviteLink').focus();$('inviteLink').select();
+  if(navigator.clipboard?.writeText){
+    await navigator.clipboard.writeText(link);
+    notify('参加リンクをコピーしました');
+  }else notify('リンク欄を選択しました。手動でコピーできます');
+}));
+$('joinByInvite').addEventListener('click',safe('Join invitation',async()=>{
+  const raw=get('joinInvite');const url=new URL(raw);
+  if(url.protocol!=='kcia:'||url.hostname!=='join'||url.pathname!=='')throw Error('Invalid KCIA invitation');
+  const ws=url.searchParams.get('ws'),room=url.searchParams.get('room');
+  if(!ws||!room||!/^[A-Za-z0-9_-]{24,64}$/.test(room))throw Error('Invalid invitation');
+  const existing=get('ws');
+  if(run.running)throw Error('Disconnect the current training worker before changing networks');
+  const loaded=await api('join',{room,ws});
+  await api('setNetwork',{ws});
+  $('ws').value=ws;$('networkMode').value=ws.startsWith('wss://')?'internet':'local';
+  if(ws.startsWith('wss://'))previousRemoteWs=ws;
+  updateWsNotice();applyManifest(loaded,room);
+  const saved=await api('save',{...settingsPayload(),prevent_duplicate:false});
+  if(saved.sha256!==loaded.sha256)throw Error('Invitation descriptor fingerprint changed');
+  activatedRoom=room;await reloadMixed(room);await refreshModels().catch(()=>{});
+  selected=models.find(x=>x.room_id===room)||{room_id:room,model:loaded.manifest.model.id,revision:loaded.manifest.model.revision,datasets:loaded.manifest.datasets.sources.map(x=>x.repo),local:true,online:0};
+  drawModels();drawSelection();notify('参加リンクからモデルを読み込みました');
+}));
 $('selectModel').addEventListener('click',safe('Select model',selectModel));$('modelTrain').addEventListener('click',safe('Select model',async()=>{await selectModel();navigate('training');}));
 function sourcePayload(){return sources.map(s=>({...s,columns:{...s.columns}}));}
 // New pretrained repository: do not inherit TinyStories' random genesis.
 // This also enables the low-RAM streaming loader for newly selected HF models.
 // Existing pinned rooms are set by applyManifest() and are never rewritten.
+let lastModelForRevision='';
 $('model').addEventListener('change',()=>{
+  if(lastModelForRevision&&lastModelForRevision!==get('model'))$('revision').value='main';
+  lastModelForRevision=get('model');
   if(get('creationMode')==='weights' && get('model')!=='roneneldan/TinyStories-1M'
       && get('modelInitialization')==='random'){
     $('modelInitialization').value='pretrained';
     $('trainStreamingBase').value='on';
   }
 });
-function settingsPayload(){return {room:get('room'),model:get('model'),revision:get('revision'),task:get('task'),ws:get('ws'),seed:Number(get('seed')),initialization:get('modelInitialization'),creation_mode:get('creationMode'),sources:sourcePayload(),code_path:codePath,code_url:get('codeUrl'),tokenizer_model:get('tokenizerModel'),tokenizer_revision:get('tokenizerRevision'),adapter_kind:get('kind'),adapter_scope:get('adapterScope')};}
-async function saveModel(){if(!sources.length)throw Error(t('noDataset'));const code=get('creationMode')==='code'?$('codeEditor').value:'';if(code.trim()){
-    const bytes=new TextEncoder().encode(code);if(bytes.length>256*1024)throw Error('Code is over 256KiB');let bin='';for(let i=0;i<bytes.length;i+=4096)bin+=String.fromCharCode(...bytes.slice(i,i+4096));const result=await api('code',{name:'architecture.py',contents:btoa(bin)});codePath=result.path;setText('codeStatus','SHA-256 '+result.sha256);
-  }const data=settingsPayload();data.prevent_duplicate=true;data.allow_duplicate=$('allowDuplicateModel').checked;const saved=await api('save',data);setText('fingerprint','SHA-256 '+saved.sha256);notify(t('modelSaved'));selected={room_id:data.room,model:data.model,revision:data.revision,datasets:sources.map(s=>s.repo),task:data.task,local:true,online:0};activatedRoom=data.room;$('allowDuplicateModel').checked=false;await refreshModels();void refreshAutoPlan().catch(()=>{});return saved;}
-$('save').addEventListener('click',safe('Create model',async()=>{await saveModel();navigate('models');}));
-$('newRoom').addEventListener('click',safe('New ID',async()=>{$('room').value=(await api('newRoom')).room;mixedPinnedPolicy=null;applyMixed({enabled:false});activatedRoom=null;selectedByUser=false;codePath='';setText('fingerprint','—');}));
+function settingsPayload(){return {room:get('room'),model:get('model'),revision:get('revision'),task:get('task'),ws:get('ws'),seed:Number(get('seed')),initialization:get('modelInitialization'),creation_mode:get('creationMode'),sources:sourcePayload(),code_path:codePath,code_url:get('codeUrl'),tokenizer_model:get('tokenizerModel'),tokenizer_revision:get('tokenizerRevision'),adapter_kind:get('kind'),adapter_scope:get('adapterScope'),reinit_every:Number(get('trainReinitEvery')),mixed_training:mixedPayload()};}
+async function registerSavedModel(room, ws, roomPublic){
+ try{
+   const reg=await api('register',{room,ws,room_public:roomPublic});
+   notify(reg.public?'公開ネットワークに登録しました':'プライベートルームを登録しました');
+   return reg;
+ }catch(e){
+   notify('モデルはローカルに保存済みですが、サーバー登録は未完了: '+String(e.message||e),true);
+   return null;
+ }
+}
+async function saveModel(){
+ if(activatedRoom===get('room')||!get('room'))await prepareNewDraft();
+ if(!get('model'))throw Error('Hugging Faceモデルを指定するか「モデルを検索」から選択してください');
+ if(!sources.length)throw Error('データセットがありません。「データセットを探す」で追加してください');
+ const code=get('creationMode')==='code'?$('codeEditor').value:'';
+ if(code.trim()){
+   const bytes=new TextEncoder().encode(code);
+   if(bytes.length>256*1024)throw Error('Code is over 256KiB');
+   let bin='';for(let i=0;i<bytes.length;i+=4096)bin+=String.fromCharCode(...bytes.slice(i,i+4096));
+   const result=await api('code',{name:'architecture.py',contents:btoa(bin)});
+   codePath=result.path;setText('codeStatus','SHA-256 '+result.sha256);
+ }
+ const data=settingsPayload();data.prevent_duplicate=true;data.allow_duplicate=$('allowDuplicateModel').checked;
+ const saved=await api('save',data);
+ $('room').value=saved.room;setText('fingerprint','SHA-256 '+saved.sha256);
+ selected={room_id:saved.room,model:data.model,revision:data.revision,datasets:sources.map(s=>s.repo),task:data.task,local:true,online:0};
+ activatedRoom=saved.room;$('allowDuplicateModel').checked=false;
+ setText('newModelStatus','ローカル保存完了 · ID '+saved.room.slice(0,12));
+ notify(t('modelSaved')+' · '+data.model);
+ // A disconnected VPS must not prevent local creation or block the UI for ten seconds.
+ void registerSavedModel(saved.room,data.ws,get('visibility')==='public');
+ try{await refreshModels();}catch(e){notify('保存は成功しましたが一覧更新に失敗: '+String(e.message||e),true);}
+ void refreshAutoPlan().catch(()=>{});
+ return saved;
+}
+let draftPromise=null;
+async function prepareNewDraft(){
+  if(draftPromise)return draftPromise;
+  draftPromise=(async()=>{
+    const room=(await api('newRoom')).room;
+    if(!/^[A-Za-z0-9_-]{24,64}$/.test(room))throw Error('Invalid generated room');
+    $('room').value=room;
+    mixedPinnedPolicy=null;applyMixed({enabled:false});$('trainReinitEvery').value='20';$('trainReinitEvery').readOnly=false;setText('trainAutoRefresh','20 publishes');
+    activatedRoom=null;selectedByUser=false;codePath='';setText('fingerprint','—');setText('newModelStatus','');
+  })();
+  try{await draftPromise;}finally{draftPromise=null;}
+}
+let modelSaveInProgress=false;
+$('save').addEventListener('click',safe('Create model',async()=>{
+ if(modelSaveInProgress)return;
+ modelSaveInProgress=true;const button=$('save');button.disabled=true;
+ setText('newModelStatus','保存しています…');
+ try{await saveModel();navigate('models');}
+ catch(e){setText('newModelStatus',String(e.message||e));throw e;}
+ finally{button.disabled=false;modelSaveInProgress=false;}
+}));
 function syncCreationMode(setDefault=true){const mode=get('creationMode');const init=$('modelInitialization');if(mode!=='weights'){init.value='config';init.disabled=true;}else{init.disabled=false;if(setDefault||init.value==='config')init.value='pretrained';}const tokFields=$('tokenizerFields');tokFields.hidden=mode!=='code';const editor=$('codeEditor');editor.disabled=false;editor.readOnly=false;$('codeUpload').disabled=false;if(mode==='code'&&!editor.value.trim()&&setDefault){editor.value='from transformers import GPT2Config\n\ndef build_config():\n    return GPT2Config(vocab_size=50257, n_positions=512, n_embd=256, n_layer=6, n_head=8)\n';}setText('codeStatus',mode==='code'?('Python Config · '+(codePath?'registered':'edit to define')):(mode==='architecture'?'Built-in HF architecture · no source execution':'Pretrained checkpoint'));}
 $('creationMode').addEventListener('change',()=>{codePath='';syncCreationMode();});
 // A click into the Python editor is an explicit opt-in to code-design mode.
 $('codeEditor').addEventListener('focus',()=>{if(get('creationMode')!=='code'){$('creationMode').value='code';codePath='';syncCreationMode(false);}});
 $('codeEditor').addEventListener('input',()=>{codePath='';setText('codeStatus','Unsaved Python changes');});
 $('codeEditor').addEventListener('keydown',e=>{if(e.key!=='Tab'||e.ctrlKey||e.metaKey||e.altKey)return;e.preventDefault();const ed=e.currentTarget,start=ed.selectionStart,end=ed.selectionEnd;ed.setRangeText('    ',start,end,'end');ed.dispatchEvent(new Event('input',{bubbles:true}));});
-$('registerRoom').addEventListener('click',safe('Publish model',async()=>{await saveModel();const v=await api('register',{room:get('room'),ws:get('ws'),room_public:get('visibility')==='public'});notify(v.public?'Public model registered':'Private model registered');}));
+$('registerRoom').addEventListener('click',safe('Publish model',async()=>{
+ const room=activatedRoom||selected?.room_id;
+ if(!room)throw Error('先にモデルを作成または選択してください');
+ await registerSavedModel(room,get('ws'),get('visibility')==='public');
+}));
 $('pickDatasets').addEventListener('click',()=>navigate('datasets'));
 $('codeUpload').addEventListener('change',safe('Code',async()=>{const file=$('codeUpload').files[0];if(!file)return;if(file.size>256*1024)throw Error('Code is over 256KiB');$('codeEditor').value=await file.text();codePath='';}));
 function appendDataset(entry){
@@ -272,7 +418,7 @@ $('searchDatasets').addEventListener('click',safe('Datasets',searchDatasets));$(
 // v70: one accessible browser for purpose-specific Hub suggestions.
 // Default candidates are fetched immediately on open; they are NEVER treated as
 // compatibility-verified until model loading / dataset mapping succeeds.
-const hubPurposes={pt:'PRETRAINING · テキストコーパス',sft:'SFT · 指示応答データ',ppo:'PPO · プロンプト / 選好データ',reward:'REWARD · 回答評価モデル',critic:'CRITIC · 価値関数モデル'};
+const hubPurposes={model:'BASE MODEL · Hugging Faceモデル',pt:'PRETRAINING · テキストコーパス',sft:'SFT · 指示応答データ',ppo:'PPO · プロンプト / 選好データ',reward:'REWARD · 回答評価モデル',critic:'CRITIC · 価値関数モデル'};
 let hubPickerRole=null,hubPickerSequence=0,hubPickerReturn=null,hubPickerChoosing=false;
 function closeHubPicker(){if($('hubPicker').hidden)return;$('hubPicker').hidden=true;hubPickerRole=null;hubPickerSequence++;hubPickerChoosing=false;clearTimeout(hubPickerDebounce);if(hubPickerReturn&&typeof hubPickerReturn.focus==='function')hubPickerReturn.focus();}
 function hubPickerStatus(msg){setText('hubPickerNotice',msg);}
@@ -282,7 +428,7 @@ async function loadHubPicker(){
  setText('hubPickerCount','Loading…');$('hubPickerResults').replaceChildren(create('div','empty','Hubの候補を読み込み中…'));
  hubPickerStatus('用途に対応する公開メタデータから候補を抽出しています。実行互換性は未確認です。');
  try{
-  const result=await api('hubDiscover',{role,query,scope});if(ticket!==hubPickerSequence||role!==hubPickerRole)return;
+  const result=await api('hubDiscover',{role,query,scope,...(role==='model'?{task:get('task')}:{})});if(ticket!==hubPickerSequence||role!==hubPickerRole)return;
   const results=result.candidates||[];const root=$('hubPickerResults');root.replaceChildren();
   if(!results.length)root.append(create('div','empty','候補がありません。検索語を変更するか「Hubを広く検索」を選んでください。'));
   for(const item of results){
@@ -300,16 +446,32 @@ async function loadHubPicker(){
    }));root.append(row);
   }
   setText('hubPickerCount',results.length+' candidates · '+(scope==='recommended'?'用途別に絞り込み':'広範囲'));
-  hubPickerStatus('検索結果は用途から推定した候補です。SFT/PPOは列設定、Reward/Criticは学習済みのスカラーヘッドを別途検証してください。'+(result.partial_errors?.length?' · 部分的なHub検索失敗あり':'') );
+  hubPickerStatus((role==='model'?'モデル候補はメタデータによる検索結果です。対応アーキテクチャ・メモリ要件・ライセンスを確認してください。':'検索結果は用途から推定した候補です。SFT/PPOは列設定、Reward/Criticは学習済みのスカラーヘッドを別途検証してください。')+(result.partial_errors?.length?' · 部分的なHub検索失敗あり':'') );
  }catch(e){if(ticket!==hubPickerSequence)return;setText('hubPickerCount','検索失敗');$('hubPickerResults').replaceChildren(create('div','empty','Hubに接続できません。ネットワークまたはログインを確認してください。'));hubPickerStatus(String(e.message||e));}
 }
 async function openHubPicker(role,trigger){if(!hubPurposes[role])throw Error('Invalid Hub purpose');hubPickerReturn=trigger||null;hubPickerRole=role;$('hubPicker').hidden=false;
  setText('hubPickerPurpose','HUGGING FACE / '+role.toUpperCase());setText('hubPickerTitle',hubPurposes[role]);
- setText('hubPickerHelp',role==='critic'?'学習済みの価値ヘッドが必要です。Reward ModelとCriticは同一ではありません。':role==='ppo'?'PPOではプロンプト列が必要です。外部Reward Modelを使う場合、正解列は不要です。':role==='sft'?'プロンプトと回答の列を確認してください。':role==='reward'?'スカラー報酬ヘッドの存在を確認してください。':'テキスト列と学習splitを確認してください。');
+ setText('hubPickerHelp',role==='model'?'Hugging Faceの公開モデルを検索します。選択時にモデルIDと取得できたコミットSHAを設定します。実行互換性は別途検証してください。':role==='critic'?'学習済みの価値ヘッドが必要です。Reward ModelとCriticは同一ではありません。':role==='ppo'?'PPOではプロンプト列が必要です。外部Reward Modelを使う場合、正解列は不要です。':role==='sft'?'プロンプトと回答の列を確認してください。':role==='reward'?'スカラー報酬ヘッドの存在を確認してください。':'テキスト列と学習splitを確認してください。');
  $('hubPickerQuery').value='';$('hubPickerScope').value='recommended';$('hubPickerQuery').focus();await loadHubPicker();
 }
 async function chooseHubCandidate(role,item,selectedAt){
  const stillCurrent=()=>!$('hubPicker').hidden&&hubPickerRole===role&&hubPickerSequence===selectedAt;
+ if(role==='model'){
+  $('model').value=item.id;
+  $('revision').value=item.revision||'main';
+  lastModelForRevision=item.id;
+  if(get('creationMode')==='weights'){
+    $('modelInitialization').value='pretrained';
+    $('trainStreamingBase').value='on';
+  }
+  // A model change must never silently inherit a previous custom tokenizer.
+  $('tokenizerModel').value=item.id;
+  $('tokenizerRevision').value=item.revision||'main';
+  closeHubPicker();
+  notify('モデルを選択 · '+item.id+' · '+(item.revision?'コミットSHAを固定':'revision=main（更新される可能性あり）'));
+  void refreshAutoPlan().catch(()=>{});
+  return;
+ }
  if(role==='pt'){
   const info=await api('mixPinDataset',{repo:item.id});if(!stillCurrent())return;const train=(info.variants||[]).filter(v=>v.split==='train');
   const options=train.length?train:(info.variants||[]);$('repo').value=info.repo;$('ds_revision').value=info.revision;
@@ -336,6 +498,7 @@ async function chooseHubCandidate(role,item,selectedAt){
  }
  notify('選択しました · '+info.id+' @ '+info.revision.slice(0,12)+' · 実行互換性は要検証');
 }
+$('pickBaseModel').addEventListener('click',safe('Model picker',()=>openHubPicker('model',$('pickBaseModel'))));
 $('hubPickerClose').addEventListener('click',closeHubPicker);$('hubPickerBackdrop').addEventListener('click',closeHubPicker);
 $('hubPickerSearch').addEventListener('click',safe('Hub browser',loadHubPicker));$('hubPickerScope').addEventListener('change',safe('Hub filter',loadHubPicker));
 let hubPickerDebounce=null;
@@ -403,7 +566,14 @@ function applyMixed(data){$('mixEnabled').value=data?.enabled?'on':'off';for(con
   $(id).value=value??defaults[field]??hfDefaults[field]??'';
  }$('mixPpoAdaptiveKl').value=data?.ppo_adaptive_kl?'on':'off';$('mixDistributedCritic').value=data?.critic_rollout_gossip?'rollout':data?.distributed_critic?'on':'off';$('mixRewardIdleOffload').value=data?.reward_model_idle_offload?'on':'off';for(const [role,tag] of [['sft','Sft'],['ppo','Ppo']]){$('mix'+tag+'Source').value=data?.[role+'_hf_repo']?'hf':data?.[role+'_jsonl']?'local':'hf';}syncMixed();}
 async function reloadMixed(room){
+ roomDatasetValidated=null;
  const data=await api('mixedSettings',{room});mixedPinnedPolicy=data.pinned_policy||null;
+ if(data.room_reinit_every!==undefined){$('trainReinitEvery').value=String(data.room_reinit_every);$('trainReinitEvery').readOnly=true;setText('trainAutoRefresh',data.room_reinit_every===0?'OFF':data.room_reinit_every+' publishes');}
+ else {$('trainReinitEvery').readOnly=false;}
+ // A fresh participant inherits the exact immutable HF references. Their
+ // availability is checked again by the worker; no arbitrary local path is
+ // sent over the signaling service.
+
  if(mixedPinnedPolicy&&!data.enabled){
    data.enabled=true;
    const p=mixedPinnedPolicy;
@@ -427,6 +597,10 @@ async function reloadMixed(room){
    if(p.critic){data.critic_kind=p.critic.kind;data.critic_hidden=p.critic.hidden;data.critic_lr=p.critic.lr; if(p.critic.hf){data.critic_hf_repo=p.critic.hf.repo;data.critic_hf_revision=p.critic.hf.revision;data.critic_hf_loader=p.critic.hf.loader;data.critic_hf_max_length=p.critic.hf.max_length;data.critic_hf_head_init=p.critic.hf.head_init?'new':'pretrained';data.critic_hf_device='cpu';}}
  }
  applyMixed(data);
+ if(data.room_training){
+   setText('mixSetupSummary','ルームの固定データセットを確認中 · 利用不可ならPTのみ');
+   void autoResolveRoomObjectives(room).catch(e=>notify('Dataset preflight: '+String(e.message||e),true));
+ }
 }
 for(const [role,tag] of [['sft','Sft'],['ppo','Ppo']]){
  $('mix'+tag+'Source').addEventListener('change',syncMixed);
@@ -499,15 +673,56 @@ async function refreshAutoPlan(requireFresh=false){
   const plan=await api('plan',payload);
   if(sequence!==autoPlanRequest&&!requireFresh)return autoPlan||plan;
   autoPlan=plan;
-  setText('trainAutoRank',plan.rank+' · '+(plan.rank_pinned?'shared':'estimated')+(plan.can_train?'':' · relay only'));
+  setText('trainAutoRank',String(plan.local_physical_rank_estimate||plan.rank)+' est. physical / '+plan.rank+' max'+(plan.can_train?'':' · relay only'));
   setText('trainAutoContext',plan.max_length+' tokens');
+  setText('trainAutoRefresh',Number(get('trainReinitEvery'))===0?'OFF':get('trainReinitEvery')+' publishes');
   if(!run.running)setText('trainAutoPublish',plan.local_steps+' base');
   if(!run.running)setText('trainAutoPeers','Automatic (live)');
   setText('trainAutoNote',plan.reason||t('autoNote'));
   return plan;
 }
 $('kind').addEventListener('change',()=>{void safe('Auto tuning',refreshAutoPlan)();});
+// Test public HF dataset schemas without moving entire training files into GUI.
+// A failure is a PT-only fallback for that role, never an invented dataset.
+let roomDatasetCheck=null;
+let roomDatasetCheckRoom=null;
+let roomDatasetValidated=null;
+async function autoResolveRoomObjectives(room){
+ if(roomDatasetValidated===room)return;
+ if(roomDatasetCheck && roomDatasetCheckRoom===room)return await roomDatasetCheck;
+ if(!mixedPinnedPolicy)return;
+ roomDatasetCheckRoom=room;
+ roomDatasetCheck=(async()=>{
+   const roles=[['sft','Sft'],['ppo','Ppo']];
+   const pending=roles.filter(([role,tag])=>get('mix'+tag+'Source')==='hf'&&get('mix'+tag+'HfRepo'));
+   if(!pending.length){roomDatasetValidated=room;return;}
+   const checks=await Promise.all(pending.map(async ([role,tag])=>{
+      const params={role,repo:get('mix'+tag+'HfRepo'),revision:get('mix'+tag+'HfRevision'),
+        config:get('mix'+tag+'HfConfig'),split:get('mix'+tag+'HfSplit')||'train',
+        prompt_column:get('mix'+tag+'HfPrompt'),reward:get('mixPpoReward')};
+      params[role==='sft'?'response_column':'reference_column']=get('mix'+tag+'HfOther');
+      let timeout;
+      try{return {role,tag,result:await Promise.race([
+        api('mixProbeDataset',params),
+        new Promise((_,reject)=>{timeout=setTimeout(()=>reject(Error('dataset preflight timeout')),8000);})
+      ])};}catch(error){return {role,tag,error};}
+      finally{if(timeout)clearTimeout(timeout);}
+   }));
+   if(get('room')!==room)return;
+   const failed=checks.filter(x=>x.error);
+   for(const x of failed){$('mix'+x.tag+'HfRepo').value='';setText('mix'+x.tag+'HfStatus',
+      'PT fallback: '+String(x.error.message||x.error));}
+   const any=get('mixSftHfRepo')||get('mixPpoHfRepo')||get('mixSftPath')||get('mixPpoPath');
+   if(!any){$('mixEnabled').value='off';}
+   syncMixed();roomDatasetValidated=room;
+   if(failed.length)notify('Room objectives: '+failed.map(x=>x.role.toUpperCase()).join(', ')+' unavailable; PT remains active',true);
+ })().finally(()=>{if(roomDatasetCheckRoom===room){roomDatasetCheck=null;roomDatasetCheckRoom=null;}});
+ return await roomDatasetCheck;
+}
 async function startOrResume(){
+  // The signed objectives are fixed by the room manifest. Verify only offered
+  // datasets; unavailable ones fall back to PT without changing its signature.
+
   if(run.running){if(run.relay_only){await api('resume');notify(t('trainResumed'));}else notify(t('alreadyTraining'));await poll();return;}
   const payload=settingsPayload();
   if(!activatedRoom && selectedByUser && selected?.local){await selectModel();Object.assign(payload,settingsPayload());}
@@ -518,6 +733,7 @@ async function startOrResume(){
   const old=(await api('select',{room:payload.room,ws:payload.ws})).manifest;
   const same=old.model.id===payload.model&&old.model.revision===payload.revision&&old.model.architecture===payload.task&&old.datasets.seed===payload.seed&&JSON.stringify(old.datasets.sources)===JSON.stringify(payload.sources);
   if(!same)throw Error('Model is immutable. Re-select it in MODELS before starting.');
+  await autoResolveRoomObjectives(payload.room);
   const plan=await refreshAutoPlan(true);const out=await api('start',trainingOptions(plan));notify(t('trainStarted')+' · PID '+out.pid);await poll();
 }
 async function pause(){const r=await api('pause');if(r.running)notify(t('trainPaused'));else notify(t('idle'));await poll();}
@@ -533,7 +749,7 @@ $('runEval').addEventListener('click',safe('EVAL',async()=>{
  if(!get('room'))throw Error(t('needSelect'));
  const options={room:get('room'),scope:get('evalScope'),prompt:$('evalPrompt').value,precision:get('evalPrecision'),max_tokens:Number(get('evalMaxTokens'))};
  let r;try{r=await api('eval',options);}catch(e){setText('evalStatus','ERROR');setText('evalResult','EVAL: '+String(e?.message||e));throw e;}
- if(r.pending_snapshot){queuedEval=options;setText('evalStatus','SAVING');setText('evalResult','Preparing a verified learned checkpoint before inference…');setText('evalMeta','Kagami trained weights');return;}
+ if(r.pending_snapshot){queuedEval=options;setText('evalStatus','SAVING');setText('evalResult','Preparing a verified learned checkpoint before inference…');setText('evalMeta','KCIA trained weights');return;}
  queuedEval=null;setText('evalStatus','RUNNING');setText('evalResult',t('evalRunning'));setText('evalMeta',r.scope);await pollEval();}));
 $('cancelEval').addEventListener('click',safe('Cancel',async()=>{queuedEval=null;await api('cancelEval');setText('evalStatus','CANCELLED');await pollEval();}));
 async function pollEval(){
@@ -680,11 +896,29 @@ const objectivePlots=[
 ];
 function renderObjectivePlots(){
  for(const [id,field,latestId] of objectivePlots){
+   const svg=$(id);
+   const rect=svg.getBoundingClientRect(), clip=$('chartsPanel').getBoundingClientRect();
+   if(!rect.height||rect.top>clip.bottom+220||rect.bottom<clip.top-220)continue;
    plot(id,field);
    const points=chartPoints(field),last=points.at(-1);
    setText(latestId,last?chartAxisNumber(last.y,field):'—');
  }
 }
+// Rebuilding nine full SVG plots on each status tick made macOS WebKit lag
+// behind mouse events. Paint only when visible and at a bounded cadence.
+let lastChartPaint=0, chartPaintTimer=null;
+function scheduleChartPaint(force=false){
+ if(currentTab!=='training'||document.hidden)return;
+ if(!force&&Date.now()-lastChartPaint<4000)return;
+ if(chartPaintTimer!==null)return;
+ chartPaintTimer=setTimeout(()=>{
+   chartPaintTimer=null;
+   if(currentTab!=='training'||document.hidden)return;
+   lastChartPaint=Date.now();
+   renderObjectivePlots();
+ },0);
+}
+$('chartsPanel').addEventListener('scroll',()=>scheduleChartPaint(true),{passive:true});
 async function refreshChartHistory(force=false){
   if(historyPending||(!force&&Date.now()-lastHistoryFetch<4200))return;
   if(!run.model_id){chartTelemetry=[];return;}
@@ -695,42 +929,231 @@ async function refreshChartHistory(force=false){
     if(version===historyVersion&&modelId===run.model_id){
       chartTelemetry=Array.isArray(result.telemetry)?result.telemetry:[];
       lastHistoryFetch=Date.now();
-      renderObjectivePlots();
+      scheduleChartPaint(true);
     }
   }finally{historyPending=false;}
 }
 $('chartFocus').addEventListener('change',()=>{
  const choice=get('chartFocus');
  for(const group of ['loss','accuracy','pt','sft','ppo'])$('chartsPanel').classList.toggle('focus-'+group,choice===group);
- renderObjectivePlots();
+ scheduleChartPaint(true);
 });
 $('chartWindow').addEventListener('change',()=>{historyVersion++;lastHistoryFetch=0;chartTelemetry=[];void safe('History',()=>refreshChartHistory(true))();drawRun();});
 function drawRun(){const latest=latestTelemetry.at(-1);const active=run.running;const relay=active&&run.relay_only;const label=relay?t('relay'):active?(run.stopping?t('stopping'):t('training')):t('idle');
  setText('runStatus',label+(active&&run.pid?' · PID '+run.pid:''));const loss=latest?.loss;const acc=latest?.accuracy;setText('monitorLoss',loss!=null?Number(loss).toFixed(3):'—');setText('monitorAccuracy',acc!=null?(100*Number(acc)).toFixed(1)+'%':'—');setText('monitorSpeed',latest?.steps_per_s!=null?Number(latest.steps_per_s).toFixed(2):'—');setText('monitorSteps',latest?.steps??0);if(latest?.publish_steps!=null)setText('trainAutoPublish',latest.publish_steps+' / publish');if(latest?.membership_count!=null)setText('trainAutoPeers',String(latest.membership_count)+' online');else if(latest?.channels!=null)setText('trainAutoPeers',String((latest.channels||0)+1)+'+ observed');setText('monitorUpdates',(latest?.emitted??0)+' / '+(latest?.inbound_applied??0)+' updates');setText('monitorQueue',latest?.inbox??'0');setText('monitorChannels',latest?.channels??'0');setText('lossLatest',loss!=null?Number(loss).toFixed(4):'—');setText('accuracyLatest',acc!=null?(Number(acc)*100).toFixed(2)+'%':'—');
- setText('dockModel',active?(selected?.model||get('model')||'KAGAMI'):'NO ACTIVE TRAINING');setText('dockState',label+(latest?.steps!=null?' · '+latest.steps+' steps':''));setText('dockLoss',loss!=null?'LOSS '+Number(loss).toFixed(4):'LOSS —');$('dockProgress').className='progress-fill'+(relay?' relay':active?' running':'');$('dockToggle').textContent=active&&!relay?t('pause'):t('start');
+ setText('dockModel',active?(selected?.model||get('model')||'KCIA'):'NO ACTIVE TRAINING');setText('dockState',label+(latest?.steps!=null?' · '+latest.steps+' steps':''));setText('dockLoss',loss!=null?'LOSS '+Number(loss).toFixed(4):'LOSS —');$('dockProgress').className='progress-fill'+(relay?' relay':active?' running':'');$('dockToggle').textContent=active&&!relay?t('pause'):t('start');
  setText('networkBadge',active?label.toUpperCase():'OFFLINE');setText('networkChannels',latest?.channels??0);setText('networkPush',latest?.push_mib!=null?latest.push_mib+' MiB':'—');setText('networkRepair',latest?.repair_mib!=null?latest.repair_mib+' MiB':'—');setText('networkDuplicates',latest?.inbound_duplicates??'—');setText('networkApplied',latest?.inbound_applied??'—');setText('networkInbox',latest?.inbox??'—');setText('networkLocalName',latest?.peer_id?short(latest.peer_id,25):'—');
- if(currentTab==='training'){renderObjectivePlots();}drawSelection();}
+ if(currentTab==='training')scheduleChartPaint();if(currentTab==='models')drawSelection();}
 function drawGraph(){const svg=$('networkGraph');svg.replaceChildren();const last=latestTelemetry.at(-1);const peers=(run.running&&Array.isArray(last?.connected_peers))?last.connected_peers.slice(0,24):[];const actualPeerCount=run.running&&Array.isArray(last?.connected_peers)?last.connected_peers.length:0;const cx=380,cy=210;
  for(let i=0;i<peers.length;i++){const a=(i/peers.length)*2*Math.PI-Math.PI/2;const x=cx+Math.cos(a)*245,y=cy+Math.sin(a)*143;svg.append(svgEl('line',{x1:cx,y1:cy,x2:x,y2:y,stroke:'#376c50','stroke-width':2}));svg.append(svgEl('circle',{cx:x,cy:y,r:26,fill:'#193d2b',stroke:'#379966','stroke-width':2}));svg.append(svgEl('text',{x,y:y+5,'text-anchor':'middle',fill:'#b4f2ce','font-size':14},String(i+1).padStart(2,'0')));svg.append(svgEl('text',{x,y:y+43,'text-anchor':'middle',fill:'#749f85','font-size':10},short(peers[i],12)));}
  svg.append(svgEl('circle',{cx,cy,r:37,fill:'#10b981',stroke:'#b5ffdb','stroke-width':2}));svg.append(svgEl('text',{x:cx,y:cy+5,'text-anchor':'middle',fill:'#082014','font-size':14,'font-weight':'bold'},'LOCAL'));
  if(actualPeerCount>peers.length)svg.append(svgEl('text',{x:cx,y:280,'text-anchor':'middle',fill:'#8cbea0','font-size':11},'+'+(actualPeerCount-peers.length)+' more directly connected peers'));
  if(!peers.length)svg.append(svgEl('text',{x:cx,y:325,'text-anchor':'middle',fill:'#739784','font-size':14},t('noNetwork')));}
 let pollPending=false,evalPending=false,historyModel=null;
-async function poll(){if(pollPending)return;pollPending=true;try{const result=await api('status');run=result;latestTelemetry=result.telemetry||[];if(result.model_id!==historyModel){historyModel=result.model_id;historyVersion++;chartTelemetry=[];lastHistoryFetch=0;}if(currentTab==='training'&&result.model_id)void refreshChartHistory().catch(()=>{});if(result.checkpoint_ready)setText('storageStatus',result.checkpoint_file);drawRun();drawGraph();const value=result.logs||'—';if(value!==lastLog){const log=$('logs');log.textContent=value.split('\n').slice(-9).join('\n');lastLog=value;}
+async function poll(){if(pollPending)return;pollPending=true;try{const result=await api('status');run=result;latestTelemetry=result.telemetry||[];if(result.model_id!==historyModel){historyModel=result.model_id;historyVersion++;chartTelemetry=[];lastHistoryFetch=0;}if(currentTab==='training'&&result.model_id)void refreshChartHistory().catch(()=>{});if(result.checkpoint_ready)setText('storageStatus',result.checkpoint_file);if(!$('bridgeState').classList.contains('online')){$('bridgeState').textContent='● LOCAL BRIDGE';$('bridgeState').classList.add('online');}drawRun();if(currentTab==='network')drawGraph();const value=result.logs||'—';if(value!==lastLog){const log=$('logs');log.textContent=value.split('\n').slice(-9).join('\n');lastLog=value;}
  }catch(e){setText('bridgeState','Bridge offline · '+e.message);$('bridgeState').classList.remove('online');}finally{pollPending=false;}}
 async function loopEval(){if(evalPending)return;evalPending=true;try{await pollEval();}catch(e){setText('evalStatus','ERROR');setText('evalResult','Inference status error: '+String(e?.message||e));}finally{evalPending=false;}}
-async function boot(){if(startup)return;startup=true;try{const settings=await api('defaults');for(const id of ['room','model','revision','task','ws','seed','kind'])$(id).value=settings[id];$('modelInitialization').value=settings.initialization;updateWsNotice();for(const [key,id] of Object.entries({reinit_every:'trainReinitEvery',lr:'trainLr',disk_cache_fraction:'trainDiskCacheFraction',wide_lora_rank:'trainWideRank',push_fanout:'trainPushFanout',max_journal_gb:'trainJournalMaxGb'}))$(id).value=settings[key];$('trainStreamingBase').value=settings.streaming_base?'on':'off';sources=settings.sources||[];syncCreationMode(false);drawSources();void refreshAutoPlan().catch(()=>{});
- const dev=await api('device').catch(()=>null);if(dev){setText('deviceLabel',String(dev.device).toUpperCase());setText('hardwareSummary', 'RAM '+(dev.ram_bytes/1073741824).toFixed(1)+' GiB · VRAM '+(dev.vram_bytes/1073741824).toFixed(1)+' GiB');capabilities=dev;const gpuOption=$('trainComputeDevice').querySelector('option[value="mps"]');if(gpuOption)gpuOption.disabled=!dev.mps_available;const cudaOption=$('trainComputeDevice').querySelector('option[value="cuda"]');if(cudaOption)cudaOption.disabled=!dev.cuda_available;}
- $('bridgeState').textContent='● LOCAL BRIDGE';$('bridgeState').classList.add('online');await poll();await refreshModels().catch(()=>{});
- if(settings.last_room){
-   try{
+// Objective configuration is a ROOM-CREATION concern; place its existing
+// validated controls directly below model identity instead of TRAINING.
+const newModelPane=$('panel-new');
+if(newModelPane&&$('mixedPanel')){
+  const panel=$('mixedPanel');
+  panel.classList.add('new-objective-panel');
+  // Keep the editor out of the fixed-height NEW MODEL screen. Only display
+  // it in a scrollable dialog invoked explicitly by the user.
+  $('objectiveDialogBody').append(panel);
+  const dialog=$('objectiveDialog');
+  let priorObjectiveFocus=null;
+  function updateObjectiveSummary(){
+    const mode=get('mixEnabled')==='on'?'PT + SFT / PPO':'PTのみ';
+    const sft=get('mixSftHfRepo')||'未設定';
+    const ppo=get('mixPpoHfRepo')||'未設定';
+    setText('objectiveSummary',mode+(mode==='PTのみ'?'':(' · SFT: '+sft+' · PPO: '+ppo)));
+  }
+  function openObjectiveDialog(){
+    priorObjectiveFocus=document.activeElement;
+    dialog.hidden=false;
+    $('objectiveDialogBody').scrollTop=0;
+    $('objectiveClose').focus();
+  }
+  function closeObjectiveDialog(){
+    if(dialog.hidden)return;
+    // Hub selection is a nested dialog; close that first.
+    if(!$('hubPicker').hidden){closeHubPicker();}
+    dialog.hidden=true;
+    updateObjectiveSummary();
+    if(priorObjectiveFocus && priorObjectiveFocus.isConnected && priorObjectiveFocus.focus)priorObjectiveFocus.focus();
+  }
+  $('chooseObjectives').addEventListener('click',openObjectiveDialog);
+  for(const id of ['objectiveClose','objectiveCancel','objectiveApply','objectiveBackdrop']){
+    $(id).addEventListener('click',closeObjectiveDialog);
+  }
+  document.addEventListener('keydown',e=>{
+    if(dialog.hidden || !$('hubPicker').hidden || !$('resetDialog').hidden)return;
+    if(e.key==='Escape'){e.preventDefault();closeObjectiveDialog();return;}
+    if(e.key==='Tab'){
+      const fields=Array.from(dialog.querySelectorAll('button,input,select,textarea,summary,[tabindex]'))
+        .filter(el=>!el.disabled&&!el.hidden&&el.getClientRects().length>0);
+      if(!fields.length)return;
+      const first=fields[0],last=fields[fields.length-1];
+      if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}
+      else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}
+    }
+  });
+  $('mixEnabled').addEventListener('change',updateObjectiveSummary);
+  updateObjectiveSummary();
+  const refresh=$('trainReinitEvery')?.closest('label');
+  if(refresh){const section=create('div','new-optimization-panel');
+    const heading=create('strong','','OPTIMIZATION · ROOM POLICY');
+    const description=create('p','tiny muted','ReLoRA refresh after N signed publications. Default 20 for new rooms; existing rooms stay pinned.');
+    section.append(heading,description,refresh);newModelPane.append(section);}
+}
+let deviceProbeStarted=false;
+function ensureDeviceCapabilities(){
+ if(deviceProbeStarted)return;
+ deviceProbeStarted=true;
+ void api('device').then(dev=>{
+   if(!dev)return;
+   setText('deviceLabel',String(dev.device).toUpperCase());
+   setText('hardwareSummary','RAM '+(dev.ram_bytes/1073741824).toFixed(1)+' GiB · VRAM '+(dev.vram_bytes/1073741824).toFixed(1)+' GiB');
+   capabilities=dev;
+   const mps=$('trainComputeDevice').querySelector('option[value="mps"]');if(mps)mps.disabled=!dev.mps_available;
+   const cuda=$('trainComputeDevice').querySelector('option[value="cuda"]');if(cuda)cuda.disabled=!dev.cuda_available;
+ }).catch(e=>{
+   // Do not permanently lock device detection after a timed-out probe.
+   deviceProbeStarted=false;
+   setText('hardwareSummary','Device probe unavailable: '+String(e.message||e).slice(0,70));
+ });
+}
+let bootTimersInstalled=false;
+async function boot(){
+ if(startup)return;
+ startup=true;
+ setText('bridgeState','CONNECTING · LOCAL');
+ try{
+   const settings=await api('defaults');
+   for(const id of ['room','model','revision','task','ws','seed','kind'])$(id).value=settings[id];
+   $('modelInitialization').value=settings.initialization;
+   lastModelForRevision=settings.model;
+   $('networkMode').value=settings.ws.startsWith('wss://')?'internet':'local';
+   if(settings.ws.startsWith('wss://'))previousRemoteWs=settings.ws;
+   updateWsNotice();
+   for(const [key,id] of Object.entries({reinit_every:'trainReinitEvery',lr:'trainLr',disk_cache_fraction:'trainDiskCacheFraction',wide_lora_rank:'trainWideRank',push_fanout:'trainPushFanout',max_journal_gb:'trainJournalMaxGb'}))$(id).value=settings[key];
+   $('trainStreamingBase').value=settings.streaming_base?'on':'off';
+   sources=settings.sources||[];
+   syncCreationMode(false);drawSources();
+   $('bridgeState').textContent='● LOCAL BRIDGE';
+   $('bridgeState').classList.add('online');
+   // These are deliberately detached; every UI event handler is already live.
+   void poll();
+   void refreshModels().then(async()=>{
+     if(!settings.last_room)return;
      const entry=models.find(x=>x.room_id===settings.last_room&&x.local);
-     if(entry){const restored=await api('select',{room:entry.room_id,ws:get('ws')});
-       applyManifest(restored,entry.room_id);await reloadMixed(entry.room_id);activatedRoom=entry.room_id;
-       selected=entry;drawModels();drawSelection();}
-   }catch(e){notify('Resume selection: '+String(e.message||e),true);}
+     if(!entry)return;
+     try{
+       const restored=await api('select',{room:entry.room_id,ws:get('ws')});
+       applyManifest(restored,entry.room_id);
+       await reloadMixed(entry.room_id);
+       activatedRoom=entry.room_id;
+       selected=models.find(x=>x.room_id===entry.room_id)||entry;
+       drawModels();drawSelection();
+     }catch(e){notify('Resume selection: '+String(e.message||e),true);}
+   }).catch(e=>notify('Local model directory: '+String(e.message||e),true));
+   // Device detection imports PyTorch. Do not invoke it during first paint;
+   // only request when user actually opens model creation or training.
+   if(!bootTimersInstalled){
+     bootTimersInstalled=true;
+     setInterval(()=>{if(!document.hidden)void poll();},2500);
+     setInterval(()=>{if(!document.hidden&&(currentTab==='eval'||queuedEval))void loopEval();},3500);
+     setInterval(()=>{if(!document.hidden&&currentTab==='eval')void updateCheckpoints().catch(()=>{});},8000);
+   }
+ }catch(e){
+   notify('GUI initialization: '+String(e.message||e),true);
+   $('bridgeState').textContent='RECONNECT · '+String(e.message||e);
+   $('bridgeState').classList.remove('online');
+   startup=false;
  }
- void loopEval();void updateCheckpoints().catch(()=>{});setInterval(()=>{if(!document.hidden)void poll();},900);setInterval(()=>{if(!document.hidden)void loopEval();},1200);setInterval(()=>{if(!document.hidden&&currentTab==='eval')void updateCheckpoints().catch(()=>{});},5500);
- }catch(e){notify(e.message,true);$('bridgeState').textContent='OFFLINE';startup=false;}}
-$('retryBridge').addEventListener('click',()=>{startup=false;void boot();});window.addEventListener('pywebviewready',()=>{void boot();});document.addEventListener('visibilitychange',()=>{if(!document.hidden)void poll();});
+}
+// Native window operations must be fire-and-forget. In particular, awaiting
+// destroy() through the RPC that belongs to the destroyed WebView can deadlock.
+for(const [button,action] of [['windowMinimize','minimize'],['windowMaximize','toggle_maximize'],['windowClose','close']]){
+ $(button).addEventListener('click',(event)=>{
+   event.stopPropagation();
+   const method=window.pywebview?.api?.window_action;
+   if(typeof method!=='function'){
+     notify('Window controls are not ready yet',true);
+     return;
+   }
+   // Queue in Python and acknowledge immediately; never block the UI on OS
+   // fullscreen/resize/window-destruction events.
+   Promise.resolve().then(()=>method({action})).catch(e=>{
+     notify('Window: '+String(e?.message||e),true);
+   });
+ });
+}
+$('retryBridge').addEventListener('click',()=>{startup=false;void boot();});
+window.addEventListener('pywebviewready',()=>{void boot();});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){void poll();scheduleChartPaint(true);}});
+// A transient pywebview injection failure is recoverable without relaunching.
+setInterval(()=>{if(!startup&&ready())void boot();},6000);
+window.addEventListener('error',e=>{
+  const message=String(e.message||'JavaScript error');
+  setText('bridgeState','UI ERROR · '+message.slice(0,80));
+  $('bridgeState').classList.remove('online');
+});
+window.addEventListener('unhandledrejection',e=>{
+  const message=String(e.reason?.message||e.reason||'Async UI error');
+  notify('GUI: '+message.slice(0,160),true);
+});
+// Destructive test reset: preview and explicit typed confirmation are mandatory.
+let resetPreviewId=null;
+function syncResetConfirmation(){
+  $('resetExecute').disabled=!(resetPreviewId&&$('resetConfirmation').value==='DELETE KCIA');
+}
+function closeResetDialog(){
+  $('resetDialog').hidden=true;resetPreviewId=null;$('resetConfirmation').value='';
+  syncResetConfirmation();
+}
+$('resetAllData').addEventListener('click',()=>{
+  $('resetDialog').hidden=false;resetPreviewId=null;
+  $('resetConfirmation').value='';setText('resetPreviewResult','削除対象を確認してください。');
+  syncResetConfirmation();$('resetPreview').focus();
+});
+for(const id of ['resetCancel','resetCancelBottom','resetBackdrop'])
+  $(id).addEventListener('click',closeResetDialog);
+$('resetIncludeCli').addEventListener('change',()=>{
+  resetPreviewId=null;$('resetConfirmation').value='';syncResetConfirmation();
+  setText('resetPreviewResult','削除対象が変わりました。再度プレビューしてください。');
+});
+$('resetPreview').addEventListener('click',safe('Reset preview',async()=>{
+  const r=await api('resetPreview',{include_cli_defaults:$('resetIncludeCli').checked});
+  resetPreviewId=r.preview_id;
+  $('resetConfirmation').value='';syncResetConfirmation();
+  const size=(r.total_bytes/1024/1024).toFixed(2);
+  setText('resetPreviewResult',[
+    'データ保存先: '+r.root,
+    '削除対象: '+r.total_entries+'個 / '+size+' MiB',
+    ...(r.targets.length?r.targets.map(x=>'• '+x.path+' ('+x.entries+'件)'):['対象データなし'])
+  ].join('\n'));
+}));
+$('resetConfirmation').addEventListener('input',syncResetConfirmation);
+$('resetExecute').addEventListener('click',safe('Reset KCIA',async()=>{
+  if($('resetExecute').disabled||!resetPreviewId)return;
+  const preview_id=resetPreviewId;
+  $('resetExecute').disabled=true;
+  const r=await api('resetRequest',{
+    preview_id,confirmation:$('resetConfirmation').value,
+    include_cli_defaults:$('resetIncludeCli').checked
+  });
+  if(!r?.scheduled)throw Error('Reset was not scheduled');
+  setText('resetPreviewResult','全消去が確定しました。ウィンドウを終了し、ロック解除後に削除します。');
+  const windowMethod=window.pywebview?.api?.window_action;
+  if(typeof windowMethod==='function'){
+    Promise.resolve().then(()=>windowMethod({action:'close'})).catch(e=>{
+      notify('Reset scheduled. Close the application manually: '+String(e),true);
+    });
+  }else{
+    notify('Reset scheduled. Close the application to complete deletion.',true);
+  }
+}));
 translate();void boot();

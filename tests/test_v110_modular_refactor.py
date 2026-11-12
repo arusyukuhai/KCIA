@@ -67,7 +67,7 @@ def test_optimizer_moment_device_migration_does_not_modify_values():
 def test_main_entrypoints_still_delegate_without_network_start(monkeypatch):
     from patchlib import webview_lifecycle_v110
     from patchlib.webview_controller import WebviewController
-    c=WebviewController(Path('/tmp/kagami-v110-inert-controller'))
+    c=WebviewController(Path('/tmp/kcia-v110-inert-controller'))
     try:
         marker=[]
         def fake_save(controller,payload):

@@ -127,7 +127,7 @@ def export_state(model: torch.nn.Module, path: str | Path, *, model_id: str,
                 if written != spec['bytes']:
                     raise PatchError(f'serialized byte count mismatch: {spec["name"]}')
                 spec['sha256'] = digest.hexdigest()
-            manifest = {'format':'fedpara-state', 'version':VERSION, 'model_id':model_id,
+            manifest = {'format':'kcia-state', 'version':VERSION, 'model_id':model_id,
                         'revision':revision, 'peer_id':peer_id, 'seq':seq,
                         'total_tensor_bytes':total, 'tensors':specs}
             metadata = _canonical_json(manifest)
@@ -164,7 +164,7 @@ def inspect_state(path: str | Path, *, max_bytes: int = 32 * 1024**3) -> dict:
             if by_name[META_NAME].file_size > MAX_MANIFEST:
                 raise PatchError('oversized manifest')
             meta = json.loads(z.read(META_NAME))
-            if not isinstance(meta, dict) or meta.get('format') != 'fedpara-state' or meta.get('version') != VERSION:
+            if not isinstance(meta, dict) or meta.get('format') != 'kcia-state' or meta.get('version') != VERSION:
                 raise PatchError('invalid snapshot format')
             if not isinstance(meta.get('model_id'), str) or not meta['model_id'] or not isinstance(meta.get('revision'), str) or not meta['revision']:
                 raise PatchError('missing model identity')

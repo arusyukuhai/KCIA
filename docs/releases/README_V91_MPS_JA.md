@@ -1,4 +1,4 @@
-# Kagami v91 — macOS Metal/MPS 実行競合対策
+# KCIA v91 — macOS Metal/MPS 実行競合対策
 
 対象: v90 のソースをベースに、MPS 向けの学習・Optimizer更新・P2P反映・チェックポイント操作を安全側へ変更した版。
 
@@ -12,7 +12,7 @@ in -[IOGPUMetalCommandBuffer setCurrentCommandEncoder:]
 ... resource_tracker: There appear to be 1 leaked semaphore objects ...
 ```
 
-Metalで既にcommitされたコマンドバッファにエンコーダを追加しようとしたことを示すアサーション。Kagamiでは従来、学習、Optimizer step、署名済みP2P更新の適用、weightの出力・読み込みが `asyncio.to_thread()` の不特定ワーカーに渡され、各ワーカーのMPSキューが完了する前に次の処理に移る可能性があった。これは再現可能な潜在的競合である。ただし実機クラッシュの唯一の原因とは断定できない。
+Metalで既にcommitされたコマンドバッファにエンコーダを追加しようとしたことを示すアサーション。KCIAでは従来、学習、Optimizer step、署名済みP2P更新の適用、weightの出力・読み込みが `asyncio.to_thread()` の不特定ワーカーに渡され、各ワーカーのMPSキューが完了する前に次の処理に移る可能性があった。これは再現可能な潜在的競合である。ただし実機クラッシュの唯一の原因とは断定できない。
 
 `resource_tracker` のセマフォ警告は異常終了の後処理による可能性があり、このパッチでは乱暴なセマフォunlinkは行わない。
 
@@ -32,7 +32,7 @@ GPUコマンドを多く発行する場合、各操作の同期・逐次化に�
 1. GUIと学習プロセスをすべて停止し、現在の `rooms` ディレクトリ・ジャーナル・学習済みモデルと識別鍵をバックアップする。
 2. 本ZIPを新しいディレクトリに展開し、既存の保存領域は削除せずに通常の方法で起動する。原則、同一ルームの全ピアで配布コードを統一する。
 3. Macで **既存ルームのまま** 少数ステップを試し、`torch.mps.synchronize()` まわりの停止・金属例外が出ないか確認する。従来のデータを初期化する必要はない。
-4. 再現する場合、`PYTHONFAULTHANDLER=1 python kagami.py` で実行し、クラッシュ直前の学習ログと `python -c 'import torch,platform;print(torch.__version__,platform.mac_ver(),torch.backends.mps.is_available())'` の結果を保管する。
+4. 再現する場合、`PYTHONFAULTHANDLER=1 python kcia.py` で実行し、クラッシュ直前の学習ログと `python -c 'import torch,platform;print(torch.__version__,platform.mac_ver(),torch.backends.mps.is_available())'` の結果を保管する。
 5. CPUに切り替えて再現するか比較する。CPUでは起きずMPSだけで起きるなら、MPSバックエンド側の問題という仮説が強くなる。PyTorch/macOSの組み合わせを変更して検証する場合は、まず仮想環境を複製する。
 
 **注意**: 既存v90の署名済みジャーナル、epoch/carry、GC認証、コミッティー人数ルールは変更していない。このパッチはディスク不足対策ではない。

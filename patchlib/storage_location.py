@@ -1,8 +1,8 @@
-"""Stable Kagami data-root selection across ZIP/app upgrades.
+"""Stable KCIA data-root selection across ZIP/app upgrades.
 
 Never copy, rename, delete, or silently merge training state. An explicit
-KAGAMI_DATA_DIR wins; otherwise a pinned pointer is used across restarts.
-Legacy relative .fedpara-gui stores are adopted only when unambiguous.
+KCIA_DATA_DIR wins; otherwise a pinned pointer is used across restarts.
+Legacy relative .kcia-gui stores are adopted only when unambiguous.
 """
 from __future__ import annotations
 
@@ -12,12 +12,12 @@ from pathlib import Path
 
 
 def _config_file(home: Path) -> Path:
-    return home / '.config' / 'kagami' / 'data-root.txt'
+    return home / '.config' / 'kcia' / 'data-root.txt'
 
 
 def _has_models(path: Path) -> bool:
     try:
-        return (path / '.fedpara-gui' / 'rooms').is_dir()
+        return (path / '.kcia-gui' / 'rooms').is_dir()
     except OSError:
         return False
 
@@ -28,7 +28,7 @@ def choose_data_root(*, cwd: Path | None = None, home: Path | None = None,
     env = os.environ if environment is None else environment
     current = (Path.cwd() if cwd is None else Path(cwd)).expanduser().resolve()
     user_home = (Path.home() if home is None else Path(home)).expanduser().resolve()
-    explicit = env.get('KAGAMI_DATA_DIR', '').strip()
+    explicit = env.get('KCIA_DATA_DIR', '').strip()
     if explicit:
         return Path(explicit).expanduser().resolve()
     pin = _config_file(user_home)
@@ -46,17 +46,17 @@ def choose_data_root(*, cwd: Path | None = None, home: Path | None = None,
     try:
         candidates = [p.resolve() for p in current.parent.iterdir()
                       if p.is_dir() and not p.is_symlink() and
-                      p.name.lower().startswith(('kagami-', 'kagami_', 'fedpara-', 'fedpara_'))
+                      p.name.lower().startswith(('kcia-', 'kcia_', 'kcia-', 'kcia_'))
                       and _has_models(p)]
     except OSError:
         candidates = []
     if len(candidates) == 1:
         return candidates[0]
     if sys.platform == 'darwin':
-        return user_home / 'Library' / 'Application Support' / 'Kagami'
+        return user_home / 'Library' / 'Application Support' / 'KCIA'
     if sys.platform == 'win32':
-        return Path(env.get('LOCALAPPDATA') or user_home / 'AppData' / 'Local') / 'Kagami'
-    return Path(env.get('XDG_DATA_HOME') or user_home / '.local' / 'share') / 'kagami'
+        return Path(env.get('LOCALAPPDATA') or user_home / 'AppData' / 'Local') / 'KCIA'
+    return Path(env.get('XDG_DATA_HOME') or user_home / '.local' / 'share') / 'kcia'
 
 
 def pin_data_root(root: Path, *, home: Path | None = None) -> None:

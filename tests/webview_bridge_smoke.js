@@ -51,7 +51,7 @@ async function scenario(eventDispatched) {
   window.pywebview = {api: {}};
   if (eventDispatched) window.dispatchEvent('pywebviewready');
   await new Promise(resolve => setTimeout(resolve, 60));
-  assert.notEqual(document.getElementById('feedback').textContent, '準備完了 · Fedpara Desktop（WebView / Python）');
+  assert.notEqual(document.getElementById('feedback').textContent, '準備完了 · KCIA Desktop（WebView / Python）');
 
   // Stage 2: methods appear asynchronously, possibly without another event.
   const methods = ['defaults','new_room','save_room','join_room','register_code',

@@ -1,4 +1,4 @@
-"""Explicit, offline reset of Kagami-managed *local* persisted data.
+"""Explicit, offline reset of KCIA-managed *local* persisted data.
 
 This operation intentionally does not touch Hugging Face's shared cache,
 source trees, or custom dataset paths. It is independent of PyTorch/GUI deps.
@@ -15,7 +15,7 @@ from pathlib import Path
 
 from .storage_location import choose_data_root
 
-GUI_DIR = '.fedpara-gui'
+GUI_DIR = '.kcia-gui'
 CLI_JOURNAL = 'elastic-events.sqlite3'
 CLI_CHECKPOINTS = 'live-checkpoints'
 # Entries emitted by train-elastic for its default --journal. No wildcards:
@@ -100,6 +100,20 @@ def _assert_inactive(gui: Path):
     locks = []
     try:
         if gui.is_dir():
+            # A second, idle KCIA GUI may not own any per-peer lock.
+            # Require an exclusive app lock in addition to journal locks.
+            app_lock = gui / 'app.lock'
+            if app_lock.exists() or app_lock.is_symlink():
+                if app_lock.is_symlink():
+                    raise RuntimeError(f'unsafe symbolic link in GUI lock: {app_lock}')
+                import fcntl
+                fd = os.open(app_lock, os.O_RDWR | getattr(os, 'O_NOFOLLOW', 0))
+                try:
+                    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except (OSError, BlockingIOError):
+                    os.close(fd)
+                    raise RuntimeError('Another KCIA GUI is still open; close it before resetting.')
+                locks.append(fd)
             rooms = gui / 'rooms'
             if rooms.is_dir() and not rooms.is_symlink():
                 import fcntl  # Only available on POSIX (GUI peer-lock platform).
@@ -117,13 +131,30 @@ def _assert_inactive(gui: Path):
                         except (OSError, BlockingIOError):
                             os.close(fd)
                             raise RuntimeError(
-                                f'Kagami is still running (locked profile {path}); '
+                                f'KCIA is still running (locked profile {path}); '
                                 'stop every GUI and training worker before resetting.')
                         locks.append(fd)
         yield
     finally:
         for fd in locks:
             os.close(fd)
+
+
+def preview_local_data(*, root: Path, include_cli_defaults: bool = False,
+                       cli_cwd: Path | None = None) -> dict:
+    """Read-only listing used by the double-confirmed desktop reset dialog."""
+    root = _check_root(Path(root))
+    cwd = Path.cwd() if cli_cwd is None else Path(cli_cwd)
+    targets = _targets(root, include_cli_defaults, cwd)
+    records = []
+    for path in targets:
+        if path.is_symlink():
+            raise RuntimeError(f'unsafe symbolic link in deletion targets: {path}')
+        size, count = _stat_bytes(path)
+        records.append({'path': str(path), 'bytes':size, 'entries':count})
+    return {'root':str(root), 'include_cli_defaults':include_cli_defaults,
+            'targets':records, 'total_bytes':sum(r['bytes'] for r in records),
+            'total_entries':sum(r['entries'] for r in records)}
 
 
 def reset_local_data(*, root: Path, yes: bool = False,
@@ -133,10 +164,10 @@ def reset_local_data(*, root: Path, yes: bool = False,
     root = _check_root(Path(root))
     cwd = Path.cwd() if cli_cwd is None else Path(cli_cwd)
     targets = _targets(root, include_cli_defaults, cwd)
-    print(f'Kagami storage root: {root}', file=out)
+    print(f'KCIA storage root: {root}', file=out)
     print(f'CLI defaults: {"included (cwd: " + str(cwd) + ")" if include_cli_defaults else "excluded"}', file=out)
     if not targets:
-        print('No matching Kagami saved data found; nothing deleted.', file=out)
+        print('No matching KCIA saved data found; nothing deleted.', file=out)
         return 0
     total_bytes, total_entries = 0, 0
     for path in targets:
@@ -165,18 +196,18 @@ def reset_local_data(*, root: Path, yes: bool = False,
                 shutil.rmtree(path)
             else:
                 path.unlink()
-    print('RESET COMPLETE. Local Kagami state deleted. Shared HF caches and source code retained.', file=out)
+    print('RESET COMPLETE. Local KCIA state deleted. Shared HF caches and source code retained.', file=out)
     return 0
 
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
-        prog='python kagami.py reset-local-data',
-        description='Preview or delete Kagami GUI stored rooms, models, checkpoints, '
+        prog='python kcia.py reset-local-data',
+        description='Preview or delete KCIA GUI stored rooms, models, checkpoints, '
                     'signed journals, peer identities, graphs, and logs. '
                     'This irreversibly resets local training progress.')
-    parser.add_argument('--root', type=Path, help='Root containing .fedpara-gui; '
-                        'default: the same persistent root used by Kagami GUI')
+    parser.add_argument('--root', type=Path, help='Root containing .kcia-gui; '
+                        'default: the same persistent root used by KCIA GUI')
     parser.add_argument('--yes', action='store_true', help='Actually delete (default is preview only)')
     parser.add_argument('--include-cli-defaults', action='store_true',
                         help='Also delete ONLY known default CLI journal and live-checkpoints '
@@ -185,7 +216,7 @@ def main(argv=None) -> int:
     try:
         selected_root = args.root if args.root is not None else choose_data_root()
         if args.root is None and not selected_root.exists():
-            print(f'Kagami storage root: {selected_root}')
+            print(f'KCIA storage root: {selected_root}')
             if not args.include_cli_defaults:
                 print('No saved GUI state found; nothing deleted.')
                 return 0
@@ -196,7 +227,7 @@ def main(argv=None) -> int:
             root=selected_root, yes=args.yes,
             include_cli_defaults=args.include_cli_defaults)
     except (OSError, ValueError, RuntimeError) as exc:
-        print(f'KAGAMI RESET ABORTED: {exc}', file=sys.stderr)
+        print(f'KCIA RESET ABORTED: {exc}', file=sys.stderr)
         return 2
 
 

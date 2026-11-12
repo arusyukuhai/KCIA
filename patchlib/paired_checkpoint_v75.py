@@ -21,7 +21,7 @@ from safetensors.torch import save_file
 from .core import PatchError
 from .localprogress import _tip
 
-FORMAT='kagami-paired-actor-critic-v75'
+FORMAT='kcia-paired-actor-critic-v75'
 MAX_BYTES=256 * 1024**2
 
 
@@ -184,7 +184,7 @@ def restore(journal,adapter,actor_optimizer,mixer,*,strict=True):
         legacy=old_working_path(journal)
         if legacy.is_file():
             with safe_open(str(legacy),framework='pt',device='cpu') as older:
-                try:old_meta=json.loads((older.metadata() or {})['fedpara'])
+                try:old_meta=json.loads((older.metadata() or {})['kcia'])
                 except (KeyError,TypeError,ValueError) as exc:
                     raise PatchError('invalid pre-existing actor working snapshot') from exc
                 if (old_meta.get('genesis')==journal.genesis and old_meta.get('tip')==meta['tip']
@@ -253,7 +253,7 @@ class AsyncPairedSaver:
             start=time.monotonic()
             await asyncio.to_thread(write,captured)
             self.disk_ms=(time.monotonic()-start)*1000
-        self.task=asyncio.create_task(flush(),name='kagami-paired-v75-writer')
+        self.task=asyncio.create_task(flush(),name='kcia-paired-v75-writer')
         return True
     def check(self):
         if self.task is not None and self.task.done():self.task.result()

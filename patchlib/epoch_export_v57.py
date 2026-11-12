@@ -21,7 +21,7 @@ from .shards import (export_state_sharded,read_manifest,semantic_shard_sha256,
                      shard_map,_blob_path,verify_shards)
 from .epoch_live_rebase_v52 import verify_certified_cut
 
-RECEIPT_PROTOCOL='kagami-fenced-trainer-export-v57'
+RECEIPT_PROTOCOL='kcia-fenced-trainer-export-v57'
 MAX_EXPORT_ORIGINS=4096
 
 

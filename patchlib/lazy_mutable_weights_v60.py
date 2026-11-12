@@ -34,7 +34,7 @@ class LazyMutableWeights:
         from .live_linear_workspace_v59 import allocate, _release
         # v59's locked lease collector is crash-safe. Use a dedicated root so
         # another offload subsystem can never reclaim our active scratch.
-        scratch_root=Path(scratch_dir or tempfile.gettempdir())/'kagami-lazy-v60'
+        scratch_root=Path(scratch_dir or tempfile.gettempdir())/'kcia-lazy-v60'
         self.directory,lease=allocate(scratch_root)
         self._cleanup=weakref.finalize(model,_release,lease,self.directory)
         self.block_bytes=int(copy_mib*1024**2)
@@ -102,34 +102,34 @@ class LazyMutableWeights:
             # Only publish the new tensor after the entire source has been copied.
             # Disk kernels cache the source separately from the Parameter.
             old_data=original.data
-            old_raw=getattr(original,'_fedpara_raw_path',None)
+            old_raw=getattr(original,'_kcia_raw_path',None)
             previous=[]
             seen=set()
             try:
                 for module,_ in members:
                     if id(module) in seen:continue
                     seen.add(id(module))
-                    if hasattr(module,'_fedpara_disk_source'):
-                        previous.append((module,module._fedpara_disk_source,
-                                         module._fedpara_disk_path))
+                    if hasattr(module,'_kcia_disk_source'):
+                        previous.append((module,module._kcia_disk_source,
+                                         module._kcia_disk_path))
                 original.data=mapped
-                original._fedpara_raw_path=str(dest)
+                original._kcia_raw_path=str(dest)
                 for module,_,_ in previous:
-                    cache=getattr(module,'_fedpara_disk_cache',None)
+                    cache=getattr(module,'_kcia_disk_cache',None)
                     if cache is not None:cache.invalidate()
-                    module._fedpara_disk_source=str(dest)
-                    module._fedpara_disk_path=str(dest)
+                    module._kcia_disk_source=str(dest)
+                    module._kcia_disk_path=str(dest)
                 self.materialized[group.canonical]=str(dest)
                 self.used_bytes+=byte_size
             except BaseException:
                 original.data=old_data
-                if old_raw is None and hasattr(original,'_fedpara_raw_path'):
-                    delattr(original,'_fedpara_raw_path')
+                if old_raw is None and hasattr(original,'_kcia_raw_path'):
+                    delattr(original,'_kcia_raw_path')
                 elif old_raw is not None:
-                    original._fedpara_raw_path=old_raw
+                    original._kcia_raw_path=old_raw
                 for module,old_source,old_path in previous:
-                    module._fedpara_disk_source=old_source
-                    module._fedpara_disk_path=old_path
+                    module._kcia_disk_source=old_source
+                    module._kcia_disk_path=old_path
                 raise
             return True
         except BaseException:
@@ -146,21 +146,21 @@ class LazyMutableWeights:
 
 
 def attach_lazy_mutable(model,adapter,*,scratch_dir=None,copy_mib=4,limit_gib=0):
-    if getattr(model,'_fedpara_streaming_base_info',{}).get('mode')!='read-only-mmap':
+    if getattr(model,'_kcia_streaming_base_info',{}).get('mode')!='read-only-mmap':
         raise LazyWeightError('lazy mutable weights require immutable safetensors base')
     manager=LazyMutableWeights(model,scratch_dir=scratch_dir,copy_mib=copy_mib,limit_gib=limit_gib)
-    object.__setattr__(model,'_fedpara_lazy_mutable_weights',manager)
+    object.__setattr__(model,'_kcia_lazy_mutable_weights',manager)
     return manager
 
 
 def prepare_base_group(adapter,group):
-    manager=getattr(adapter.model,'_fedpara_lazy_mutable_weights',None)
+    manager=getattr(adapter.model,'_kcia_lazy_mutable_weights',None)
     if manager is not None:
         manager.materialize_group(group)
 
 
 def materialize_all(adapter):
-    manager=getattr(adapter.model,'_fedpara_lazy_mutable_weights',None)
+    manager=getattr(adapter.model,'_kcia_lazy_mutable_weights',None)
     if manager is not None:
         if hasattr(manager,"materialize_all"):
             return manager.materialize_all(adapter)

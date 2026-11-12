@@ -1,4 +1,4 @@
-# Kagami v95 — 単独ピアの認証済み世代移行が80%で止まる問題への対策
+# KCIA v95 — 単独ピアの認証済み世代移行が80%で止まる問題への対策
 
 ## 問題
 
@@ -20,15 +20,15 @@ v89以降の自動世代移行では、署名付きジャーナルが80%にな�
 
 ## 使い方
 
-GUIを終了し、元のKagamiディレクトリと学習データを別途バックアップした後、本パッケージのコードを置き換えてGUIを再起動する。**既存のweight、署名ジャーナル、識別鍵、carryアーカイブは削除しない。** `reset-local-data` は実行しない。
+GUIを終了し、元のKCIAディレクトリと学習データを別途バックアップした後、本パッケージのコードを置き換えてGUIを再起動する。**既存のweight、署名ジャーナル、識別鍵、carryアーカイブは削除しない。** `reset-local-data` は実行しない。
 
 状態確認（読み取り専用）:
 
 ```bash
-python kagami.py journal-status --journal '/Users/al/Library/Application Support/Kagami/.fedpara-gui/rooms/LI7JzPNv6TrI-BHpHMMSzR6CpkYxUyfI/peers/peer-b3c84c73915727e9/events.sqlite3'
+python kcia.py journal-status --journal '/Users/al/Library/Application Support/KCIA/.kcia-gui/rooms/LI7JzPNv6TrI-BHpHMMSzR6CpkYxUyfI/peers/peer-b3c84c73915727e9/events.sqlite3'
 ```
 
-通常GUIは `python kagami.py` で起動。
+通常GUIは `python kcia.py` で起動。
 
 ## 重要な制限
 

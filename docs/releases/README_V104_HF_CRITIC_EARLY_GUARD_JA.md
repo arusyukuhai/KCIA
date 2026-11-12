@@ -1,4 +1,4 @@
-# Kagami v104 — HF Critic の繰り返しエラーを起動前に検出
+# KCIA v104 — HF Critic の繰り返しエラーを起動前に検出
 
 ## 症状
 

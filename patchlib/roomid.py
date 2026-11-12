@@ -38,13 +38,13 @@ def pair_room(room: str, a: str, b: str) -> str:
     validate_room(room)
     if not isinstance(a,str) or not IDENT.fullmatch(a) or not isinstance(b,str) or not IDENT.fullmatch(b) or a == b:
         raise ValueError('invalid pair IDs')
-    return hashlib.sha256(b'fedpara/pair/v1\0'+room.encode()+b'\0'+min(a,b).encode()+b'\0'+max(a,b).encode()).hexdigest()
+    return hashlib.sha256(b'kcia/pair/v1\0'+room.encode()+b'\0'+min(a,b).encode()+b'\0'+max(a,b).encode()).hexdigest()
 
 
 def id_from_raw_key(raw: bytes) -> str:
     if not isinstance(raw,bytes) or len(raw)!=32:
         raise PatchError('expected 32-byte Ed25519 public key')
-    return 'p'+hashlib.sha256(b'fedpara/peer/v1\0'+raw).hexdigest()[:32]
+    return 'p'+hashlib.sha256(b'kcia/peer/v1\0'+raw).hexdigest()[:32]
 
 
 def raw_to_verifier(raw: bytes):
@@ -112,7 +112,7 @@ class RoomDiscovery:
         self.peer_id=peer_id
         self.token=token
         self.publish=bool(publish)
-        self.publish_token=publish_token if publish_token is not None else os.environ.get("ROOM_PUBLISH_TOKEN", "")
+        self.publish_token=publish_token if publish_token is not None else ""
         if not isinstance(max_peers, int) or not 1 <= max_peers <= 4096:
             raise ValueError('max_peers must be in [1,4096]')
         if max_degree not in (2,4,6,8):raise ValueError('max_degree must be 2,4,6,8')
@@ -202,7 +202,7 @@ class RoomDiscovery:
             raise PatchError('obsolete full-roster signaling server')
         elif kind=='error':raise ConnectionError('lobby rejected: '+str(message.get('message','error')))
         else:return
-        logging.getLogger('fedpara.roomid').info(
+        logging.getLogger('kcia.roomid').info(
             'room presence: peer=%s type=%s online=%d neighbors=%d',self.peer_id,kind,self.online_count,len(self.members))
         self.updated.set()
 
@@ -266,11 +266,11 @@ class RoomDiscovery:
                 # A pinned manifest mismatch or invalid server roster is
                 # permanent; repeated joins cannot fix it. Fail visibly.
                 self.fatal_error=exc
-                logging.getLogger('fedpara.roomid').error(
+                logging.getLogger('kcia.roomid').error(
                     'discovery rejected room permanently: %s',exc)
                 return
               except (OSError,ConnectionError,asyncio.TimeoutError,ValueError,ConnectionClosed) as exc:
-                logging.getLogger('fedpara.roomid').warning('discovery endpoint %s unavailable: %s',url,exc)
+                logging.getLogger('kcia.roomid').warning('discovery endpoint %s unavailable: %s',url,exc)
               finally:
                 if connected_at is not None and time.monotonic()-connected_at>=60.0:
                     backoff=1.0  # Only a sustained healthy session resets it.
@@ -371,8 +371,6 @@ async def register_room_manifest(ws_url: str, room: str, manifest: dict, *,
     public_room_endpoint(ws_url)  # also enforces TLS for remote hosts
     payload={'type':'room-register','room':room,'manifest':manifest,'publish':bool(publish)}
     if token: payload['token']=token
-    if publish and os.environ.get('ROOM_PUBLISH_TOKEN'):
-        payload['publish_token']=os.environ['ROOM_PUBLISH_TOKEN']
     async with websockets.connect(ws_url,max_size=65536,open_timeout=timeout) as ws:
         await ws.send(json.dumps(payload,separators=(',',':')))
         reply=json.loads(await asyncio.wait_for(ws.recv(),timeout))

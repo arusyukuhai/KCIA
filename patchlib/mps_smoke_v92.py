@@ -29,10 +29,10 @@ print('MPS PROBE PASS (not a training stability guarantee)',flush=True)
 
 
 def main():
-    print('This is a separate subprocess. Aborting it will NOT stop Kagami GUI.',flush=True)
+    print('This is a separate subprocess. Aborting it will NOT stop KCIA GUI.',flush=True)
     env=os.environ.copy()
-    # Probe is intentionally independent from Kagami's default CPU policy.
-    env['KAGAMI_EXPERIMENTAL_MPS']='1'
+    # Probe is intentionally independent from KCIA's default CPU policy.
+    env['KCIA_EXPERIMENTAL_MPS']='1'
     try:
         cp=subprocess.run([sys.executable,'-c',_PROBE], env=env,
                           stdout=subprocess.PIPE,stderr=subprocess.STDOUT,

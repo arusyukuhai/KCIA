@@ -1,4 +1,4 @@
-# Kagami v85 — 統合済みweightからの高速resumeと認証済み世代GC
+# KCIA v85 — 統合済みweightからの高速resumeと認証済み世代GC
 
 ## 重要：できることと、まだできないこと
 
@@ -41,4 +41,4 @@
 
 既存の`train-elastic`実行で、デフォルトの `--fast-resume-every 32` が有効。速度を優先する／モデルのI/O負荷が高い環境は `--fast-resume-every 128` などに変更。キャッシュ保存を無効化する場合は `--fast-resume-every 0`。
 
-**旧ジャーナルを手動削除しないでください**。認証済み世代GCによってのみ安全に削除されます。再起動ログには `KAGAMI FAST RESUME loaded materialized committed base` と、署名付きsuffix再生件数が表示されます。
+**旧ジャーナルを手動削除しないでください**。認証済み世代GCによってのみ安全に削除されます。再起動ログには `KCIA FAST RESUME loaded materialized committed base` と、署名付きsuffix再生件数が表示されます。

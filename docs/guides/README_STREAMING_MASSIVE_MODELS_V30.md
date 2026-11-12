@@ -1,4 +1,4 @@
-# Fedpara v30 — memory-adaptive out-of-core model training (experimental)
+# KCIA v30 — memory-adaptive out-of-core model training (experimental)
 
 This release introduces an **opt-in** execution path for models whose frozen
 weight files exceed the available RAM/VRAM. v29's unlimited publication,
@@ -47,7 +47,7 @@ Face architecture, 300B+ model, or arbitrary custom MoE runs on every phone.
 
 ## Desktop usage
 
-From `fedpara/`, start `python -m patchlib.cli gui`. Create a **new** room,
+From `kcia/`, start `python -m patchlib.cli gui`. Create a **new** room,
 choose **pretrained** for initialization, use a compatible HF safetensors
 model and leave the initial-state path blank. Select experimental streaming
 mode, optionally raise the cache fraction toward `0.85` on a high-VRAM machine,
@@ -74,7 +74,7 @@ snapshot, not arbitrary custom factory code. Live writable copies require a
 fast SSD with approximately **one extra base-model-size of free capacity**, in
 addition to the source weights and saved checkpoints. Specify
 `--streaming-scratch-dir /path/to/fast/ssd` for control. Interrupted processes
-can leave unused `fedpara-weights-*` directories behind; delete those only
+can leave unused `kcia-weights-*` directories behind; delete those only
 when no trainer is using them.
 
 Additional controls: `--stream-chunk-mib` (1..128; default 8),

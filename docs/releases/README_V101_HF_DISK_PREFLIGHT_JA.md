@@ -1,10 +1,10 @@
-# Kagami v101 — PPO / HF Reward Model の物理ディスク容量エラー対策
+# KCIA v101 — PPO / HF Reward Model の物理ディスク容量エラー対策
 
 ## 発生したエラー
 
 `reward_model_v67.py -> load_hf_model -> transformers.from_pretrained -> huggingface_hub.snapshot_download -> hf_xet.xet_get` で `File reconstruction error: IO Error: No space left on device (os error 28)`。
 
-これは Kagami の署名付きジャーナル上限とは別の **macOS の物理ストレージ不足**。従来は `RewardModelError: incompatible scalar head` のように見える汎用エラーで包んでしまっていた。
+これは KCIA の署名付きジャーナル上限とは別の **macOS の物理ストレージ不足**。従来は `RewardModelError: incompatible scalar head` のように見える汎用エラーで包んでしまっていた。
 
 ## v101 の対策
 
@@ -19,7 +19,7 @@
 
 ## 現在のMacを復旧するには
 
-すべてのKagami学習プロセスを終了してから：
+すべてのKCIA学習プロセスを終了してから：
 
 ```bash
 # ボリュームの物理空き容量
@@ -43,11 +43,11 @@ hf cache prune
 
 ### 外付けSSDを使う場合
 
-容量の十分あるボリュームを指定して **Kagami起動前に** 設定します。
+容量の十分あるボリュームを指定して **KCIA起動前に** 設定します。
 
 ```bash
 mkdir -p '/Volumes/ExternalSSD/huggingface'
-HF_HOME='/Volumes/ExternalSSD/huggingface' python kagami.py
+HF_HOME='/Volumes/ExternalSSD/huggingface' python kcia.py
 ```
 
 注意：環境変数の有効範囲はこの起動プロセスと子プロセスです。既存のキャッシュは移動されず、新しい保存先で再ダウンロードが必要になる場合があります。容量と空き容量を先に確認してください。GUIをFinderから起動する場合はこのShell環境変数を引き継げない場合があります。

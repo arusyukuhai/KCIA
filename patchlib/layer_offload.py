@@ -22,7 +22,7 @@ from torch import nn
 
 
 def _mapping(path, shape, dtype, device):
-    if getattr(path,'_fedpara_is_paged',False):
+    if getattr(path,'_kcia_is_paged',False):
         if torch.device(device).type!='cpu':
             raise RuntimeError('paged virtual tensor must execute through bounded tiling')
         return path
@@ -86,7 +86,7 @@ class DiskWeightCache:
 
     def weight(self,path,shape,dtype,device,*, compute_dtype=None):
         device=torch.device(device)
-        if getattr(path,'_fedpara_is_paged',False):return None
+        if getattr(path,'_kcia_is_paged',False):return None
         if device.type=='cpu':return None
         target_dtype=compute_dtype or dtype
         size=math.prod(shape)*target_dtype.itemsize
@@ -225,15 +225,15 @@ def _disk_embedding_forward(module, ids):
     if module.max_norm is not None:
         raise RuntimeError('max_norm requires in-place embedding renormalization and is unsafe with disk base')
     # Only the indexed rows are ever copied from the file-backed CPU tensor.
-    source=module._fedpara_disk_source
+    source=module._kcia_disk_source
     cpu_ids=ids.to('cpu') if ids.device.type!='cpu' else ids
-    base=_mapping(source,module._fedpara_disk_shape,module._fedpara_disk_dtype,'cpu')
-    if getattr(base,'_fedpara_is_paged',False):
+    base=_mapping(source,module._kcia_disk_shape,module._kcia_disk_dtype,'cpu')
+    if getattr(base,'_kcia_is_paged',False):
         y=base.gather_rows(cpu_ids).to(ids.device)
     else:
         y=F.embedding(cpu_ids,base,padding_idx=module.padding_idx,
                       scale_grad_by_freq=False,sparse=False).to(ids.device)
-    overlay=getattr(module,'_fedpara_disk_overlay',None)
+    overlay=getattr(module,'_kcia_disk_overlay',None)
     if overlay is not None:
         residual=_embedding_residual(ids,overlay.local)
         if hasattr(overlay,'anchor'):
@@ -253,10 +253,10 @@ def _disk_embedding_forward(module, ids):
 def _disk_forward(module, x):
     if x.dtype not in (torch.float32,torch.float64,torch.float16,torch.bfloat16):
         raise TypeError('unsupported input dtype for disk-backed Linear')
-    y=_FrozenDiskLinear.apply(x,module.bias,module._fedpara_disk_source,
-                              module._fedpara_disk_shape,module._fedpara_disk_dtype,
-                              getattr(module,"_fedpara_disk_cache",None))
-    overlay=getattr(module,'_fedpara_disk_overlay',None)
+    y=_FrozenDiskLinear.apply(x,module.bias,module._kcia_disk_source,
+                              module._kcia_disk_shape,module._kcia_disk_dtype,
+                              getattr(module,"_kcia_disk_cache",None))
+    overlay=getattr(module,'_kcia_disk_overlay',None)
     if overlay is not None:
         residual=_factor_linear(x,overlay.local)
         if hasattr(overlay,'anchor'):
@@ -288,7 +288,7 @@ class _FrozenDiskConv1D(torch.autograd.Function):
                 if cache is not None else None)
         if weight is None:
             weight=_mapping(source,shape,dtype,'cpu')
-        if not getattr(weight,'_fedpara_is_paged',False) and weight.device==x.device and weight.dtype==x.dtype:
+        if not getattr(weight,'_kcia_is_paged',False) and weight.device==x.device and weight.dtype==x.dtype:
             return F.linear(x,weight.T,bias.to(x.device,dtype=x.dtype))
         tile=cache.tile_bytes if cache is not None else 16*1024**2
         return _tiled_linear_forward(x,weight.T,bias,x.device,tile)
@@ -301,7 +301,7 @@ class _FrozenDiskConv1D(torch.autograd.Function):
             weight=(cache.weight(ctx.source,ctx.shape,ctx.dtype,grad.device,
                     compute_dtype=grad.dtype) if cache is not None else None)
             if weight is None:weight=_mapping(ctx.source,ctx.shape,ctx.dtype,'cpu')
-            if not getattr(weight,'_fedpara_is_paged',False) and weight.device==grad.device and weight.dtype==grad.dtype:
+            if not getattr(weight,'_kcia_is_paged',False) and weight.device==grad.device and weight.dtype==grad.dtype:
                 gx=grad @ weight.T
             else:
                 gx=_tiled_linear_backward(grad,weight.T,grad.device,
@@ -326,10 +326,10 @@ def _factor_conv1d(x,spec):
 
 
 def _disk_conv1d_forward(module,x):
-    result=_FrozenDiskConv1D.apply(x,module.bias,module._fedpara_disk_source,
-            module._fedpara_disk_shape,module._fedpara_disk_dtype,
-            getattr(module,'_fedpara_disk_cache',None))
-    overlay=getattr(module,'_fedpara_disk_overlay',None)
+    result=_FrozenDiskConv1D.apply(x,module.bias,module._kcia_disk_source,
+            module._kcia_disk_shape,module._kcia_disk_dtype,
+            getattr(module,'_kcia_disk_cache',None))
+    overlay=getattr(module,'_kcia_disk_overlay',None)
     if overlay is not None:
         residual=_factor_conv1d(x,overlay.local)
         if hasattr(overlay,'anchor'):
@@ -386,17 +386,17 @@ def install_disk_linear_offload(model: nn.Module, adapter, directory, *, min_wei
             continue
         # Name includes shape and path; persistent dir belongs to a single
         # immutable model generation. Refuse reinstallation on the same module.
-        if hasattr(module,'_fedpara_disk_path'):
+        if hasattr(module,'_kcia_disk_path'):
             raise RuntimeError(f'disk offload already installed for {path}')
         if max_dir_bytes is not None and bytes_total+size>max_dir_bytes:
             raise RuntimeError('disk Linear base exceeds configured per-model capacity')
-        inherited=getattr(base,'_fedpara_raw_path',None)
+        inherited=getattr(base,'_kcia_raw_path',None)
         if inherited:
             file=Path(inherited)
             if file.stat().st_size!=size:
                 raise RuntimeError(f'offloaded backing file size changed: {path}')
             source=str(file)
-        elif getattr(model,'_fedpara_streaming_base_info',{}).get('mode')=='read-only-mmap':
+        elif getattr(model,'_kcia_streaming_base_info',{}).get('mode')=='read-only-mmap':
             # Reuse safetensors' existing file-backed mapping; do NOT write
             # a second copy of a 300B base just to offload its Linear layers.
             source=base.detach()
@@ -411,13 +411,13 @@ def install_disk_linear_offload(model: nn.Module, adapter, directory, *, min_wei
         shape=tuple(base.shape);dtype=base.dtype
         if not isinstance(source,torch.Tensor):
             base.data=_mapping(source,shape,dtype,'cpu')
-        module._fedpara_disk_path=str(source) if isinstance(source,str) else '<safetensors-mmap>'
-        module._fedpara_disk_source=source
-        module._fedpara_disk_shape=shape
-        module._fedpara_disk_dtype=dtype
-        module._fedpara_disk_cache=cache
+        module._kcia_disk_path=str(source) if isinstance(source,str) else '<safetensors-mmap>'
+        module._kcia_disk_source=source
+        module._kcia_disk_shape=shape
+        module._kcia_disk_dtype=dtype
+        module._kcia_disk_cache=cache
         # Do not register overlay twice: nn.Linear's parametrization contains it.
-        object.__setattr__(module,'_fedpara_disk_overlay',overlay)
+        object.__setattr__(module,'_kcia_disk_overlay',overlay)
         module.forward=types.MethodType(_disk_conv1d_forward if _is_conv1d(module) else _disk_forward,module)
         bytes_total+=size;count+=1
     embeddings=0
@@ -432,17 +432,17 @@ def install_disk_linear_offload(model: nn.Module, adapter, directory, *, min_wei
                 skipped.append((path,'unsupported embedding parametrization'));continue
             original=plist.weight.original if overlay is not None else module.weight
             if original.requires_grad:continue
-            source=getattr(original,'_fedpara_raw_path',None)
-            if source is None and getattr(model,'_fedpara_streaming_base_info',{}).get('mode')=='read-only-mmap':
+            source=getattr(original,'_kcia_raw_path',None)
+            if source is None and getattr(model,'_kcia_streaming_base_info',{}).get('mode')=='read-only-mmap':
                 source=original.detach()
             if source is None:
                 skipped.append((path,'embedding needs streaming safetensors source'));continue
-            object.__setattr__(module,'_fedpara_disk_overlay',overlay)
-            module._fedpara_disk_path=source if isinstance(source,str) else '<safetensors-mmap>'
-            module._fedpara_disk_source=source
-            module._fedpara_disk_shape=tuple(original.shape)
-            module._fedpara_disk_dtype=original.dtype
-            module._fedpara_disk_cache=cache
+            object.__setattr__(module,'_kcia_disk_overlay',overlay)
+            module._kcia_disk_path=source if isinstance(source,str) else '<safetensors-mmap>'
+            module._kcia_disk_source=source
+            module._kcia_disk_shape=tuple(original.shape)
+            module._kcia_disk_dtype=original.dtype
+            module._kcia_disk_cache=cache
             module.forward=types.MethodType(_disk_embedding_forward,module)
             embeddings+=1
     return {'layers':count,'embeddings':embeddings,
@@ -460,7 +460,7 @@ def place_streaming_compute_device(model: nn.Module, adapter, device, *, cache=N
     if device.type=='cpu':return {'resident_bytes':0,'offloaded_bases':0}
     frozen={}
     for prefix,mod in model.named_modules():
-        if not hasattr(mod,'_fedpara_disk_source'):continue
+        if not hasattr(mod,'_kcia_disk_source'):continue
         if not (isinstance(mod,(nn.Linear,nn.Embedding)) or _is_conv1d(mod)):
             raise RuntimeError(f'unsupported disk compute module {prefix}')
         plist=getattr(mod,'parametrizations',None)
@@ -474,7 +474,7 @@ def place_streaming_compute_device(model: nn.Module, adapter, device, *, cache=N
             if p is not None and id(p) in frozen:
                 # ParametrizationList.original is an alias of the same frozen
                 # tensor, and is never called by the replaced module forward.
-                if name!='original' and not hasattr(mod,'_fedpara_disk_source'):
+                if name!='original' and not hasattr(mod,'_kcia_disk_source'):
                     raise RuntimeError(f'unsupported shared offloaded weight owner: {prefix}.{name}')
     moved=0;visited=set()
     for mod in model.modules():

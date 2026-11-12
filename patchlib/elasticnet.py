@@ -28,7 +28,7 @@ from .identity import signer_from_pem, verifier_from_pem
 from .livefed import parse_links, parse_peer_keys
 from .p2p import FrameReceiver, PatchNode, WINDOW, transmit
 
-log = logging.getLogger('fedpara.elastic')
+log = logging.getLogger('kcia.elastic')
 from .elastic_control_v110 import (
     CTRL_VERSION, CTRL_MAX, INVENTORY_PAGE, HandshakeError,
     REQUEST_PAGE, REQUEST_BACKLOG_LIMIT, FRONTIER_WINDOW,
@@ -855,7 +855,7 @@ async def run_step_offloop(run_step, model, adapter, optimizer, batch_iter, args
     # One in-flight iterator operation, even while the application reports
     # slow network requests. wait() does not cancel the underlying task.
     from .mps_runtime_v91 import model_task, execution_device
-    task=asyncio.create_task(worker(),name='fedpara-data-and-model-step')
+    task=asyncio.create_task(worker(),name='kcia-data-and-model-step')
     report_seconds=float(getattr(args,'data_wait_report_seconds',15.0))
     if report_seconds <= 0:
         return await task
@@ -886,7 +886,7 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
                      if getattr(args,'ppo_reward',None)=='hf_model' else 'not-used')
     critic_device = (getattr(args,'critic_hf_device','cpu')
                      if getattr(args,'critic_kind',None)=='hf' else 'actor-local')
-    print('KAGAMI COMPUTE DEVICE actor=%s reward=%s critic=%s mps_sampler=%s' % (
+    print('KCIA COMPUTE DEVICE actor=%s reward=%s critic=%s mps_sampler=%s' % (
         actor_device,reward_device,critic_device,
         'gpu-native-with-fallback' if str(actor_device).startswith('mps') else 'non-mps'),
         flush=True)
@@ -942,7 +942,7 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
             raise PermissionError('each remote peer needs pinned Ed25519 public key')
     if args.unsafe_unsigned: log.warning('UNSIGNED elastic mode is INSECURE; local testing only')
     # Device-specific decisions are finalized BEFORE allocating the model.
-    # Architecture, LoHA rank and initial model layout remain shared invariants.
+    # Architecture, canonical MAXIMUM LoHA rank and initial model layout are shared invariants.
     controller=None
     if getattr(args,'auto_tune',False):
         from .adaptive import detect_device, initial_policy, AdaptiveController
@@ -987,6 +987,12 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
             raise PatchError('room manifest model ID/revision differs from local selected model')
         if room_manifest['code']['sha256'] and not getattr(args,'room_manifest',None):
             raise PatchError('custom code must be pinned by local manifest')
+        # Room-wide refresh cadence is signed indirectly through this pinned
+        # descriptor. CLI peers and GUI peers must use the same event modulo.
+        # Legacy manifests do not pin this and keep their previous semantics.
+        if room_manifest.get('optimization'):
+            args.reinit_every=room_manifest['optimization']['reinit_every']
+
     signer=room_signer if room_only else (signer_from_pem(Path(args.signing_key)) if args.signing_key else None)
     # Trust keys retained for peers which permanently left: their signed history
     # must still authenticate when gossiped by another connected peer.
@@ -1084,7 +1090,7 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
             genesis_input['checkpoint_sha256']=semantic_shard_sha256(
                 read_manifest(Path(args.sharded_base_manifest),max_state_bytes=args.max_state_gb*1024**3))
         else:
-            digest=getattr(model,'_fedpara_streaming_base_info',{}).get('genesis_digest')
+            digest=getattr(model,'_kcia_streaming_base_info',{}).get('genesis_digest')
             if not digest:
                 raise PatchError('streaming room requires a content-hashed immutable safetensors genesis')
             genesis_input['checkpoint_sha256']='streaming-safetensors-v1:'+digest
@@ -1227,7 +1233,7 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
     try:
         stale_count=cleanup_working_orphans(journal_path)
         if stale_count:
-            print(f'KAGAMI V86 reclaimed {stale_count} orphan disk optimizer backup folders',flush=True)
+            print(f'KCIA V86 reclaimed {stale_count} orphan disk optimizer backup folders',flush=True)
         # Crash recovery can always use signed history; a stale optional cache
         # is swept only through its existing validated local pointer.
         from .fast_resume_v85 import _pointer, root_for, _manifest_path, _factor_path, _clean_unreferenced
@@ -1239,7 +1245,7 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
             if m.is_file() and f.is_file():
                 _clean_unreferenced(cache_root,m,f)
     except (OSError,ValueError,PatchError) as exc:
-        print(f'KAGAMI V86 optional startup cache cleanup deferred: {exc}',flush=True)
+        print(f'KCIA V86 optional startup cache cleanup deferred: {exc}',flush=True)
 
     from .continual import ContinualElasticEngine
     # factor roundoff would leave nonzero residual between anchor and local.
@@ -1312,7 +1318,7 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
                           f'{epoch_boot.source_path}',flush=True)
             except (PatchError,OSError,ValueError,sqlite3.Error) as exc:
                 log.warning('v88 restarted certified GC deferred: %s',exc)
-        asyncio.create_task(recover_compact_gc(),name='kagami-v88-recover-certified-gc')
+        asyncio.create_task(recover_compact_gc(),name='kcia-v88-recover-certified-gc')
     # Epoch-v2 signed crash-fault agreement PROBE. This is deliberately
     # isolated from v1 optimization: no v1 delta may be reinterpreted as an
     # epoch-anchored v2 proposal. A genuine v2 trainer requires pinned local
@@ -1332,8 +1338,8 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
             raise PatchError('epoch-v2 probe requires a fixed pinned 2..16 peer committee')
         from .state import semantic_state_sha256
         base=(semantic_state_sha256(Path(args.state_base)) if args.state_base else
-              getattr(model,'_fedpara_streaming_base_info',{}).get('genesis_digest'))
-        epoch_id=hashlib.sha256(_canonical_json(['fedpara-epoch-probe-v1',genesis,base,sorted(committee)])).hexdigest()
+              getattr(model,'_kcia_streaming_base_info',{}).get('genesis_digest'))
+        epoch_id=hashlib.sha256(_canonical_json(['kcia-epoch-probe-v1',genesis,base,sorted(committee)])).hexdigest()
         epoch_probe_value=make_value(epoch_id,base,tuple(sorted(committee)),[])
         epoch_paxos=EpochPaxos(Path(str(args.journal)+'.epoch-v2.sqlite3'),
                                peer=args.peer_id,committee=committee,epoch=epoch_id,base=base,
@@ -2772,7 +2778,7 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
         inbound_pipeline.start()
         if generation_bridge is not None:generation_bridge.neighbors.clear()
         network_receiver_task=asyncio.create_task(network_receiver_loop(),
-            name='fedpara-network-receiver')
+            name='kcia-network-receiver')
         epoch_writer_frozen=False
         old.journal.close()
         # V88: the durable new epoch pointer has already been published by
@@ -2799,7 +2805,7 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
                                   f'{verified_gc_boot.source_path}',flush=True)
                     except (PatchError,OSError,ValueError,sqlite3.Error) as exc:
                         log.warning('v88 certified old journal GC safely deferred: %s',exc)
-                asyncio.create_task(gc_old_after_swap(),name='kagami-v88-certified-gc')
+                asyncio.create_task(gc_old_after_swap(),name='kcia-v88-certified-gc')
             except (PatchError,OSError,ValueError,sqlite3.Error) as exc:
                 log.warning('v88 certified source retirement skipped: %s',exc)
         print(f'LIVE EPOCH ACTIVATED epoch={new.epoch} genesis={genesis[:16]} '
@@ -3098,7 +3104,7 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
                     return target_epoch,parent,p,pages,receipt
             compact_export_started=loop.time()
             compact_export_task=asyncio.create_task(
-                model_task(export_worker,device=execution_device(args),model=model),name='kagami-v58-cow-shard-export')
+                model_task(export_worker,device=execution_device(args),model=model),name='kcia-v58-cow-shard-export')
         except (PatchError,OSError,sqlite3.Error,ValueError,RuntimeError) as exc:
             # If a capture fails, pressure HOLD will not advance emitted or
             # signed bytes. Retrying solely on the next growth threshold
@@ -3129,7 +3135,7 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
                 history_hash.update(_canonical_json(ident)+b'\n')
             offset+=len(page)
             if done:break
-        payload={'protocol':'fedpara-elastic-checkpoint-v1',
+        payload={'protocol':'kcia-elastic-checkpoint-v1',
                  'origin':args.peer_id,'genesis':genesis,'event_count':offset,
                  'event_inventory_sha256':history_hash.hexdigest(),
                  'manifest_sha256':hashlib.sha256(manifest.read_bytes()).hexdigest()}
@@ -3174,11 +3180,11 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
     last_epoch_pressure_report=0.0
     try:
         update_roster()
-        heartbeat_task=asyncio.create_task(heartbeat_daemon(),name='fedpara-heartbeat')
-        watchdog_task=asyncio.create_task(loop_stall_watchdog(shutdown),name='fedpara-loop-watchdog')
+        heartbeat_task=asyncio.create_task(heartbeat_daemon(),name='kcia-heartbeat')
+        watchdog_task=asyncio.create_task(loop_stall_watchdog(shutdown),name='kcia-loop-watchdog')
         inbound_pipeline.start()
-        network_receiver_task=asyncio.create_task(network_receiver_loop(),name='fedpara-network-receiver')
-        wal_maintenance_task=asyncio.create_task(wal_maintenance(),name='fedpara-wal-checkpoint')
+        network_receiver_task=asyncio.create_task(network_receiver_loop(),name='kcia-network-receiver')
+        wal_maintenance_task=asyncio.create_task(wal_maintenance(),name='kcia-wal-checkpoint')
         while not shutdown.is_set() and (args.rounds == 0 or emitted < args.rounds):
             if generation_compact_control is not None:
                 # Crash-safe reconciliation of a quorum that was durably
@@ -3212,7 +3218,7 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
                 ready=generation_compact_control.ready_for_vote()
                 if ready is not None:
                     generation_compact_vote_task=asyncio.create_task(
-                        compact_vote_worker(*ready),name='kagami-compact-vote')
+                        compact_vote_worker(*ready),name='kcia-compact-vote')
                     compact_vote_started_at=loop.time()
                     print(f'V97 COMPACT EPOCH local vote validation started '
                           f'epoch={ready[0]["epoch"]} (full shard and signed cut verification)',
@@ -3231,7 +3237,7 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
                     try:
                         deleted=await asyncio.to_thread(gc_snapshot_offers,outgoing_root)
                         if any(deleted):
-                            print(f'KAGAMI V86 outgoing snapshot GC manifests={deleted[0]} '
+                            print(f'KCIA V86 outgoing snapshot GC manifests={deleted[0]} '
                                   f'shards={deleted[1]}',flush=True)
                     except (PatchError,OSError,ValueError) as exc:
                         log.warning('outgoing snapshot GC deferred: %s',exc)
@@ -3270,7 +3276,7 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
                     auto_epoch_next=loop.time()+2.0
                     auto_epoch_prepare=asyncio.create_task(
                         auto_epoch_service.activate_next(prepare_only=True),
-                        name='kagami-epoch-prewarm')
+                        name='kcia-epoch-prewarm')
             # Update local queue/connection gauges even during network catch-up.
             record_telemetry('training' if initial_complete else 'waiting')
             if network_receiver_task.done(): network_receiver_task.result()
@@ -3400,7 +3406,7 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
                     "SELECT 1 FROM handoffs WHERE state='installed' LIMIT 1").fetchone():
                     generation_gc_task=asyncio.create_task(
                         asyncio.to_thread(generation_gc_background),
-                        name='kagami-verified-epoch-gc')
+                        name='kcia-verified-epoch-gc')
             # Every durably verified participant is an equal snapshot source:
             # the first peer has no special authority after genesis. Broadcast
             # a signed availability transition immediately, so if the original
@@ -3418,7 +3424,7 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
                 slots, source_allowed=source_ready,
                 send_snapshot=send_full_snapshot,now=now)
             # Pull completed, authenticated shard snapshots from the separate
-            # fedpara-state DataChannel without buffering model tensors in RAM.
+            # kcia-state DataChannel without buffering model tensors in RAM.
             for slot in slots.values():
                 link=slot.node.snapshot_link if slot.node is not None else None
                 if link is None:continue
@@ -3807,7 +3813,7 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
                         print(f'V97 EPOCH PRESSURE HOLD: signed log '
                               f'{journal.total_bytes()/max(1,journal.max_bytes):.1%} full; '
                               f'{state}; stage={stage}; no signed history was dropped. '
-                              f'Run python kagami.py journal-status --journal {shlex.quote(str(args.journal))}',
+                              f'Run python kcia.py journal-status --journal {shlex.quote(str(args.journal))}',
                               flush=True)
                     record_telemetry('paused')
                     await asyncio.sleep(.1)
@@ -3936,7 +3942,7 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
                     def number(key):
                         try:return f'{float(ppo_metrics[key]):.5g}'
                         except (KeyError,ValueError,TypeError):return 'n/a'
-                    print('KAGAMI PPO DIAG '
+                    print('KCIA PPO DIAG '
                           f'reward={number("reward")} '
                           f'actor_loss={number("actor_loss")} critic_loss={number("critic_loss")} '
                           f'kl={number("kl")} clipfrac={number("clipfrac")} '
@@ -3990,7 +3996,7 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
                 from .generation_rollover import sign_live_checkpoint
                 descriptor=sign_live_checkpoint(journal,args.shard_state_manifest,
                                                 signer=signer)
-                print(f'KAGAMI GENERATION CHECKPOINT SIGNED: {descriptor}',flush=True)
+                print(f'KCIA GENERATION CHECKPOINT SIGNED: {descriptor}',flush=True)
         if args.full_state_output:
             from .state import export_state
             export_state(model,args.full_state_output,model_id=adapter.model_id,

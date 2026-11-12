@@ -31,7 +31,7 @@ def fixture_state(tmp_path):
         manifest=tmp_path/f'elastic-{count:09d}.fmanifest'
         model=torch.nn.Sequential(torch.nn.Linear(3,4),torch.nn.Linear(4,3))
         export_state_sharded(model,store,manifest,model_id='myorg/my-model',revision='fstate-sha256:old-base',peer_id=peer,seq=count,shard_bytes=65536)
-        payload={'protocol':'fedpara-elastic-checkpoint-v1','origin':peer,'genesis':'a'*64,
+        payload={'protocol':'kcia-elastic-checkpoint-v1','origin':peer,'genesis':'a'*64,
                  'event_count':count,'event_inventory_sha256':sha.hexdigest(),
                  'manifest_sha256':hashlib.sha256(manifest.read_bytes()).hexdigest()}
         raw=_canonical_json(payload)

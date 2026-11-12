@@ -16,7 +16,7 @@ _UNSUPPORTED = ('not implemented for', 'not implemented on', 'not supported on t
 
 
 def native_sampling_enabled() -> bool:
-    return os.environ.get('KAGAMI_MPS_NATIVE_SAMPLING', '1').lower() not in ('0', 'false', 'off')
+    return os.environ.get('KCIA_MPS_NATIVE_SAMPLING', '1').lower() not in ('0', 'false', 'off')
 
 
 def sample_next(log_prob, *, backend=None):

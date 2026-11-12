@@ -1,4 +1,4 @@
-# Kagami v93: `conflicting event ID` 修正
+# KCIA v93: `conflicting event ID` 修正
 
 ## 変更内容
 
@@ -16,11 +16,11 @@
 
 ## 導入
 
-1. Kagami GUIと全学習プロセスを終了。
+1. KCIA GUIと全学習プロセスを終了。
 2. `events.sqlite3` と関連 sidecar、`.identity.pem`、checkpoint、carry、fast-resume のバックアップを確保。絶対に個別に手動削除しない。
 3. v93のZIPを展開し、ソースコードを更新。保存データの初期化は不要。
 4. 既存のルームと保存データから学習を再開。
-5. 再発時は、**新しい完全な `conflicting event ID:` 行と、その直前の数十行のログ**を収集。`python kagami.py journal-status --journal /path/to/events.sqlite3` の診断も有用。
+5. 再発時は、**新しい完全な `conflicting event ID:` 行と、その直前の数十行のログ**を収集。`python kcia.py journal-status --journal /path/to/events.sqlite3` の診断も有用。
 
 同じ `.identity.pem` をコピーして別の保存ジャーナルで起動したピアは、同一IDの更新を独立生成しないようにすること。意図的に2ピアを動かす場合は、各ピアに別々のidentityとjournalを使用。
 

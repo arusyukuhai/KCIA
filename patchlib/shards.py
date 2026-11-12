@@ -1,4 +1,4 @@
-"""Content-addressed, tensor-aware shards for Fedpara .fstate snapshots.
+"""Content-addressed, tensor-aware shards for KCIA .fstate snapshots.
 
 Each tensor is split independently, preserving deduplication when other tensors
 change size. Manifests and shards are DATA ONLY: no pickle, Python code, paths
@@ -19,7 +19,7 @@ from .core import PatchError, PEER_ID, _canonical_json
 from .state import (inspect_state, verify_state, MAX_TENSORS, MAX_MANIFEST,
                     META_NAME, _valid_name, _nbytes, _state_items, _tensor_chunks, DTYPES)
 
-FORMAT = 'fedpara-sharded-state'
+FORMAT = 'kcia-sharded-state'
 VERSION = 1
 DEFAULT_SHARD_BYTES = 4 * 1024 * 1024
 MAX_SHARD_BYTES = 64 * 1024 * 1024
@@ -197,7 +197,7 @@ def export_state_sharded(model, store: Path, output: Path, *, model_id: str,
     # A sparse page COW engine deliberately leaves the raw nn.Parameter at
     # immutable genesis values. Exporting it without materializing would
     # silently certify INCORRECT weights, so require an explicit full export.
-    manager=getattr(model,'_fedpara_lazy_mutable_weights',None)
+    manager=getattr(model,'_kcia_lazy_mutable_weights',None)
     if manager is not None and getattr(manager,'stores',None):
         raise PatchError('paged COW needs explicit manager.materialize_all(adapter) before full-state export')
     # The factor ledger supports direct bounded sharded export; the immutable
@@ -215,7 +215,7 @@ def export_state_sharded(model, store: Path, output: Path, *, model_id: str,
     # property (which eagerly allocates an entire dense LoHa/LoRA weight).
     guard = adapter.lock if adapter is not None else None
     from contextlib import nullcontext
-    ledger=(manager if getattr(manager,'_fedpara_is_factor_ledger',False) else None)
+    ledger=(manager if getattr(manager,'_kcia_is_factor_ledger',False) else None)
     with guard if guard is not None else nullcontext(), torch.no_grad(), (ledger.export_context() if ledger is not None else nullcontext()):
         if ledger is not None:ledger._healthy()
         sources_by_alias=(frozen_base_sources if frozen_base_sources is not None
@@ -344,7 +344,7 @@ def assemble_state(manifest: Path, store: Path, output: Path, *,
             specs = [{k:s[k] for k in ('name','entry','dtype','shape','bytes','sha256')}
                      for s in meta['tensors']]
             legacy = {k:meta[k] for k in ('model_id','revision','peer_id','seq','total_tensor_bytes')}
-            legacy.update({'format':'fedpara-state','version':1,'tensors':specs})
+            legacy.update({'format':'kcia-state','version':1,'tensors':specs})
             legacy_json = _canonical_json(legacy)
             if len(legacy_json) > MAX_MANIFEST:
                 raise PatchError('assembled legacy state manifest exceeds 16MiB limit')
@@ -440,7 +440,7 @@ def apply_sharded_state(model, manifest: Path, store: Path, *, model_id: str,
     Does not construct a model or offload its base weights; the model still
     needs adequate CPU/device memory (or an external offload-capable backend).
     """
-    manager=getattr(model,'_fedpara_lazy_mutable_weights',None)
+    manager=getattr(model,'_kcia_lazy_mutable_weights',None)
     if manager is not None and (getattr(manager,'stores',None) or getattr(manager,'sources',None)):
         raise PatchError('cannot import into a virtual base; materialize all first')
     meta=read_manifest(manifest,max_state_bytes=max_state_bytes)

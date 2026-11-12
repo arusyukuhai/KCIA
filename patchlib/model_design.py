@@ -1,4 +1,4 @@
-"""Kagami portable Transformers architecture designs.
+"""KCIA portable Transformers architecture designs.
 
 Untrusted peer inputs are DATA, never Python to execute. The optional editor
 accepts a deliberately restricted, statically parsed Python build_config()
@@ -13,8 +13,8 @@ import json
 import math
 import re
 
-DESCRIPTION = {'weights': '', 'architecture': 'kagami:architecture:v1',
-               'code': 'kagami:python-config:v1'}
+DESCRIPTION = {'weights': '', 'architecture': 'kcia:architecture:v1',
+               'code': 'kcia:python-config:v1'}
 # Only established Transformers config classes with AutoModel support; no dynamic imports.
 CONFIG_CLASSES = {
     'GPT2Config': 'gpt2', 'GPTNeoConfig': 'gpt_neo', 'GPTNeoXConfig': 'gpt_neox',

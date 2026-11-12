@@ -25,7 +25,7 @@ from .event_archive import payload_path, read_frame
 from .epoch_trainer_boot_v52 import read_durable_epoch_pointer
 from .shards import read_manifest, verify_shards, semantic_shard_sha256
 
-FORMAT = 'kagami-v88-compact-certified-retirement'
+FORMAT = 'kcia-v88-compact-certified-retirement'
 
 
 def _read_receipt(carry_path):
@@ -95,7 +95,7 @@ def verify_receipt_prefix(db, receipt):
     # A verified complete rowid prefix 1..N cannot later acquire an INSERT
     # inside it without violating the PK/trigger guard; later inserts >N do
     # not invalidate this durable handoff prefix.
-    witness_key='kagami_v96_verified_carry_prefix'
+    witness_key='kcia_v96_verified_carry_prefix'
     witness=db.execute('SELECT value FROM meta WHERE name=?',(witness_key,)).fetchone()
     if witness is not None:
         try:
@@ -202,7 +202,7 @@ def collect_certified_compact_source(boot, *, active_pointer, verify_payloads=Tr
         except (BlockingIOError,PermissionError):
             return False  # still in use by another worker
         receipt=_read_receipt(carry)
-        if (receipt.get('format')!='kagami-local-carry-attestation-v1' or
+        if (receipt.get('format')!='kcia-local-carry-attestation-v1' or
                 receipt.get('epoch')!=boot.epoch or
                 receipt.get('source_genesis')!=boot.previous_genesis or
                 receipt.get('target_genesis')!=boot.current_genesis or

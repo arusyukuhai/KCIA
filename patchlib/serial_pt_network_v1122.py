@@ -6,7 +6,7 @@ No sleep/network sockets/parallel peer objects. Each synchronous round has:
 
 Modelled: separate shared server uplink/downlink queues, peer link caps,
 one-way propagation with seeded jitter, whole-message drops and timeout/retry.
-Unmodelled: Kagami P2P gossip, real packetization/TCP congestion, security,
+Unmodelled: KCIA P2P gossip, real packetization/TCP congestion, security,
 NAT, byte-level protocol encoding, and actual network performance.
 """
 from __future__ import annotations

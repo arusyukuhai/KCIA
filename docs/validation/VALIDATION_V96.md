@@ -1,4 +1,4 @@
-# Kagami v96 検証
+# KCIA v96 検証
 
 - CPU/Linuxで関連テスト **113件成功**。
 - 実署名付き旧世代carryを用い、統合済みweightから現在journal/carry両方のsuffix=0で再起動することを確認。

@@ -1,4 +1,4 @@
-# Fedpara sharded P2P model states
+# KCIA sharded P2P model states
 
 This extends the existing Nim/Mummy signaling + WebRTC DataChannel implementation. `patchlib.shards` handles content-addressed tensor shards; `patchlib.shardp2p` transfers **only missing shards**. LoRA/LoHA `.fpatch` remains unchanged. Shards cover *every serializable PyTorch parameter and persistent buffer*, including Embedding, LM Head, 3D/4D convolutions, and non-floating buffers. It is compatible with HF `AutoModel*` and isolated `--factory-file` loaders.
 

@@ -34,7 +34,7 @@ def test_meta_load_and_tied_writes(tmp_path,writable):
     assert all(p.device.type=='cpu' for p in mdl.parameters())
     ids=torch.tensor([[1,2]])
     assert torch.allclose(mdl(ids),base(ids))
-    assert mdl._fedpara_streaming_base_info['tensors']==4
+    assert mdl._kcia_streaming_base_info['tensors']==4
     if writable:
         mdl.embed.weight.data[1,0] += 13
         assert mdl.embed.weight.data[1,0]!=base.embed.weight.data[1,0]
@@ -136,10 +136,10 @@ def test_genesis_hash_is_deterministic_for_identical_safetensors(tmp_path):
     save_toy(tmp_path)
     with torch.device('meta'):m=Toy()
     materialize_meta_from_safetensors(m,tmp_path,hash_genesis=True)
-    key=m._fedpara_streaming_base_info['genesis_digest']
+    key=m._kcia_streaming_base_info['genesis_digest']
     with torch.device('meta'):other=Toy()
     materialize_meta_from_safetensors(other,tmp_path,hash_genesis=True)
-    assert other._fedpara_streaming_base_info['genesis_digest']==key
+    assert other._kcia_streaming_base_info['genesis_digest']==key
     assert len(key)==64
 
 def test_scalar_buffer_roundtrip(tmp_path):

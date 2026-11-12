@@ -1,4 +1,4 @@
-"""Kagami v82: exact LoHA/LoRA behavior-Actor reconstruction.
+"""KCIA v82: exact LoHA/LoRA behavior-Actor reconstruction.
 
 Unlike v81, remote Overlay contributions and ReLoRA anchors are NOT assumed
 identical on every peer. Their actual factor bytes are part of the signed,
@@ -38,9 +38,9 @@ def _overlays(model):
     # An offloaded/virtual base can have a different effective value than its
     # PyTorch original Parameter. Never attest the original as the sampled
     # Actor until a certified disk-source/ledger snapshot codec is available.
-    if (getattr(getattr(model,'_fedpara_lazy_mutable_weights',None),
-                '_fedpara_is_factor_ledger',False) or
-            any(getattr(m,'_fedpara_disk_path',None) for m in model.modules())):
+    if (getattr(getattr(model,'_kcia_lazy_mutable_weights',None),
+                '_kcia_is_factor_ledger',False) or
+            any(getattr(m,'_kcia_disk_path',None) for m in model.modules())):
         raise PatchError('LoHA behavior replay requires a certified virtual/disk base snapshot; streamed or factor-ledger base not supported by v82')
     # named_modules() deduplicates tied parametrizations and shared Overlays.
     groups=[(path, mod) for path, mod in model.named_modules() if isinstance(mod, Overlay)]
@@ -138,7 +138,7 @@ def capture_frozen_base(model):
     base_hash=_tensor_digest(base)
     tensors={name:t.detach().cpu().contiguous().clone() for name,t in base}
     wire=safe_save(tensors,metadata={'base_sha256':base_hash,
-                                    'version':'kagami-frozen-actor-base-v82'})
+                                    'version':'kcia-frozen-actor-base-v82'})
     if len(wire)>MAX_BASE_REPLAY_BYTES:
         raise PatchError('historical full base requires external sharded epoch snapshot')
     return base_hash,wire
@@ -155,7 +155,7 @@ def _validated_base(wire,base,expected_hash):
         tensors=safe_load(wire)
     except (ValueError,TypeError,KeyError,RuntimeError,UnicodeDecodeError) as exc:
         raise PatchError('invalid historical base artifact') from exc
-    if (not isinstance(meta,dict) or meta.get('version')!='kagami-frozen-actor-base-v82'
+    if (not isinstance(meta,dict) or meta.get('version')!='kcia-frozen-actor-base-v82'
             or meta.get('base_sha256')!=expected_hash or
             set(tensors)!={name for name,_ in base} or
             _tensor_digest(tensors.items())!=expected_hash):
@@ -195,7 +195,7 @@ class FrozenBaseCAS:
             values=safe_load(blob)
         except (ValueError,TypeError,KeyError,RuntimeError,UnicodeDecodeError) as exc:
             raise PatchError('corrupt historical base CAS object') from exc
-        if (meta.get('base_sha256')!=sha or meta.get('version')!='kagami-frozen-actor-base-v82'
+        if (meta.get('base_sha256')!=sha or meta.get('version')!='kcia-frozen-actor-base-v82'
                 or _tensor_digest(values.items())!=sha):
             raise PatchError('historical base CAS digest mismatch')
         path=self.folder/(sha+'.safetensors')

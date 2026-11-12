@@ -1,4 +1,4 @@
-"""Fail-closed, offline generation rollover for Kagami's v1 gossip protocol.
+"""Fail-closed, offline generation rollover for KCIA's v1 gossip protocol.
 
 The v1 protocol requires the full signed history for anti-entropy.  It is NOT
 safe to truncate a live v1 journal in place.  Instead prepare a fresh room
@@ -26,7 +26,7 @@ from .room_manifest import load_manifest
 from .shards import (read_manifest, verify_shards, shard_map, _blob_path,
                      manifest_bytes, semantic_shard_sha256)
 
-FORMAT = 'kagami-generation-rollover-v1'
+FORMAT = 'kcia-generation-rollover-v1'
 
 
 def _sha(path: Path) -> str:
@@ -45,7 +45,7 @@ def _json(path: Path):
 def _atomic_json(path: Path, value):
     path.parent.mkdir(parents=True, exist_ok=True)
     raw = json.dumps(value, indent=2, ensure_ascii=False, sort_keys=True).encode('utf-8')
-    fd, name = tempfile.mkstemp(prefix='.kagami-', suffix='.tmp', dir=path.parent)
+    fd, name = tempfile.mkstemp(prefix='.kcia-', suffix='.tmp', dir=path.parent)
     try:
         with os.fdopen(fd, 'wb') as out:
             out.write(raw); out.flush(); os.fsync(out.fileno())
@@ -105,7 +105,7 @@ def _check_immutable_old_state(journal_path, checkpoint_path, store):
     if not descriptor.is_file():
         raise PatchError('signed .checkpoint.json is required; an arbitrary snapshot is unsafe')
     d=_json(descriptor)
-    if d.get('protocol') != 'fedpara-elastic-checkpoint-v1':
+    if d.get('protocol') != 'kcia-elastic-checkpoint-v1':
         raise PatchError('unsupported checkpoint protocol')
     with sqlite3.connect(f'file:{journal_path.resolve()}?mode=ro',uri=True,timeout=1) as db:
         db.execute('PRAGMA query_only=ON')
@@ -181,7 +181,7 @@ def prepare(*, journal: Path, checkpoint: Path, store: Path, room_manifest: Path
                   'safety':'Old room must be stopped; distribute identical generation files; start NEW room only; do not silently join the old v1 room.'}
             _atomic_json(staging/'generation.json',info)
             (staging/'START_HERE.txt').write_text(
-                'Kagami generation rollover, OFFLINE COORDINATED RESTART\n'
+                'KCIA generation rollover, OFFLINE COORDINATED RESTART\n'
                 '1. STOP old-room trainers AND relays on ALL peers.\n'
                 '2. Distribute the ENTIRE generation folder to all peers; SHA256-verify generation.json and base.fmanifest.\n'
                 '3. Configure a NEW model/room using room ID: '+new_room_id+'\n'
@@ -221,7 +221,7 @@ def sign_live_checkpoint(journal, checkpoint: Path, *, signer):
         digest.update(_canonical_json([origin,seq,sha])+b'\n');n+=1
     if meta['seq']!=n or meta['peer_id']!=owner[0]:
         raise PatchError('attempted to sign a checkpoint with a stale journal boundary')
-    fields={'protocol':'fedpara-elastic-checkpoint-v1','origin':owner[0],
+    fields={'protocol':'kcia-elastic-checkpoint-v1','origin':owner[0],
         'genesis':journal.genesis,'event_count':n,
         'event_inventory_sha256':digest.hexdigest(),
         'manifest_sha256':_sha(checkpoint)}
@@ -258,14 +258,14 @@ def verify_generation(generation: Path):
 
 
 def import_gui_generation(*, generation: Path, workdir: Path):
-    """Register a prepared generation as one NEW Kagami GUI model.
+    """Register a prepared generation as one NEW KCIA GUI model.
 
     This only registers a local descriptor; peers must independently import the
     same generation into the SAME new room ID. No old model is altered.
     """
     generation=Path(generation).resolve()
     info=verify_generation(generation)
-    path=Path(workdir).resolve()/'.fedpara-gui'/'rooms'/info['new_room_id']
+    path=Path(workdir).resolve()/'.kcia-gui'/'rooms'/info['new_room_id']
     if path.exists():
         raise PatchError('new generation GUI model already exists; refusing overwrite')
     path.parent.mkdir(parents=True,exist_ok=True)
@@ -315,7 +315,7 @@ def seal_stopped_checkpoint(*, journal: Path, checkpoint: Path, store: Path):
         if not isinstance(key,Ed25519PrivateKey) or id_from_raw_key(
           key.public_key().public_bytes(Encoding.Raw,PublicFormat.Raw))!=owner[0]:
             raise PatchError('journal signing identity does not match the owner')
-        payload={'protocol':'fedpara-elastic-checkpoint-v1','origin':owner[0],
+        payload={'protocol':'kcia-elastic-checkpoint-v1','origin':owner[0],
                  'genesis':base[0],'event_count':n,
                  'event_inventory_sha256':digest.hexdigest(),
                  'manifest_sha256':_sha(checkpoint)}
@@ -389,15 +389,15 @@ def retire_old_history(*, journal: Path, checkpoint: Path, store: Path,
 
 
 def main(argv=None):
-    parser=argparse.ArgumentParser(description='Verified OFFLINE Kagami generation rollover. No automatic log deletion.')
+    parser=argparse.ArgumentParser(description='Verified OFFLINE KCIA generation rollover. No automatic log deletion.')
     p=parser.add_subparsers(dest='command',required=True)
     prep=p.add_parser('prepare',help='Prepare a new room from a signed, full-cut checkpoint')
     for flag in ('journal','checkpoint','store','room-manifest','old-room-id','destination'):
         prep.add_argument('--'+flag,required=True)
     prep.add_argument('--new-room-id')
-    imported=p.add_parser('import-gui',help='Register verified new generation as a Kagami GUI model')
+    imported=p.add_parser('import-gui',help='Register verified new generation as a KCIA GUI model')
     imported.add_argument('--generation',required=True)
-    imported.add_argument('--workdir',required=True,help='Kagami data root (KAGAMI_DATA_DIR)')
+    imported.add_argument('--workdir',required=True,help='KCIA data root (KCIA_DATA_DIR)')
     seal=p.add_parser('seal',help='Sign a stopped GUI snapshot at the exact journal tip')
     for flag in ('journal','checkpoint','store'):
         seal.add_argument('--'+flag,required=True)

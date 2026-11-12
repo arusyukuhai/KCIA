@@ -18,7 +18,7 @@ const MaxListedRooms = 256
 # The operator must configure OS file descriptors/RAM for this many sockets.
 const MaxClients = 65536
 const MaxWsMessageBytes = 140_000
-const MaxRoomManifestBytes = 4096
+const MaxRoomManifestBytes = 16384
 const MaxMessagesPerTenSeconds = 80
 const MaxBytesPerTenSeconds = 512_000
 
@@ -49,14 +49,12 @@ var roomCreated = initTable[string, int64]()
 var roomEverJoined = initTable[string, bool]()
 var rates = initTable[WebSocket, RateState]()
 
-let appToken = getEnv("APP_TOKEN")
 let allowedOrigin = getEnv("ALLOWED_ORIGIN")
 let turnSecret = getEnv("TURN_SECRET")
 let turnHost = getEnv("TURN_HOST", "localhost")
 let turnPort = getEnv("TURN_PORT", "3478")
 let bindAddr = getEnv("BIND_ADDR", "127.0.0.1")
-let roomDataDir = getEnv("ROOM_DATA_DIR", "fedpara-rooms")
-let publishSecret = getEnv("ROOM_PUBLISH_TOKEN")
+let roomDataDir = getEnv("ROOM_DATA_DIR", "kcia-rooms")
 let listenPort = parseInt(getEnv("PORT", "8080"))
 
 proc getString(n:JsonNode, key:string):string =
@@ -65,14 +63,6 @@ proc getString(n:JsonNode, key:string):string =
 
 proc errorWs(ws: WebSocket, explanation:string) {.gcsafe.} =
   ws.send($(%*{"type": "error", "message": explanation}))
-
-proc equalToken(a, b:string): bool =
-  # Fixed-time for equal-length strings; secret never sent in clear on a public URL.
-  if a.len != b.len: return false
-  var diff = 0
-  for i in 0 ..< a.len:
-    diff = diff or (ord(a[i]) xor ord(b[i]))
-  diff == 0
 
 proc turnKey(username:string):string =
   if turnSecret.len == 0: return ""
@@ -215,7 +205,7 @@ proc acceptBudget(ws:WebSocket, n:int):bool {.gcsafe.} =
 # Python patchlib/topology.py exactly. This is a topology hash, NOT a MAC.
 proc ringHash(peer: string, ring: int): uint64 =
   var h = 0xcbf29ce484222325'u64
-  let source = "kagami-v49-ring-" & $ring & ":" & peer
+  let source = "kcia-v49-ring-" & $ring & ":" & peer
   for c in source:
     h = (h xor uint64(ord(c))) * 0x100000001b3'u64
   h = h xor (h shr 33)
@@ -341,9 +331,6 @@ proc groupRegister(ws:WebSocket, data:JsonNode) {.gcsafe.} =
   # Register metadata without joining or taking a peer slot. It does NOT mark
   # the room as trained; the first real group-join can still found its genesis.
   {.cast(gcsafe).}:
-    if appToken.len > 0 and not equalToken(appToken, getString(data,"token")):
-      errorWs(ws,"Invalid access token")
-      return
     let room = getString(data,"room")
     if room.len < 24 or not validRoom(room):
       errorWs(ws,"Invalid room ID")
@@ -355,13 +342,6 @@ proc groupRegister(ws:WebSocket, data:JsonNode) {.gcsafe.} =
                   data["publish"].getBool()
     if data.hasKey("publish") and data["publish"].kind != JBool:
       errorWs(ws,"Invalid publish setting")
-      return
-    if publish and (publishSecret.len > 0 and
-                    not equalToken(publishSecret,getString(data,"publish_token"))):
-      errorWs(ws,"Publishing requires ROOM_PUBLISH_TOKEN")
-      return
-    if publish and publishSecret.len == 0 and bindAddr notin ["127.0.0.1", "::1"]:
-      errorWs(ws,"Publishing disabled without ROOM_PUBLISH_TOKEN")
       return
     var accepted=false
     withLock mutex:
@@ -392,9 +372,6 @@ proc groupDescribe(ws:WebSocket, data:JsonNode) {.gcsafe.} =
   # Otherwise merely pressing the GUI's "load room" button consumes the
   # founder's one-time genesis entitlement and strands both GUI windows.
   {.cast(gcsafe).}:
-    if appToken.len > 0 and not equalToken(appToken, getString(data, "token")):
-      errorWs(ws, "Invalid server token")
-      return
     let room = getString(data, "room")
     if room.len < 24 or not validRoom(room):
       errorWs(ws, "Invalid room ID")
@@ -409,19 +386,16 @@ proc groupDescribe(ws:WebSocket, data:JsonNode) {.gcsafe.} =
       ws.send($(%*{"type":"room-description","room":room,"manifest":manifest}))
 
 proc groupJoin(ws:WebSocket, data:JsonNode) {.gcsafe.} =
-  # Room ID is a bearer secret. Signaling server keeps only bounded presence.
+  # Private room IDs act as unguessable invitation secrets; public rooms are enumerable.
+  # Signaling server keeps bounded membership and stores only room metadata.
   {.cast(gcsafe).}:
-    if appToken.len > 0 and not equalToken(appToken,getString(data,"token")):
-      errorWs(ws,"Invalid server token")
-      ws.close()
-      return
     let room=getString(data,"room")
     let identity=getString(data,"peer")
     # Required to prevent an old full-roster client from silently accepting
     # an eight-peer partial roster and corrupting its topology decisions.
     if not data.hasKey("topology_v2") or
         data["topology_v2"].kind != JBool or not data["topology_v2"].getBool():
-      errorWs(ws,"Unsupported client: bounded-v2 topology is required; upgrade Fedpara")
+      errorWs(ws,"Unsupported client: bounded-v2 topology is required; upgrade KCIA")
       return
     let requestedDegree=(if data.hasKey("topology_degree") and
                             data["topology_degree"].kind == JInt:
@@ -436,13 +410,6 @@ proc groupJoin(ws:WebSocket, data:JsonNode) {.gcsafe.} =
                   data["publish"].getBool()
     if data.hasKey("publish") and data["publish"].kind != JBool:
       errorWs(ws,"Invalid publish flag")
-      return
-    if publish and (publishSecret.len > 0 and
-                    not equalToken(publishSecret, getString(data, "publish_token"))):
-      errorWs(ws,"Room listing publication requires operator authorization")
-      return
-    if publish and publishSecret.len == 0 and bindAddr notin ["127.0.0.1", "::1"]:
-      errorWs(ws,"Public listing disabled without ROOM_PUBLISH_TOKEN")
       return
     if manifest != nil and not validRoomManifest(manifest):
       errorWs(ws,"Invalid bounded room model/dataset/code descriptor")
@@ -552,10 +519,6 @@ proc groupJoin(ws:WebSocket, data:JsonNode) {.gcsafe.} =
 
 proc onJoin(ws:WebSocket, data:JsonNode) {.gcsafe.} =
   {.cast(gcsafe).}:
-    if appToken.len > 0 and not equalToken(appToken, getString(data, "token")):
-      errorWs(ws, "Invalid access token")
-      ws.close()
-      return
 
     let mode = getString(data, "mode")
     if mode == "echo":
@@ -777,8 +740,8 @@ proc upgradeHandler(request:Request) {.gcsafe.} =
       return
     discard request.upgradeToWebSocket()
 
-if bindAddr != "127.0.0.1" and bindAddr != "::1" and appToken.len == 0:
-  echo "Warning: public room-only signaling is enabled. Use a WSS reverse proxy, unguessable room IDs, and IP-level connection/rate limits."
+if bindAddr != "127.0.0.1" and bindAddr != "::1":
+  echo "Public anonymous signaling is enabled. Configure Cloudflare rate limits, TURN quotas and abuse monitoring before production."
 if turnSecret.len > 0 and turnSecret.len < 32:
   quit("TURN_SECRET must have >= 32 characters", QuitFailure)
 

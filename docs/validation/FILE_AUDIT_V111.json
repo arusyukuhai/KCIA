@@ -1,5 +1,5 @@
 {
-  "baseline": "kagami_v110_clean_architecture.zip",
+  "baseline": "kcia_v110_clean_architecture.zip",
   "original_files": 443,
   "new_files": 444,
   "removed": [
@@ -28,12 +28,12 @@
       "reason": "one-shot release construction script; not a runtime or migration tool"
     },
     {
-      "path": "fedpara-rooms/crq4fckJEgAGtZwoxPDgJ6Gfkuod7gBC.json",
+      "path": "kcia-rooms/crq4fckJEgAGtZwoxPDgJ6Gfkuod7gBC.json",
       "reason": "user/runtime room state, never part of source releases"
     },
     {
       "path": "web/dashboard.html",
-      "reason": "unserved legacy Fedpara dashboard; only a historical styling test referenced it; test updated to verify absence"
+      "reason": "unserved legacy KCIA dashboard; only a historical styling test referenced it; test updated to verify absence"
     }
   ],
   "docs_moved": {
@@ -102,7 +102,7 @@
   "production_python_modules_preserved": 147,
   "api_or_runtime_source_deleted": false,
   "live_user_state_modified": false,
-  "note": "Do not delete user live fedpara-rooms contents from installations. The sample room file is omitted only from this SOURCE ZIP.",
+  "note": "Do not delete user live kcia-rooms contents from installations. The sample room file is omitted only from this SOURCE ZIP.",
   "top_level_files": 9,
   "runtime_modified_without_executable_AST_changes": [
     "patchlib/cli.py",

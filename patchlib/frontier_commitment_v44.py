@@ -1,4 +1,4 @@
-"""Compact immutable frontier commitment for future Kagami epoch certificates.
+"""Compact immutable frontier commitment for future KCIA epoch certificates.
 
 A proposed epoch needs only the digest of ``header``. Pages of at most 32
 peer/sequence pairs travel on demand. Committee validators MUST fetch and
@@ -17,7 +17,7 @@ from .core import PatchError, _canonical_json
 
 PAGE_SIZE = 32
 MAX_ENTRIES = 200_000
-ALGORITHM = 'kagami-paged-frontier-v1'
+ALGORITHM = 'kcia-paged-frontier-v1'
 
 
 def _h(data: bytes) -> bytes:
@@ -25,11 +25,11 @@ def _h(data: bytes) -> bytes:
 
 
 def _leaf(index: int, entries: list) -> bytes:
-    return _h(b'Kagami-frontier-leaf-v1\0' + _canonical_json([index, entries]))
+    return _h(b'KCIA-frontier-leaf-v1\0' + _canonical_json([index, entries]))
 
 
 def _parent(left: bytes, right: bytes) -> bytes:
-    return _h(b'Kagami-frontier-node-v1\0' + left + right)
+    return _h(b'KCIA-frontier-node-v1\0' + left + right)
 
 
 def _height(pages: int) -> int:
@@ -154,4 +154,4 @@ def verify_full_frontier(header: dict, pages) -> dict[str,int]:
 
 def header_digest(header: dict) -> str:
     _validate_header(header)
-    return _h(b'Kagami-frontier-header-v1\0' + _canonical_json(header)).hex()
+    return _h(b'KCIA-frontier-header-v1\0' + _canonical_json(header)).hex()

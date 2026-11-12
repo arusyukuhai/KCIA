@@ -43,8 +43,6 @@ async def run(ws_url, count, publish=False, timeout=90, *, degree=8, depart=0):
                 payload['manifest']=model
                 if publish:
                     payload['publish']=True
-                    if os.environ.get('ROOM_PUBLISH_TOKEN'):
-                        payload['publish_token']=os.environ['ROOM_PUBLISH_TOKEN']
             await ws.send(json.dumps(payload))
             pending=[]
             msg=json.loads(await asyncio.wait_for(ws.recv(),10))

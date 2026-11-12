@@ -1,4 +1,4 @@
-"""Business logic behind Fedpara's embedded WebView desktop UI.
+"""Business logic behind KCIA's embedded WebView desktop UI.
 
 No HTTP listener is created. It does not execute custom model code.
 Room manifests only contain validated, hash-pinned metadata.
@@ -34,6 +34,7 @@ class WebviewController:
             self.workdir = Path(workdir).resolve()
         self.train = DesktopController()
         self.lock = threading.RLock()
+        self._full_reset_armed = False
         self.imported: dict[str, dict] = {}
         self.profiles = {}  # one stable, exclusive profile per GUI instance / room
         self._bench_proc = None
@@ -48,14 +49,15 @@ class WebviewController:
         self._eval_proc = None
         self._eval_result = None
         self._eval_log = None
+        self._last_gui_status = {'running':False,'telemetry':[],'logs':'','model_id':None}
 
 
     def _room_path(self, room: str) -> Path:
         validate_room(room)
-        return self.workdir / '.fedpara-gui' / 'rooms' / room / 'manifest.json'
+        return self.workdir / '.kcia-gui' / 'rooms' / room / 'manifest.json'
 
     def _last_room_file(self):
-        return self.workdir / '.fedpara-gui' / 'last-room.txt'
+        return self.workdir / '.kcia-gui' / 'last-room.txt'
 
     def _remember_room(self, room: str):
         validate_room(room)
@@ -80,9 +82,66 @@ class WebviewController:
             pass
         return None
 
+    def _network_path(self) -> Path:
+        return self.workdir / '.kcia-gui' / 'network.json'
+
+    def _signaling_url(self) -> str:
+        default = 'ws://127.0.0.1:8080/ws'
+        path = self._network_path()
+        if path.is_file():
+            try:
+                saved = json.loads(path.read_text(encoding='utf8'))
+                return check_signaling_url(saved['ws'])
+            except (OSError, UnicodeError, ValueError, KeyError, TypeError):
+                # A corrupt setting must not prevent a room or GUI from opening.
+                return default
+        value = os.environ.get('KCIA_SIGNALING_URL', default)
+        try:
+            return check_signaling_url(value)
+        except ValueError:
+            return default
+
+    def configure_network(self, payload: dict) -> dict:
+        """Save the public/local signaling URL, with no credentials or room IDs."""
+        ws = check_signaling_url(payload.get('ws', ''))
+        if self.train.status():
+            raise RuntimeError('Disconnect the running training worker before changing the signaling server')
+        if not ws.endswith('/ws') or '?' in ws:
+            raise ValueError('Use a signaling URL ending in /ws (no query parameters)')
+        path = self._network_path()
+        with self.lock:
+            path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+            os.chmod(path.parent, 0o700)
+            temporary = path.with_name('.network-' + secrets.token_hex(8))
+            fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL |
+                         getattr(os, 'O_NOFOLLOW', 0), 0o600)
+            try:
+                with os.fdopen(fd, 'w', encoding='utf8') as out:
+                    json.dump({'version': 1, 'ws': ws}, out)
+                    out.write('\n'); out.flush(); os.fsync(out.fileno())
+                os.replace(temporary, path)
+            finally:
+                temporary.unlink(missing_ok=True)
+        return {'ws': ws, 'mode': 'internet' if ws.startswith('wss://') else 'local'}
+
+    def probe_network(self, payload: dict) -> dict:
+        """A real HTTP request to the signaling server's public directory."""
+        ws = check_signaling_url(payload.get('ws') or self._signaling_url())
+        import websockets
+        async def handshake():
+            async with websockets.connect(ws, max_size=65536, open_timeout=6, close_timeout=3) as conn:
+                await conn.send(json.dumps({'type':'ping'}))
+                reply = json.loads(await asyncio.wait_for(conn.recv(), timeout=6))
+                if reply.get('type') != 'pong':
+                    raise ConnectionError('Signaling WebSocket ping rejected')
+        asyncio.run(handshake())
+        rooms = list_public_rooms(ws, timeout=6)
+        return {'connected': True, 'ws': ws, 'public_rooms': len(rooms),
+                'mode': 'internet' if ws.startswith('wss://') else 'local'}
+
     def settings(self):
         return {'last_room':self._last_room(), 'room':create_room_id(), 'model':'roneneldan/TinyStories-1M',
-                'revision':'77f1b168e219585646439073245fe87e56b3023e', 'task':'causal-lm', 'ws':'ws://127.0.0.1:8080/ws',
+                'revision':'77f1b168e219585646439073245fe87e56b3023e', 'task':'causal-lm', 'ws':self._signaling_url(),
                 'seed':42,'kind':'loha','rank':16,'initialization':'random',
                 'reinit_every':20,'lr':0.0001,'local_steps':4,'max_length':64,
                 'wide_lora_rank':4,'rounds':0,'push_fanout':2,
@@ -93,7 +152,12 @@ class WebviewController:
     def save(self, payload: dict):
         """Delegated room configuration; see webview_lifecycle_v110."""
         from .webview_lifecycle_v110 import save_room
-        return save_room(self, payload)
+        if not isinstance(payload, dict):
+            raise TypeError('room settings must be an object')
+        if not payload.get('room'):
+            payload = {**payload, 'room': create_room_id()}
+        result = save_room(self, payload)
+        return {**result, 'room': payload['room']}
 
     def load_room(self, payload: dict):
         room = validate_room(payload['room'])
@@ -123,7 +187,7 @@ class WebviewController:
                     self._snapshot_request_file=None
                     self._checkpoint_path=None
                     self._model_storage_path=None
-                    logs=self.workdir/'.fedpara-gui'/'telemetry'
+                    logs=self.workdir/'.kcia-gui'/'telemetry'
                     candidates=list(logs.glob('history-'+room+'-*.jsonl')) if logs.is_dir() else []
                     self._telemetry_path=max(candidates,key=lambda p:p.stat().st_mtime_ns) if candidates else None
             self._remember_room(room)
@@ -224,7 +288,7 @@ class WebviewController:
         ws=check_signaling_url(payload.get('ws',''))
         asyncio.run(register_room_manifest(ws,room,manifest,
             publish=payload.get('room_public',False) is True,
-            token=os.environ.get('APP_TOKEN',''),timeout=8))
+            token='',timeout=8))
         return {'registered':True,'room':room,'public':payload.get('room_public',False) is True}
 
     def list_rooms(self, payload: dict):
@@ -235,7 +299,7 @@ class WebviewController:
 
     def upload_code(self, payload: dict):
         from .code_registry import register_base64
-        return register_base64(self.workdir/'.fedpara-gui'/'codes',payload.get('name'),payload.get('contents'))
+        return register_base64(self.workdir/'.kcia-gui'/'codes',payload.get('name'),payload.get('contents'))
 
     def mixed_settings(self, payload: dict):
         """Return this machine's private datasets/critic selections for a room.
@@ -259,6 +323,26 @@ class WebviewController:
             if not isinstance(data,dict) or data.get('room')!=room or not (set(data)-{'room'}).issubset(DEFAULT):
                 raise ValueError('Local mixed training configuration is malformed')
             result={**DEFAULT,**{k:data[k] for k in data if k!='room'}}
+        manifest=load_manifest(self._room_path(room))
+        from .room_training_v119 import shared_options, shared_policy
+        shared=shared_options(manifest)
+        if shared is not None:
+            if not config.is_file():
+                result={**result,**shared}
+            result['room_training']=manifest['training']
+            result['room_reinit_every']=manifest.get('optimization',{}).get('reinit_every',20)
+        elif manifest.get('optimization'):
+            result['room_reinit_every']=manifest['optimization']['reinit_every']
+        else:
+            # Legacy rooms without a new v119 manifest field must NOT inherit
+            # the v119 new-room default. Use their saved launch pin if one
+            # exists, otherwise keep the historical 20-event default.
+            from .restart_policy import read_policy
+            try:
+                launch_pin=read_policy(profile.journal.resolve(),manifest_digest(manifest))
+            except (OSError,ValueError,KeyError,TypeError):
+                launch_pin=None
+            result['room_reinit_every']=(launch_pin['reinit_every'] if launch_pin else 20)
         # This contains only room-wide, nonsecret hyperparameters, never local
         # dataset paths or imported critic checkpoint paths.
         pinned=folder/'mixed-objectives-v66.json'
@@ -272,22 +356,41 @@ class WebviewController:
             if not isinstance(policy,dict) or not isinstance(policy.get('objectives'),list):
                 raise ValueError('Pinned mixed objective policy is invalid')
             result['pinned_policy']=policy
+        if shared is not None and not pinned.exists():
+            result['pinned_policy']=shared_policy(manifest)
         return result
 
     def start(self, payload: dict):
         """Delegated room training launch; see webview_lifecycle_v110."""
         from .webview_lifecycle_v110 import start_training
-        return start_training(self, payload, profile_allocator=allocate_profile)
+        with self.lock:
+            if self._full_reset_armed:
+                raise RuntimeError('KCIA data reset is scheduled; no training can start')
+            return start_training(self, payload, profile_allocator=allocate_profile)
+
+    def arm_full_reset(self):
+        """Allow reset only while all GUI-managed worker processes are idle."""
+        with self.lock:
+            if self.train.status():
+                raise RuntimeError('Disconnect training and wait for the worker to exit before resetting')
+            if self._bench_proc is not None and self._bench_proc.poll() is None:
+                raise RuntimeError('Stop benchmark before resetting')
+            if self._eval_proc is not None and self._eval_proc.poll() is None:
+                raise RuntimeError('Stop evaluation before resetting')
+            self._full_reset_armed = True
 
     def status(self):
-        with self.lock:
+        # Best-effort live telemetry. Do not queue dozens of polls behind a
+        # long-running room operation holding self.lock: starving WebView RPC
+        # threads makes *every* button seem dead even when training is healthy.
+        if not self.lock.acquire(blocking=False):
+            return {**self._last_gui_status, 'busy':True}
+        try:
             running=self.train.status()
             proc=self.train.proc
             from .live_telemetry import recent_samples
-            # The full chart is fetched independently. Keep the fast status path
-            # small enough for subsecond refreshes even for long-running jobs.
             samples=recent_samples(self._telemetry_path,max_samples=32,max_bytes=32*1024)
-            return {'running':running,'telemetry':samples,
+            result={'running':running,'telemetry':samples,
                     'stopping':bool(running and getattr(self.train,'stop_requested',False)),
                     'relay_only':bool(running and self._pause_file and self._pause_file.exists()),
                     'model_id':self._current_room,
@@ -297,6 +400,10 @@ class WebviewController:
                     'checkpoint_ready':bool(self._checkpoint_path and self._checkpoint_path.is_file()),
                     'model_storage_dir':str(self._model_storage_path) if self._model_storage_path else None,
                     'logs':self.train.tail()}
+            self._last_gui_status=result
+            return result
+        finally:
+            self.lock.release()
 
     def training_history(self, payload: dict):
         """Bounded sampling of this GUI's private on-disk telemetry."""
@@ -329,7 +436,7 @@ class WebviewController:
             raise ValueError('invalid storage kind')
         paths=self.storage_paths(payload)
         target=Path(paths[kind]).resolve()
-        root=(self.workdir/'.fedpara-gui'/'rooms').resolve()
+        root=(self.workdir/'.kcia-gui'/'rooms').resolve()
         if not target.is_relative_to(root):
             raise PermissionError('storage directory escapes room root')
         target.mkdir(parents=True,exist_ok=True,mode=0o700)
@@ -378,11 +485,11 @@ class WebviewController:
             logfile=self.train.logfile
             if logfile is None or not logfile.is_file():
                 raise FileNotFoundError('保存する学習ログがまだありません。')
-            output=self.workdir/'.fedpara-gui'/'diagnostics'
+            output=self.workdir/'.kcia-gui'/'diagnostics'
             output.mkdir(parents=True,exist_ok=True,mode=0o700)
             os.chmod(output,0o700)
             stamp=datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ')
-            dest=output/f'kagami-{stamp}-{secrets.token_hex(4)}.log'
+            dest=output/f'kcia-{stamp}-{secrets.token_hex(4)}.log'
             fd=os.open(dest,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
             try:
                 with os.fdopen(fd,'wb') as out,logfile.open('rb') as source:
@@ -423,7 +530,7 @@ class WebviewController:
 
     def local_models(self, payload=None):
         """Local manifests, including unpublished models, never remote code."""
-        base=self.workdir/'.fedpara-gui'/'rooms'
+        base=self.workdir/'.kcia-gui'/'rooms'
         items=[]
         if base.exists():
             for candidate in __import__('itertools').islice(base.glob('*/manifest.json'), 200):
@@ -520,16 +627,17 @@ class WebviewController:
         rank_plan=estimate_adapter_rank(config=config,
                 available_ram_bytes=dev.get('ram_bytes') or 0,
                 available_vram_bytes=dev.get('vram_bytes') or 0,kind=kind)
-        rank=pinned['rank'] if pinned else rank_plan['rank']
+        rank=pinned['rank'] if pinned else (32 if kind=='loha' else rank_plan['rank'])
         policy=estimate_training_policy(config=config,
                 available_ram_bytes=dev.get('ram_bytes') or 0,
                 available_vram_bytes=dev.get('vram_bytes') or 0,
                 rank=rank,kind=kind)
         capacity=rank_plan['rank_capacity']
-        policy.update({'rank':rank,'rank_pinned':bool(pinned),
+        policy.update({'rank':rank,'local_physical_rank_estimate':min(rank,rank_plan['rank']),
+                       'local_rank_memory_saving':True,'rank_pinned':bool(pinned),
                        'wide_lora_rank':pinned['wide_lora_rank'] if pinned else 4,
                        'rank_capacity':capacity,
-                       'can_train':capacity is None or rank<=capacity,
+                       'can_train':capacity is None or capacity>=4,
                        'kind':kind,'rank_estimated_wire_bytes':rank_plan['wire_estimate_bytes']})
         return policy
 
@@ -841,7 +949,7 @@ class WebviewController:
         with self.lock:
             if self._eval_proc and self._eval_proc.poll() is None:
                 raise RuntimeError('An inference job is already running')
-            root=self.workdir/'.fedpara-gui'/'evals'
+            root=self.workdir/'.kcia-gui'/'evals'
             root.mkdir(parents=True,exist_ok=True,mode=0o700)
             options['temp_dir']=str(root.resolve())
             token=secrets.token_hex(12)
@@ -850,12 +958,12 @@ class WebviewController:
             with os.fdopen(fd,'w',encoding='utf8') as file:
                 json.dump(options,file,ensure_ascii=False)
             with log.open('wb') as fh:
-                proc=subprocess.Popen([sys.executable,'-m','patchlib.kagami_eval_worker',str(inp),str(out)],
+                proc=subprocess.Popen([sys.executable,'-m','patchlib.kcia_eval_worker',str(inp),str(out)],
                     cwd=Path(__file__).resolve().parent.parent,stdout=fh,stderr=subprocess.STDOUT,
                     start_new_session=(os.name=='posix'))
             self._eval_proc=proc;self._eval_result=out;self._eval_log=log
             return {'pid':proc.pid,'precision':mode,
-                    'scope':('Kagami trained effective weights' if scope=='trained' else 'Explicit HF base'),
+                    'scope':('KCIA trained effective weights' if scope=='trained' else 'Explicit HF base'),
                     'checkpoint_seq':chosen['seq'] if scope=='trained' else None}
 
     def eval_status(self,_payload=None):
@@ -871,7 +979,7 @@ class WebviewController:
             # Never display such a job as a successful generation.
             if code is not None and result is None:
                 result={'error':'Inference worker exited without a result file (exit='+str(code)+')',
-                        'hint':'Check the EVAL log and install requirements-eval.txt into the interpreter launching Kagami.'}
+                        'hint':'Check the EVAL log and install requirements-eval.txt into the interpreter launching KCIA.'}
             logs=''
             if self._eval_log and self._eval_log.exists():
                 with self._eval_log.open('rb') as fh:
@@ -925,7 +1033,7 @@ class WebviewController:
                 raise ValueError('invalid adapter kind')
             if optimizer=='lora-muon' and kind!='lora':
                 raise ValueError('LoRA-Muon requires kind=lora')
-            base=self.workdir/'.fedpara-gui'/'benchmarks'
+            base=self.workdir/'.kcia-gui'/'benchmarks'
             base.mkdir(parents=True,exist_ok=True,mode=0o700)
             os.chmod(base,0o700)
             dest=base/('run-'+datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ')+'-'+secrets.token_hex(4))
@@ -988,11 +1096,11 @@ class WebviewController:
                 # outlive the 30s UI cleanup budget; do not SIGKILL it. Its
                 # EventJournal still owns the exclusive training lock and it
                 # continues saving to the durable model store.
-                # Closing Kagami shuts down the peer; relay-only mode persists
+                # Closing KCIA shuts down the peer; relay-only mode persists
                 # while the window remains open. Checkpoint export is graceful.
                 self.train.stop(wait=True)
             except RuntimeError as exc:
-                print('Kagami: model checkpoint still being saved by detached worker; '
+                print('KCIA: model checkpoint still being saved by detached worker; '
                       'do not delete its room directory:',exc,file=sys.stderr)
             finally:
                 for profile in self.profiles.values():

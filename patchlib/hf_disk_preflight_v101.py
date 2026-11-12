@@ -93,10 +93,10 @@ def _space_check(label, *, estimated_missing=0, reserve=MIN_RESERVE):
                 f'{_display_bytes(extra)}, Xet/scratch allowance and '
                 f'{_display_bytes(reserve)} reserve). '
                 'This is physical disk exhaustion, NOT a reward-head/model-type '
-                'compatibility error. Stop Kagami; run `df -h ~` and '
+                'compatibility error. Stop KCIA; run `df -h ~` and '
                 '`hf cache prune --dry-run`; free space or relocate HF_HOME '
                 'to a volume with enough capacity before restarting. '
-                'Kagami did not delete the shared HF cache or signed journal.'
+                'KCIA did not delete the shared HF cache or signed journal.'
             )
     return paths
 
@@ -131,7 +131,7 @@ def preflight_checkpoint(repo, revision, *, label='HF checkpoint', dry_run=None)
         try:
             from huggingface_hub import snapshot_download
         except ImportError:
-            print('KAGAMI HF PREFLIGHT: huggingface_hub unavailable; size estimate skipped',
+            print('KCIA HF PREFLIGHT: huggingface_hub unavailable; size estimate skipped',
                   file=sys.stderr, flush=True)
             return None
         dry_run = snapshot_download
@@ -145,17 +145,17 @@ def preflight_checkpoint(repo, revision, *, label='HF checkpoint', dry_run=None)
                 'Inspect HF cache and available storage before retrying.') from exc
         # Don't turn a temporary metadata/network failure into a hard offline
         # failure when the full pinned checkpoint could already be cached.
-        print(f'KAGAMI HF PREFLIGHT: metadata unavailable for {repo}@{revision} '
+        print(f'KCIA HF PREFLIGHT: metadata unavailable for {repo}@{revision} '
               f'({type(exc).__name__}: {str(exc)[:180]}); using reserve-only check',
               file=sys.stderr, flush=True)
         return None
     if not isinstance(files, (list, tuple)):
-        print('KAGAMI HF PREFLIGHT: dry-run result not a file listing; '
+        print('KCIA HF PREFLIGHT: dry-run result not a file listing; '
               'using reserve-only check', file=sys.stderr, flush=True)
         return None
     missing, unknown = _missing_size(files)
     _space_check(f'{label} ({repo}@{revision})', estimated_missing=missing)
-    print(f'KAGAMI HF PREFLIGHT: {label} {repo}@{revision}: '
+    print(f'KCIA HF PREFLIGHT: {label} {repo}@{revision}: '
           f'{_display_bytes(missing)} uncached relevant files, '
           f'{unknown} sizes unknown; storage guard passed', flush=True)
     return {'missing_bytes': missing, 'unknown_sizes': unknown}
@@ -189,7 +189,7 @@ def no_space_message(role, exc):
     return (f'{role} Hugging Face download failed: PHYSICAL DISK FULL '
             f'(ENOSPC / Xet file reconstruction): {exc}. '
             f'HF Hub cache: {paths["hub"]}; Xet cache: {paths["xet"]}. '
-            'Stop Kagami, run `df -h ~` and `hf cache prune --dry-run`, '
+            'Stop KCIA, run `df -h ~` and `hf cache prune --dry-run`, '
             'or move HF_HOME to a disk with more free space. '
-            'Do not delete Kagami signed events/working weights. '
+            'Do not delete KCIA signed events/working weights. '
             'Reward/Critic model compatibility is NOT the cause of this exception.')

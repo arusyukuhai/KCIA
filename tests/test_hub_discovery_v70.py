@@ -5,7 +5,7 @@ import pytest
 
 from patchlib.hub_discovery_v70 import discover_hub_assets
 from patchlib.webview_controller import WebviewController
-from patchlib.webview_gui import FedparaBridge, compose_html
+from patchlib.webview_gui import KCIABridge, compose_html
 
 SHA='a'*40
 
@@ -59,7 +59,7 @@ def test_bridge_and_gui_include_picker(tmp_path):
     c=WebviewController(tmp_path)
     from unittest.mock import patch
     with patch('patchlib.hub_discovery_v70.discover_hub_assets',return_value={'candidates':[]}) as find:
-        assert FedparaBridge(c).discover_hub_assets({'role':'pt'})=={'candidates':[]}
+        assert KCIABridge(c).discover_hub_assets({'role':'pt'})=={'candidates':[]}
         find.assert_called_once()
         assert find.call_args.args==({'role':'pt'},)
         assert find.call_args.kwargs['cache'] is c._hub_discovery_cache

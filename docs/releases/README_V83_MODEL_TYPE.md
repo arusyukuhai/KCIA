@@ -1,7 +1,7 @@
-# Kagami v83 — Explicit `model_type` in Hugging Face `config.json`
+# KCIA v83 — Explicit `model_type` in Hugging Face `config.json`
 
 Hugging Face Transformers can reject a model with a message similar to
-`Should have a model_type key in its config.json`.  Kagami room descriptors
+`Should have a model_type key in its config.json`.  KCIA room descriptors
 (`manifest.json` / `design.model_type`) are **not** a substitute for the
 Hugging Face model's own `config.json`.
 
@@ -14,7 +14,7 @@ Hugging Face model's own `config.json`.
    `GPTNeoForCausalLM`) and constructs its corresponding config. An unknown or
    ambiguous architecture fails with a clear diagnostic. **The source model
    files are never edited on load.** A declared unknown model_type still fails.
-2. Kagami's CLI train/pretrained loading, streaming base loading, GUI config
+2. KCIA's CLI train/pretrained loading, streaming base loading, GUI config
    discovery, code/architecture initializers, direct inference and trained
    snapshot inference use the compatible loader. Pretrained weights loading
    receives the verified config explicitly rather than causing Transformers to
@@ -65,7 +65,7 @@ metadata issue, not a LoHA factor-replay correctness issue.
 ## Verification
 
 ```bash
-PYTHONPATH=. pytest -q tests/test_hf_config_v83.py tests/test_hf_compat_v63.py tests/test_kagami_v32.py tests/test_cli.py
+PYTHONPATH=. pytest -q tests/test_hf_config_v83.py tests/test_hf_compat_v63.py tests/test_kcia_v32.py tests/test_cli.py
 ```
 
 Tests run offline with stub Transformers config factories. This environment

@@ -12,7 +12,7 @@ from patchlib.mixed_learning_v65 import MixedObjectiveTrainer, LocalValueHead, M
 from patchlib.critic_state_v66 import save,load,CriticStateError,snapshot_file
 from patchlib.roomid import create_room_id
 from patchlib.webview_controller import WebviewController
-from patchlib.webview_gui import FedparaBridge, compose_html
+from patchlib.webview_gui import KCIABridge, compose_html
 
 
 def file(tmp_path,name,row):
@@ -89,7 +89,7 @@ def make_controller(tmp_path,monkeypatch):
 
 def test_real_gui_to_cli_with_critic_and_pinned_policy(tmp_path,monkeypatch):
     c,room,called=make_controller(tmp_path,monkeypatch)
-    b=FedparaBridge(c)
+    b=KCIABridge(c)
     settings=config(tmp_path,critic_kind='linear')
     payload={'room':room,'ws':'ws://127.0.0.1:8080/ws',
              'streaming_base':True,'kind':'loha','rank':16,
@@ -101,7 +101,7 @@ def test_real_gui_to_cli_with_critic_and_pinned_policy(tmp_path,monkeypatch):
         assert x in cmd
     assert cmd[cmd.index('--pt-weight')+1]=='1.0'
     assert b.mixed_settings({'room':room})['critic_kind']=='linear'
-    manifest=(tmp_path/'.fedpara-gui'/'rooms'/room/'manifest.json').read_text()
+    manifest=(tmp_path/'.kcia-gui'/'rooms'/room/'manifest.json').read_text()
     assert str(tmp_path) not in manifest
     policyfile=Path(cmd[cmd.index('--mix-policy')+1]);policy=json.loads(policyfile.read_text())
     assert policy['objectives']==[True,True]

@@ -1,4 +1,4 @@
-"""Local *training* metrics for Kagami PT/SFT/PPO. Not validation scores.
+"""Local *training* metrics for KCIA PT/SFT/PPO. Not validation scores.
 
 Nothing here changes model weights, the signed learning protocol, or the
 optimizer. This module deliberately does not infer an accuracy for an HF

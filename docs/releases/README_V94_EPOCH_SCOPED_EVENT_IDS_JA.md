@@ -1,8 +1,8 @@
-# Kagami v94 — 世代間のイベントID衝突・carry復元修正
+# KCIA v94 — 世代間のイベントID衝突・carry復元修正
 
 ## 修正した再現可能な問題
 
-Kagami v93では、旧世代の署名イベントを `CrossEpochCarryArchive.replay()` / `accept()` で現在のモデルに反映すると、`ElasticEngine.applied.hot` に `(origin, seq)` が登録されていました。しかし、旧世代のイベントは**旧世代の別のcarryジャーナル**に永続保存され、現世代の `EventJournal` には存在しません。そのため新世代で `(同じorigin, 同じseq)` を発行すると `journal_sha256=missing` で衝突と誤判定されます。
+KCIA v93では、旧世代の署名イベントを `CrossEpochCarryArchive.replay()` / `accept()` で現在のモデルに反映すると、`ElasticEngine.applied.hot` に `(origin, seq)` が登録されていました。しかし、旧世代のイベントは**旧世代の別のcarryジャーナル**に永続保存され、現世代の `EventJournal` には存在しません。そのため新世代で `(同じorigin, 同じseq)` を発行すると `journal_sha256=missing` で衝突と誤判定されます。
 
 今回、v93の未修正版を使った独立テストで以下を再現しました。
 
@@ -19,9 +19,9 @@ v94の同じテストは成功します。入力はEd25519署名付きの旧世�
 
 ## 導入
 
-1. すべてのKagamiプロセスを終了します。GUIで停止後、学習プロセスが残っていないことを確認。
+1. すべてのKCIAプロセスを終了します。GUIで停止後、学習プロセスが残っていないことを確認。
 2. 既存の保存先（ルーム、ピア識別鍵、`events.sqlite3` と `.fplog`/`-wal`/`-shm`、carry、認証済みcheckpoint、fast-resume、Optimizer状態）を**一式バックアップ**します。
-3. このZIPのコードでKagamiを起動します。**reset-local-dataは不要**です。署名済みイベントも自動で削除・再採番しません。
+3. このZIPのコードでKCIAを起動します。**reset-local-dataは不要**です。署名済みイベントも自動で削除・再採番しません。
 4. 起動後、以前失敗していたsealが実行できること、journalが現在のイベントを保存し、carryが旧イベントを保持することを確認します。
 
 ### 注意

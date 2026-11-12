@@ -1,4 +1,4 @@
-# Kagami v99 — PPO / SFT / PT mixed training enhancements
+# KCIA v99 — PPO / SFT / PT mixed training enhancements
 
 v98 を基盤とした、混合学習の**オプトイン**改善です。通常のトレーニング実装・署名イベント・ルームID・分散 Critic・fast-resume の永続形式を変更しません。
 

@@ -1,4 +1,4 @@
-# Kagami v84 — trainability fixes across Hugging Face model families
+# KCIA v84 — trainability fixes across Hugging Face model families
 
 v83 only repaired some `config.json` missing-`model_type` scenarios. It **did not** certify that a model could perform a valid training step. V84 improves several observable compatibility problems and adds a one-batch real-gradient preflight. It does *not* promise all models, quantization formats, tokenizers, or distributed setups will train.
 
@@ -13,7 +13,7 @@ v83 only repaired some `config.json` missing-`model_type` scenarios. It **did no
 
 ## To diagnose a particular model
 
-From inside the unpacked `kagami-v84` folder:
+From inside the unpacked `kcia-v84` folder:
 
 ```bash
 python -m patchlib.cli hf-diagnose --model org/model

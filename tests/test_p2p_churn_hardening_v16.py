@@ -19,7 +19,7 @@ GENESIS='a'*64
 
 class Channel:
     bufferedAmount=0
-    label='fedpara-patch'
+    label='kcia-patch'
     def __init__(self, state='open'):
         self.readyState=state
         self.handlers={}

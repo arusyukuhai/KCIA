@@ -37,7 +37,7 @@ def snapshot_file(root):
 
 
 def _metadata(kind, hidden, identity, steps):
-    return {'format':'kagami-local-critic-v66', 'kind':str(kind),
+    return {'format':'kcia-local-critic-v66', 'kind':str(kind),
             'hidden':str(hidden),'identity':str(identity),'steps':str(steps)}
 
 
@@ -80,8 +80,8 @@ def load(path,critic,optimizer,*,kind,hidden,identity,allow_initial=False):
         with safe_open(str(path),framework='pt',device='cpu') as f:
             metadata=f.metadata() or {}
         weights=load_file(str(path),device='cpu')
-        if metadata.get('format')!='kagami-local-critic-v66':
-            raise CriticStateError('Not a Kagami v66 critic checkpoint')
+        if metadata.get('format')!='kcia-local-critic-v66':
+            raise CriticStateError('Not a KCIA v66 critic checkpoint')
         if metadata.get('kind')!=str(kind) or metadata.get('hidden')!=str(hidden):
             raise CriticStateError('Critic kind/hidden size differs from saved state')
         if not allow_initial and metadata.get('identity')!=str(identity):

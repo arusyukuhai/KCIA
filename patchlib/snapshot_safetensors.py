@@ -1,4 +1,4 @@
-"""Bounded-memory, integrity-checked Kagami shard -> HF safetensors conversion.
+"""Bounded-memory, integrity-checked KCIA shard -> HF safetensors conversion.
 
 Exports trained effective weights as standard HF sharded safetensors *without*
 instantiating their dense CPU tensors. A whole checkpoint can greatly exceed RAM.

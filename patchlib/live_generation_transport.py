@@ -1,4 +1,4 @@
-"""Bounded authenticated WebRTC anti-entropy for certified Kagami generations.
+"""Bounded authenticated WebRTC anti-entropy for certified KCIA generations.
 
 The *outer* elastic control envelope is signed by the direct peer. The *inner*
 certificate is independently quorum-verified, so relaying cannot impersonate

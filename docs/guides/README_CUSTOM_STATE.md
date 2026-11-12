@@ -1,4 +1,4 @@
-# Fedpara — custom Hugging Face code + P2P full model parameters
+# KCIA — custom Hugging Face code + P2P full model parameters
 
 This is an extension to `README_PATCHES.md` and the existing Nim/Mummy signaling server.
 
@@ -27,7 +27,7 @@ across two machines has been verified. This is a reference implementation.
   instead of adapter internals. Uses a versioned, uncompressed ZIP with a JSON
   manifest and **raw tensor bytes**, never pickle/Python objects.
 - **Stream full weights over WebRTC**: `state-exchange` sends 16 KiB chunks via
-  the same reliable ordered WebRTC DataChannel (`fedpara-patch`). It performs
+  the same reliable ordered WebRTC DataChannel (`kcia-patch`). It performs
   SHA-256 over the entire transfer and stores to a temporary on-disk file,
   then atomically promotes a structurally valid archive. Adjustable cap:
   `--max-state-gb 32` (GiB; increase for big models).
@@ -151,7 +151,7 @@ beyond those already present in the image. Ensure the model uses safetensors.
 Build the CPU-only image from this project's root:
 
 ```bash
-docker build -f sandbox/Dockerfile.offline -t fedpara-untrusted-cpu .
+docker build -f sandbox/Dockerfile.offline -t kcia-untrusted-cpu .
 mkdir -p ./private-batches ./isolated-output
 ```
 
@@ -236,4 +236,4 @@ reconstruct the module next time.
    same shapes may still represent a functionally incompatible model.
 7. The Nim signaling server is still a **two-peer-per-room** signaling design;
    this is not yet a multi-node gossip mesh. For Internet use: HTTPS/WSS,
-   coturn, high-entropy room IDs, APP_TOKEN and a server origin policy.
+   coturn with short-lived credentials, high-entropy private room IDs, Cloudflare rate limiting and a server origin policy.

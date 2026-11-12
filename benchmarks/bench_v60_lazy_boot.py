@@ -27,7 +27,7 @@ class FourLayers(nn.Module):
 
 def benchmark(width=1536):
     torch.set_num_threads(2)
-    with tempfile.TemporaryDirectory(prefix='kagami-v60-boot-bench-') as folder:
+    with tempfile.TemporaryDirectory(prefix='kcia-v60-boot-bench-') as folder:
         root=Path(folder)
         weights=FourLayers(width)
         source=root/'model.safetensors'
@@ -39,7 +39,7 @@ def benchmark(width=1536):
         start=time.perf_counter()
         materialize_meta_from_safetensors(eager,root,writable=True,chunk_mib=8)
         eager_elapsed=time.perf_counter()-start
-        old_scratch=Path(eager._fedpara_ephemeral_weights.name)
+        old_scratch=Path(eager._kcia_ephemeral_weights.name)
         eager_bytes=sum(f.stat().st_size for f in old_scratch.glob('*.raw'))
         del eager
         gc.collect()

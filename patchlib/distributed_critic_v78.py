@@ -82,7 +82,7 @@ def pack(origin,seq,genesis,deltas,signer,public_key=None,actor_tip=None,actor_e
             raise PatchError('invalid actor lineage marker')
         head['actor_tip']=actor_tip
     # Domain-separated signed commitment covers all metadata + payload hash.
-    signing=b'KAGAMI-V78-ROOT-CRITIC\0'+_canonical_json(head)
+    signing=b'KCIA-V78-ROOT-CRITIC\0'+_canonical_json(head)
     head['signature']=signer(len(signing),hashlib.sha256(signing).hexdigest())
     raw=_canonical_json(head)
     if len(raw)>MAX_HEAD or len(payload)+len(raw)+len(MAGIC)+4>MAX_EVENT:
@@ -133,7 +133,7 @@ def unpack(wire,genesis,params,trusted=None,unsafe=False,allowed_actor_epochs=No
             verify=(trusted or {}).get(origin)
         if verify is None:raise PatchError('untrusted Critic origin')
         bare={k:v for k,v in head.items() if k!='signature'}
-        signing=b'KAGAMI-V78-ROOT-CRITIC\0'+_canonical_json(bare)
+        signing=b'KCIA-V78-ROOT-CRITIC\0'+_canonical_json(bare)
         verify({'size':len(signing),'sha256':hashlib.sha256(signing).hexdigest(),
                 'sig':head['signature']})
     try:tensors=load_tensors(payload)

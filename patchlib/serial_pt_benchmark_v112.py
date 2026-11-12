@@ -1,6 +1,6 @@
 """Single-resident-model PT peer-count comparison for memory-constrained hosts.
 
-This is an *offline*, serial, synchronous FedSum experiment using Kagami's
+This is an *offline*, serial, synchronous FedSum experiment using KCIA's
 UniversalAdapter, continual factor anchors and actual LM gradients. It does
 NOT run WebRTC, signed-event transport or independent concurrent processes.
 
@@ -338,7 +338,7 @@ def run_serial_pt_benchmark(cfg: SerialPTConfig, output_dir: str | Path):
     old_threads = torch.get_num_threads()
     torch.set_num_threads(cfg.threads)
     try:
-        with tempfile.TemporaryDirectory(prefix='kagami-v112-pt-',
+        with tempfile.TemporaryDirectory(prefix='kcia-v112-pt-',
                                              dir=_resolve_scratch_dir(cfg)) as temp_root:
             state_dir = Path(temp_root)
             train, validation, vocab, data_info = _get_data(cfg)

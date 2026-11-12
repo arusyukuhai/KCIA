@@ -1,5 +1,7 @@
-# Kagami ドキュメント索引
+# KCIA ドキュメント索引
 
+- [v114 GUI作成修正・HFモデルピッカー・ロゴ](releases/README_V114_GUI_CREATION_MODEL_PICKER_JA.md)
+- [v113 Cloudflare公開ネットワーク](releases/README_V113_PUBLIC_CLOUDFLARE_GUI_JA.md)
 - [ソース構成と責務の一覧](SOURCE_LAYOUT_JA.md)
 - [v112.2 同一ローカル計算量・仮想ネットワーク](releases/README_V112_2_SCALED_WORK_LATENCY_JA.md)
 - [v112 直列・低メモリPT比較ベンチマーク](releases/README_V112_SERIAL_PT_BENCH_JA.md)

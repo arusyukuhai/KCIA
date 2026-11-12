@@ -1,4 +1,4 @@
-"""Kagami v85: crash-consistent, materialized local FedSum resume checkpoints.
+"""KCIA v85: crash-consistent, materialized local FedSum resume checkpoints.
 
 A *private* exact committed-weight snapshot accelerates local restart. Signed
 journal events stay intact for peer NEED/anti-entropy; only a separately
@@ -26,7 +26,7 @@ from .shards import (export_state_sharded, apply_sharded_effective_state,
                      read_manifest, verify_shards, shard_map, _blob_path)
 
 HEX = re.compile(r'^[0-9a-f]{64}$')
-FORMAT = 'kagami-committed-resume-v85'
+FORMAT = 'kcia-committed-resume-v85'
 
 
 def _sha(path):
@@ -149,7 +149,7 @@ def _clean_unreferenced(root, new_manifest, new_factors):
                 if f.is_symlink() or not f.is_file() or f == selected: continue
                 if re.fullmatch(r'[0-9a-f]{64}' + re.escape(suffix), f.name): f.unlink()
     except (OSError, PatchError) as exc:
-        print(f'KAGAMI RESUME cache GC deferred: {exc}', flush=True)
+        print(f'KCIA RESUME cache GC deferred: {exc}', flush=True)
 
 
 def save(journal, engine, *, max_state_bytes, shard_bytes=4 * 1024**2,
@@ -165,7 +165,7 @@ def save(journal, engine, *, max_state_bytes, shard_bytes=4 * 1024**2,
     """
     root = root_for(journal)
     if root.is_symlink(): raise PatchError('fast resume cache path is a symlink')
-    manager = getattr(engine.adapter.model, '_fedpara_lazy_mutable_weights', None)
+    manager = getattr(engine.adapter.model, '_kcia_lazy_mutable_weights', None)
     if manager is not None and getattr(manager,'stores',None):
         # v60 page COW lacks a complete bounded-memory commit-only exporter.
         # Refuse rather than silently capturing *genesis* instead of weights.
@@ -175,7 +175,7 @@ def save(journal, engine, *, max_state_bytes, shard_bytes=4 * 1024**2,
     # For content-addressed shards this overestimates space when data repeats.
     from .shard_runtime import effective_state_sources
     from contextlib import nullcontext
-    ledger = manager if getattr(manager, '_fedpara_is_factor_ledger', False) else None
+    ledger = manager if getattr(manager, '_kcia_is_factor_ledger', False) else None
     with (ledger.export_context() if ledger is not None else nullcontext()):
         expected = sum(t.numel()*t.element_size() for t, _ in
                        effective_state_sources(engine.adapter.model, engine.adapter).values())
@@ -260,7 +260,7 @@ def save(journal, engine, *, max_state_bytes, shard_bytes=4 * 1024**2,
         info['carry'] = {'genesis':carry_archive.genesis, 'cursor':carry_cursor}
     _atomic(root/'latest.json', json.dumps(info,sort_keys=True,separators=(',',':')).encode())
     _clean_unreferenced(root, manifest_path, factor_path)
-    print(f'KAGAMI MATERIALIZED COMMITTED BASE: {cursor["count"]} events covered; '
+    print(f'KCIA MATERIALIZED COMMITTED BASE: {cursor["count"]} events covered; '
           f'{manifest["total_tensor_bytes"]} weight bytes; suffix-only resume ready',flush=True)
     return info
 
@@ -276,7 +276,7 @@ def restore(journal, engine, *, max_state_bytes, carry_archive=None):
     if root.is_symlink(): raise PatchError('unsafe fast resume root')
     p = _pointer(root)
     if p is None:
-        print('KAGAMI FAST RESUME: no valid committed checkpoint; signed-history replay required once',flush=True)
+        print('KCIA FAST RESUME: no valid committed checkpoint; signed-history replay required once',flush=True)
         return None
     if (p.get('genesis') != journal.genesis or p.get('peer') != engine.self_id or
             p.get('model_id') != engine.adapter.model_id or
@@ -288,17 +288,17 @@ def restore(journal, engine, *, max_state_bytes, carry_archive=None):
         return None
     rowid = journal.fast_resume_suffix(p['cursor'])
     if rowid is None:
-        print('KAGAMI FAST RESUME: cached current-generation cursor invalid; full replay required', flush=True)
+        print('KCIA FAST RESUME: cached current-generation cursor invalid; full replay required', flush=True)
         return None
     carry_rowid = None
     if carry_archive is not None:
         binding = p.get('carry')
         if not isinstance(binding, dict) or binding.get('genesis') != carry_archive.genesis:
-            print('KAGAMI FAST RESUME: snapshot predates carry-aware checkpoint; full replay required', flush=True)
+            print('KCIA FAST RESUME: snapshot predates carry-aware checkpoint; full replay required', flush=True)
             return None
         carry_rowid = carry_archive.journal.fast_resume_suffix(binding.get('cursor'))
         if carry_rowid is None:
-            print('KAGAMI FAST RESUME: cached carry cursor invalid; full replay required', flush=True)
+            print('KCIA FAST RESUME: cached carry cursor invalid; full replay required', flush=True)
             return None
         if not getattr(carry_archive, '_replayed', False) and getattr(carry_archive, '_poisoned', False):
             raise PatchError('poisoned carry archive cannot be restored')
@@ -308,7 +308,7 @@ def restore(journal, engine, *, max_state_bytes, carry_archive=None):
         # until a unified, durably ordered transaction index is implemented.
         if (journal.count() != p['cursor']['count'] and
                 carry_archive.journal.count() != binding['cursor']['count']):
-            print('KAGAMI FAST RESUME: both journal lanes advanced after snapshot; exact-order full replay', flush=True)
+            print('KCIA FAST RESUME: both journal lanes advanced after snapshot; exact-order full replay', flush=True)
             return None
     elif 'carry' in p:
         # Never restore a cache for a different active epoch/carry layout.
@@ -317,7 +317,7 @@ def restore(journal, engine, *, max_state_bytes, carry_archive=None):
     f = _factor_path(root,p['factors'])
     if (not m.is_file() or not f.is_file() or m.is_symlink() or f.is_symlink() or
             _sha(m)!=p['manifest'] or _sha(f)!=p['factors']):
-        print('KAGAMI FAST RESUME local checkpoint missing/corrupt; full signed replay',flush=True)
+        print('KCIA FAST RESUME local checkpoint missing/corrupt; full signed replay',flush=True)
         return None
     meta = read_manifest(m,max_state_bytes=max_state_bytes)
     if (meta['model_id'] != engine.adapter.model_id or
@@ -337,6 +337,6 @@ def restore(journal, engine, *, max_state_bytes, carry_archive=None):
             model_id=engine.adapter.model_id,revision=engine.adapter.revision,
             max_state_bytes=max_state_bytes)
         _restore_factors(reader,engine.adapter)
-    print(f'KAGAMI FAST RESUME loaded materialized committed base '
+    print(f'KCIA FAST RESUME loaded materialized committed base '
           f'at event={p["cursor"]["count"]}',flush=True)
     return (rowid, carry_rowid) if carry_archive is not None else rowid

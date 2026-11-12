@@ -1,10 +1,10 @@
-# Kagami v106 — HF SFT/PPO データセット列対応・学習開始前検証
+# KCIA v106 — HF SFT/PPO データセット列対応・学習開始前検証
 
 ## 事象
 
-`HFMixedDatasetError: Missing Hub column 'prompt'` はHF CriticやMPSのエラーではない。HF Reward ModelとValue Criticをロードして `KAGAMI PPO INIT phase=ready` に達した後、SFTデータセットの先頭行を読んだ時点で、選択した列名と実際のHubデータセットのスキーマが異なっていた。
+`HFMixedDatasetError: Missing Hub column 'prompt'` はHF CriticやMPSのエラーではない。HF Reward ModelとValue Criticをロードして `KCIA PPO INIT phase=ready` に達した後、SFTデータセットの先頭行を読んだ時点で、選択した列名と実際のHubデータセットのスキーマが異なっていた。
 
-`prompt/response` はKagamiの標準入力形式であり、すべてのHFデータセットが同じ列名を持つわけではない。
+`prompt/response` はKCIAの標準入力形式であり、すべてのHFデータセットが同じ列名を持つわけではない。
 
 ## 変更点
 

@@ -71,7 +71,7 @@ def main():
     conn=subs.add_parser('connect',help='Check signed peer handshake to a remote machine')
     conn.add_argument('--key',type=Path,required=True)
     conn.add_argument('--ws',required=True)
-    conn.add_argument('--token',default=os.getenv('APP_TOKEN',''))
+    conn.add_argument('--token',default='')
     conn.add_argument('--room-id',required=True)
     conn.add_argument('--remote-public-key',required=True)
     conn.add_argument('--turn-only',action='store_true',help='Only advertise TURN relay candidates on this endpoint')

@@ -23,7 +23,7 @@ from .lazy_mutable_weights_v60 import LazyMutableWeights, LazyWeightError
 
 class SparsePageStore:
     """Writable sparse-page virtual 2-D tensor with immutable mapped backing."""
-    _fedpara_is_paged=True
+    _kcia_is_paged=True
 
     def __init__(self, base, dest:Path, *, page_bytes=65536, limit_callback=None, on_fault=None):
         if base.ndim!=2 or base.device.type!='cpu' or not base.is_contiguous():
@@ -187,7 +187,7 @@ class SparsePageStore:
 
 
 class TransposedPages:
-    _fedpara_is_paged=True
+    _kcia_is_paged=True
     def __init__(self,source):
         self.source=source;self.shape=(source.shape[1],source.shape[0]);self.dtype=source.dtype
     def __getitem__(self,index):
@@ -249,7 +249,7 @@ class PagedMutableWeights:
             module=self.model.get_submodule(parent) if sep else self.model
             # Existing offload kernels must consume the virtual source. Never
             # expose stale original tensors to a non-intercepted forward.
-            if not hasattr(module,'_fedpara_disk_source'):
+            if not hasattr(module,'_kcia_disk_source'):
                 return self._fallback_group(group)
             modules.append(module)
         parent,sep,attr=group.aliases[0].rpartition('.')
@@ -261,10 +261,10 @@ class PagedMutableWeights:
                               limit_callback=self._quota,on_fault=self._mark_poison)
         self.stores[group.canonical]=store
         for mod in modules:
-            cache=getattr(mod,'_fedpara_disk_cache',None)
+            cache=getattr(mod,'_kcia_disk_cache',None)
             if cache is not None:cache.invalidate()
-            mod._fedpara_disk_source=store
-            mod._fedpara_disk_path='<epoch-private-sparse-pages>'
+            mod._kcia_disk_source=store
+            mod._kcia_disk_path='<epoch-private-sparse-pages>'
         return True
 
     def destination(self,group,lo,hi,original):
@@ -302,10 +302,10 @@ class PagedMutableWeights:
 
 
 def attach_paged_mutable(model,adapter,*,scratch_dir=None,page_kib=64,limit_gib=0):
-    if getattr(model,'_fedpara_streaming_base_info',{}).get('mode')!='read-only-mmap':
+    if getattr(model,'_kcia_streaming_base_info',{}).get('mode')!='read-only-mmap':
         raise LazyWeightError('paged COW requires immutable safetensors genesis')
     manager=PagedMutableWeights(model,adapter,scratch_dir=scratch_dir,page_kib=page_kib,limit_gib=limit_gib)
-    object.__setattr__(model,'_fedpara_lazy_mutable_weights',manager)
+    object.__setattr__(model,'_kcia_lazy_mutable_weights',manager)
     def forbid_stale_full_state(module,prefix,keep_vars):
         if manager.stores:
             raise LazyWeightError('paged COW base is virtual: materialize all before torch state_dict')
@@ -316,7 +316,7 @@ def attach_paged_mutable(model,adapter,*,scratch_dir=None,page_kib=64,limit_gib=
 
 
 def paged_destination(adapter,group,lo,hi,original):
-    manager=getattr(adapter.model,'_fedpara_lazy_mutable_weights',None)
+    manager=getattr(adapter.model,'_kcia_lazy_mutable_weights',None)
     if manager is not None and hasattr(manager,'destination'):
         return manager.destination(group,lo,hi,original)
     return original[lo:hi] if group.shape else original

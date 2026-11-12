@@ -17,7 +17,7 @@ from .core import PatchError, _canonical_json
 from .shards import read_manifest, shard_map, manifest_bytes, verify_shards, _atomic_write
 from .shardp2p import ShardSession, send_manifest, send_shard, ctrl
 
-log = logging.getLogger("fedpara.snapshot")
+log = logging.getLogger("kcia.snapshot")
 
 
 def journal_tip(journal) -> tuple[str, int]:
@@ -124,7 +124,7 @@ class LiveSnapshotLink:
             self.last_activity=time.monotonic()
             self.connected.set()
             log.info('full-model state DataChannel ready label=%s id=%s',
-                     ch.label if hasattr(ch,'label') else 'fedpara-state',
+                     ch.label if hasattr(ch,'label') else 'kcia-state',
                      getattr(ch,'id',None))
             self.worker=asyncio.create_task(self._sender(ch))
 

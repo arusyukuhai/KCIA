@@ -31,7 +31,7 @@ class PrefetchedRows:
         self.stop=threading.Event()
         self.closed=False
         self._peeked=_EMPTY
-        self.worker=threading.Thread(target=self._produce,name='kagami-hub-prefetch',daemon=True)
+        self.worker=threading.Thread(target=self._produce,name='kcia-hub-prefetch',daemon=True)
         self.worker.start()
 
     def _produce(self):

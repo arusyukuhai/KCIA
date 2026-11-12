@@ -1,6 +1,6 @@
-# Kagami v111 — 配布ファイル整理の検証
+# KCIA v111 — 配布ファイル整理の検証
 
-- 基準: `kagami_v110_clean_architecture.zip`（v109からのv110構造分割済み）
+- 基準: `kcia_v110_clean_architecture.zip`（v109からのv110構造分割済み）
 - 変更点: ドキュメントの配置、配布物の古い生成物の除外、最上位READMEの整理、説明用docstringと空行の整形、オフライン監査ツールとテスト
 - 実稼働の署名付きジャーナル、ルーム、weight、秘密鍵、チェックポイントには触れず、元のソースZIPを展開した作業コピーに対してだけ処理
 - リポジトリの全Pythonモジュール147個を保持。旧コードの通常/動的参照を監査し、実行時コードを削除しない方針
@@ -13,7 +13,7 @@
 - `tests/test_v111_release_cleanup.py`（実行時データ混入防止、docsリンク、147モジュール維持）および退役HTML検査は成功。
 - `python -m patchlib.cli --help`、`node --check web/desktop_webview.js` 成功。
 - v110にあった147個の本番Pythonモジュールはすべて存在。143個はバイト完全一致、残り4個はPython AST上の実行コードが同一（説明文・空行の調整のみ）。
-- `kagami.py`、`src/main.nim`、`web/desktop_webview.html/js`、`patchlib/elastic.py`、`patchlib/fast_resume_v85.py` はv110とバイト同一。
+- `kcia.py`、`src/main.nim`、`web/desktop_webview.html/js`、`patchlib/elastic.py`、`patchlib/fast_resume_v85.py` はv110とバイト同一。
 - オフラインの `tools/audit_release.py` を実行し、配布に不要な生成キャッシュ・個人ルーム定義・文書リンク切れがないことを確認。
 - v111のソースZIPのCRC検査に成功。Git形式の差分パッチをv110の独立コピーに適用し、全ファイルのバイト一致を確認。
 

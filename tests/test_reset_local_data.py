@@ -9,7 +9,7 @@ from patchlib.reset_local_data import reset_local_data
 
 
 def test_preview_is_non_destructive(tmp_path):
-    path = tmp_path / '.fedpara-gui' / 'rooms' / 'room-a'
+    path = tmp_path / '.kcia-gui' / 'rooms' / 'room-a'
     path.mkdir(parents=True)
     (path / 'events.sqlite3').write_bytes(b'journal')
     log = io.StringIO()
@@ -19,7 +19,7 @@ def test_preview_is_non_destructive(tmp_path):
 
 
 def test_delete_gui_only_preserves_source_and_shared_hf(tmp_path):
-    gui = tmp_path / '.fedpara-gui'
+    gui = tmp_path / '.kcia-gui'
     nested = gui / 'rooms' / 'room-a' / 'peers'
     nested.mkdir(parents=True)
     (nested / 'events.sqlite3').write_bytes(b'test journal')
@@ -27,12 +27,12 @@ def test_delete_gui_only_preserves_source_and_shared_hf(tmp_path):
     (gui / 'codes' / 'my_model.py').write_text('sample')
     (gui / 'telemetry').mkdir()
     (gui / 'telemetry' / 'plot.jsonl').write_text('{}')
-    (tmp_path / 'kagami.py').write_text('keep')
+    (tmp_path / 'kcia.py').write_text('keep')
     (tmp_path / 'hf_cache').mkdir()
     (tmp_path / 'hf_cache' / 'model.safetensors').write_bytes(b'keep')
     assert reset_local_data(root=tmp_path, yes=True, stream=io.StringIO()) == 0
     assert not gui.exists()
-    assert (tmp_path / 'kagami.py').read_text() == 'keep'
+    assert (tmp_path / 'kcia.py').read_text() == 'keep'
     assert (tmp_path / 'hf_cache' / 'model.safetensors').read_bytes() == b'keep'
     assert reset_local_data(root=tmp_path, yes=True, stream=io.StringIO()) == 0
 
@@ -43,7 +43,7 @@ def test_delete_does_not_follow_symlink_inside_gui(tmp_path):
     foreign = tmp_path / 'precious'
     foreign.mkdir()
     (foreign / 'data').write_text('keep')
-    gui = root / '.fedpara-gui'
+    gui = root / '.kcia-gui'
     gui.mkdir()
     (gui / 'foreign').symlink_to(foreign, target_is_directory=True)
     assert reset_local_data(root=root, yes=True, stream=io.StringIO()) == 0
@@ -57,14 +57,14 @@ def test_refuse_symlink_gui_root(tmp_path):
     other = tmp_path / 'other'
     other.mkdir()
     (other / 'data').write_text('keep')
-    (root / '.fedpara-gui').symlink_to(other, target_is_directory=True)
+    (root / '.kcia-gui').symlink_to(other, target_is_directory=True)
     with pytest.raises(ValueError, match='symlink'):
         reset_local_data(root=root, yes=True, stream=io.StringIO())
     assert (other / 'data').read_text() == 'keep'
 
 
-def test_refuse_dot_fedpara_gui_direct_root(tmp_path):
-    gui = tmp_path / '.fedpara-gui'
+def test_refuse_dot_kcia_gui_direct_root(tmp_path):
+    gui = tmp_path / '.kcia-gui'
     gui.mkdir()
     with pytest.raises(ValueError, match='PARENT'):
         reset_local_data(root=gui, yes=True, stream=io.StringIO())
@@ -95,7 +95,7 @@ def test_cli_defaults_explicit_only(tmp_path):
 @pytest.mark.skipif(os.name != 'posix', reason='flock protection is POSIX')
 def test_active_peer_lock_blocks_reset(tmp_path):
     import fcntl
-    gui = tmp_path / '.fedpara-gui' / 'rooms' / 'room-a' / 'peers' / 'peer-abc'
+    gui = tmp_path / '.kcia-gui' / 'rooms' / 'room-a' / 'peers' / 'peer-abc'
     gui.mkdir(parents=True)
     lockfile = gui / 'active.lock'
     lockfile.touch()
@@ -112,7 +112,7 @@ def test_active_peer_lock_blocks_reset(tmp_path):
 def test_cli_symlink_blocks_all_deletion_before_gui(tmp_path):
     root = tmp_path / 'data'
     root.mkdir()
-    gui = root / '.fedpara-gui'
+    gui = root / '.kcia-gui'
     gui.mkdir()
     (gui / 'important').write_text('still here')
     cli = tmp_path / 'cli'

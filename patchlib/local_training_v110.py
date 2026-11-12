@@ -183,7 +183,7 @@ def run_step(model, adapter, optimizer, batch, args):
                         float(getattr(args,'sft_weight',1.))==0 and
                         metrics['actor_grad_norm']<1e-12 and
                         not getattr(args,'_v100_zero_gradient_warned',False)):
-                    print('KAGAMI PPO WARNING: Actor gradient is zero; sparse PPO reward may provide no learning signal. '
+                    print('KCIA PPO WARNING: Actor gradient is zero; sparse PPO reward may provide no learning signal. '
                           'For grounded JSONL reference rewards, try --ppo-reference-aux-coef 0.1 in a NEW room.',flush=True)
                     args._v100_zero_gradient_warned=True
                 (ppo_critic*args.ppo_weight).backward()

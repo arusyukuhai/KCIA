@@ -1,4 +1,4 @@
-"""Offline validation of the Kagami WAN deployment additions."""
+"""Offline validation of the KCIA WAN deployment additions."""
 import pathlib
 import pytest
 from deploy.vps.setup_env import configuration
@@ -7,15 +7,14 @@ from scripts.check_signaling_vps import _health_url
 
 
 def test_secret_config_and_public_ip():
-    content=configuration('kagami.example.org','8.8.8.8')
-    assert 'TURN_HOST=kagami.example.org' in content
+    content=configuration('signal.example.org','turn.example.org','8.8.8.8')
+    assert 'TURN_HOST=turn.example.org' in content
     entries=dict(line.split('=',1) for line in content.splitlines())
-    assert len(entries['APP_TOKEN'])==64
+    assert 'APP_TOKEN' not in entries and 'ROOM_PUBLISH_TOKEN' not in entries
     assert len(entries['TURN_SECRET'])==64
-    assert entries['APP_TOKEN']!=entries['TURN_SECRET']
-    with pytest.raises(ValueError): configuration('localhost','8.8.8.8')
-    with pytest.raises(ValueError): configuration('kagami.example.org','127.0.0.1')
-    with pytest.raises(ValueError): configuration('kagami.example.org','203.0.113.10')
+    with pytest.raises(ValueError): configuration('localhost','turn.example.org','8.8.8.8')
+    with pytest.raises(ValueError): configuration('signal.example.org','turn.example.org','127.0.0.1')
+    with pytest.raises(ValueError): configuration('signal.example.org','turn.example.org','203.0.113.10')
 
 
 def test_relay_only_fails_closed():
@@ -28,14 +27,14 @@ def test_relay_only_fails_closed():
 
 
 def test_health_url_requires_correct_ws_path():
-    assert _health_url('wss://kagami.example.org/ws')=='https://kagami.example.org/healthz'
-    with pytest.raises(ValueError): _health_url('https://kagami.example.org/ws')
+    assert _health_url('wss://kcia.example.org/ws')=='https://kcia.example.org/healthz'
+    with pytest.raises(ValueError): _health_url('https://kcia.example.org/ws')
 
 
 def test_compose_and_dockerfile_have_no_public_signaling_port():
     root=pathlib.Path(__file__).resolve().parents[1]
     compose=(root/'deploy/vps/compose.yml').read_text()
-    assert 'APP_TOKEN: ${APP_TOKEN:?' in compose
+    assert 'APP_TOKEN' not in compose and 'ROOM_PUBLISH_TOKEN' not in compose
     assert 'TURN_SECRET: ${TURN_SECRET:?' in compose
     assert '"8080:8080"' not in compose
     assert 'network_mode: host' in compose

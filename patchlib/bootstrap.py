@@ -37,7 +37,7 @@ def ensure_state(args, *, load_model):
     if not args.state_base:
         if not getattr(args,'room_id',None):
             raise ValueError('--auto-state without --state-base requires --room-id')
-        args.state_base = str(Path('.fedpara-gui')/'rooms'/args.room_id/'genesis.fstate')
+        args.state_base = str(Path('.kcia-gui')/'rooms'/args.room_id/'genesis.fstate')
     path = Path(args.state_base).expanduser().resolve()
     if path.suffix != '.fstate' or path.is_dir():
         raise ValueError('automatic genesis path must be a .fstate file')

@@ -1,4 +1,4 @@
-# Fedpara elastic streaming training (default)
+# KCIA elastic streaming training (default)
 
 This repository provides model-agnostic LoRA/LoHA updates over PyTorch `nn.Module` tensors, a Mummy signaling server and aiortc DataChannels. **`train-live` now defaults to `--mode elastic`.** The fixed-membership, round-synchronous FedAvg remains available under `--mode synchronous --rounds N`.
 

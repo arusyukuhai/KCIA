@@ -22,7 +22,7 @@ from .shards import (MAX_SHARD_MANIFEST, _blob_path, _check_hash, _check_object,
                      _atomic_write, has_object, manifest_bytes, parse_manifest,
                      read_manifest, shard_map, verify_shards)
 
-log = logging.getLogger('fedpara.shards')
+log = logging.getLogger('kcia.shards')
 V = 2
 CONTROL_LIMIT = 8192
 REQUEST_WINDOW = 4

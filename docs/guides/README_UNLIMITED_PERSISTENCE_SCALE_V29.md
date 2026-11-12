@@ -1,9 +1,9 @@
-# Fedpara v29: unlimited GUI training, persistent weights and large-room hardening
+# KCIA v29: unlimited GUI training, persistent weights and large-room hardening
 
 ## Summary
 
 - **No fixed training/publication-count cutoff from the desktop GUI.** The previous GUI's `200` is removed; the trainer always receives `--rounds 0`. CLI callers can still choose a finite round count. The room-size adaptive **steps per published update** (default 4, capped by `--max-sync-steps 64`) is unrelated to a total training cutoff and is unchanged.
-- **Graceful stop exports effective trained model weights as sharded, content-addressed data.** Each session generates a unique immutable manifest under `.fedpara-gui/rooms/<room>/checkpoints/<local-peer-profile>/effective-*.shards.json`. Corresponding tensor blocks are stored under `.fedpara-gui/rooms/<room>/models/<profile>/objects/...`. Snapshots are committed by an atomic manifest rename, so an interrupted export will not produce a valid-looking partial manifest. Existing complete manifests remain in place.
+- **Graceful stop exports effective trained model weights as sharded, content-addressed data.** Each session generates a unique immutable manifest under `.kcia-gui/rooms/<room>/checkpoints/<local-peer-profile>/effective-*.shards.json`. Corresponding tensor blocks are stored under `.kcia-gui/rooms/<room>/models/<profile>/objects/...`. Snapshots are committed by an atomic manifest rename, so an interrupted export will not produce a valid-looking partial manifest. Existing complete manifests remain in place.
 - **Previous immutable genesis, signed SQLite journal, working adapter/optimizer snapshot, and cryptographic peer profile remain on disk.** On next `train-live` start, the **original immutable genesis + original journal are replayed**. Never replace the genesis `.fstate` with a derived trained checkpoint while retaining the same journal: that would double-apply signed updates and change room identity. The newly exported weights are a separate artifact for loading/archival/export, not an automatic compacted training genesis.
 - Model-export calls are moved off the asyncio event loop, so they do not block asynchronous RTC housekeeping during the stop-save procedure. POSIX trainer subprocesses have a distinct process session to avoid receiving a terminal/window hangup during lengthy exports. Closing a GUI sends a graceful stop; if exporting takes longer than the UI cleanup timeout, the child may continue independently until the checkpoint is complete. **Check for `CHECKPOINT SAVE COMPLETE` in the GUI logs and inspect the manifest before treating it as a completed backup.** Do not kill the worker or delete the directory while saving.
 - GUI has **Open checkpoint location**, **Open trained model shard location**, and **Open genesis location** buttons. These expose only validated room-owned paths and launch the native file manager without shell interpolation. The current run's manifest path is also shown.
@@ -14,7 +14,7 @@
 
 ## Usage
 
-From `fedpara/`:
+From `kcia/`:
 
 ```bash
 python -m patchlib.cli gui

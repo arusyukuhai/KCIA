@@ -1,4 +1,4 @@
-# Kagami v86 — Unrecognized model diagnosis & safe config identity
+# KCIA v86 — Unrecognized model diagnosis & safe config identity
 
 ## What v86 fixes
 
@@ -13,7 +13,7 @@ The user-reported error `Unrecognized model in ... Should have a model_type key 
 
 ## How to diagnose your exact failure
 
-From inside the extracted `kagami-v86` directory, substitute the same ID/revision that appears after **`Unrecognized model in`**:
+From inside the extracted `kcia-v86` directory, substitute the same ID/revision that appears after **`Unrecognized model in`**:
 
 ```bash
 python -m patchlib.cli hf-diagnose --model <ORG/MODEL-OR-LOCAL-PATH> --revision main

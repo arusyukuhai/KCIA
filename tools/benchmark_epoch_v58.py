@@ -14,7 +14,7 @@ from patchlib.epoch_frozen_export_v58 import capture,finish_deferred_frontier
 
 
 def run(origins=4096,steps=5):
-    with tempfile.TemporaryDirectory(prefix='kagami-v58bench-') as temp:
+    with tempfile.TemporaryDirectory(prefix='kcia-v58bench-') as temp:
         path=Path(temp)/'index.db'
         db=sqlite3.connect(path)
         db.execute('PRAGMA journal_mode=WAL')

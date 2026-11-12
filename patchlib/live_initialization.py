@@ -10,12 +10,12 @@ import torch
 TINY_STORIES_ID = 'roneneldan/TinyStories-1M'
 TINY_STORIES_REVISION = '77f1b168e219585646439073245fe87e56b3023e'
 TINYSTORIES_DATA_REVISION = 'f54c09fd23315a6f9c86f9dc80f725de7d8f9c64'
-RANDOM_MANIFEST_DESCRIPTION = 'fedpara:random-tinystories-1m:v1'
+RANDOM_MANIFEST_DESCRIPTION = 'kcia:random-tinystories-1m:v1'
 
 
 def room_initialization(manifest):
     desc=manifest['model'].get('description','')
-    if desc in ('kagami:architecture:v1','kagami:python-config:v1'):
+    if desc in ('kcia:architecture:v1','kcia:python-config:v1'):
         from .model_design import validate_design, DESCRIPTION
         design=validate_design(manifest.get('design'))
         if DESCRIPTION[design['mode']] != desc:
@@ -25,7 +25,7 @@ def room_initialization(manifest):
         if manifest['model']['id'] != TINY_STORIES_ID or manifest['model']['revision'] != TINY_STORIES_REVISION or manifest['model']['architecture'] != 'causal-lm':
             raise ValueError('random TinyStories room model must use the pinned official GPT-Neo model/revision')
         return 'random'
-    if desc.startswith('fedpara:random-'):
+    if desc.startswith('kcia:random-'):
         raise ValueError('unsupported pinned random model architecture')
     return 'pretrained'
 

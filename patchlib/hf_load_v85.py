@@ -1,7 +1,7 @@
-"""Kagami v85: consistently recover *auditable* legacy HF configs on all loads.
+"""KCIA v85: consistently recover *auditable* legacy HF configs on all loads.
 
 Transformers AutoTokenizer.from_pretrained() can call AutoConfig internally when
-no tokenizer_class is explicitly provided. The old Kagami workaround only
+no tokenizer_class is explicitly provided. The old KCIA workaround only
 wrapped *model* config loads; thus data/eval/RM/Critic could still raise the
 original ``Should have a model_type key in its config.json`` error.
 
@@ -77,7 +77,7 @@ def load_hf_model(model_class, repo, *, revision='main', trust_remote_code=False
             raise MissingModelTypeError(
                 f'Model {repo!r}@{revision!r} failed inside from_pretrained '
                 'despite an explicit config. This is not an inference problem '
-                'that Kagami can safely repair; check the exact base model '
+                'that KCIA can safely repair; check the exact base model '
                 'directory and its config.json. Original: '+str(exc)) from exc
         opts['config']=_compat_config(repo, revision, local_files_only=local_files_only)
         try:

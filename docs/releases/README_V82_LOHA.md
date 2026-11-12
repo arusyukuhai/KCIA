@@ -1,4 +1,4 @@
-# Kagami v82 — LoHA-aware Actor probability replay (2026-10-28)
+# KCIA v82 — LoHA-aware Actor probability replay (2026-10-28)
 
 ## Summary
 

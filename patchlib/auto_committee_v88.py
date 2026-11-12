@@ -25,8 +25,8 @@ from cryptography.hazmat.primitives.serialization import (Encoding, PublicFormat
 from .core import PatchError, _canonical_json
 from .roomid import id_from_raw_key
 
-PROTOCOL_V88 = 'kagami-automatic-committee-v88'
-PROTOCOL = 'kagami-automatic-committee-v90'
+PROTOCOL_V88 = 'kcia-automatic-committee-v88'
+PROTOCOL = 'kcia-automatic-committee-v90'
 
 
 def bootstrap_ready(*, online_count: int, elapsed: float, stable: float) -> bool:

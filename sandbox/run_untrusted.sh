@@ -19,7 +19,7 @@ case "$1" in
   train|state-export|state-import|merge) ;;
   *) echo 'Only offline CLI operations are allowed in this sandbox.' >&2; exit 2 ;;
 esac
-# Build offline-runtime image separately: docker build -f sandbox/Dockerfile.offline -t fedpara-untrusted-cpu .
+# Build offline-runtime image separately: docker build -f sandbox/Dockerfile.offline -t kcia-untrusted-cpu .
 # Disable networking and privileges, mount only explicitly chosen directories.
 exec docker run --rm -i \
   --network none --read-only \
@@ -28,7 +28,7 @@ exec docker run --rm -i \
   --user "$(id -u):$(id -g)" \
   --tmpfs /tmp:rw,nosuid,nodev,size=2g,mode=1777 \
   -e HOME=/tmp -e HF_HOME=/tmp/hf -e HF_MODULES_CACHE=/tmp/hf/modules \
-  -e HF_HUB_OFFLINE=1 -e TRANSFORMERS_OFFLINE=1 -e FEDPARA_ISOLATED_RUNTIME=1 \
+  -e HF_HUB_OFFLINE=1 -e TRANSFORMERS_OFFLINE=1 -e KCIA_ISOLATED_RUNTIME=1 \
   -v "$model_dir:/model:ro" \
   -v "$data_dir:/data:ro" -v "$output_dir:/out:rw" \
-  -w /app fedpara-untrusted-cpu python -m patchlib.cli "$@"
+  -w /app kcia-untrusted-cpu python -m patchlib.cli "$@"

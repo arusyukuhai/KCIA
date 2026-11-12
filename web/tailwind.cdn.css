@@ -1,5 +1,4 @@
-/* Kagami UI: locally bundled layout; user-requested remote fonts only. */
-/* CDN fonts are requested asynchronously after GUI readiness by compose_html. */
+/* KCIA UI: locally bundled layout. Use predictable native Japanese fallbacks offline. */
 
 :root {
     color-scheme: dark;
@@ -14,9 +13,6 @@
     --radius: 13px;
     font-family: var(--jp);
     font-synthesis: none;
-}
-*{
-    font-family: "Myriad Pro SemiCondensed", "Myriad Pro", "Myriad SemiCondensed", "Noto Sans JP", sans-serif !important;
 }
 * {
     box-sizing: border-box;
@@ -955,8 +951,7 @@ label select {
     background: #07100b;
     color: #aaf2c6;
     font:
-        12px/1.5 "Myriad Pro SemiCondensed",
-        "Myriad Pro",
+        12px/1.5 "myriad-pro-cond",
         "Noto Sans JP",
         sans-serif;
     tab-size: 4;
@@ -1422,7 +1417,7 @@ label select {
     }
 }
 
-/* Kagami v34: strict square geometry; bundled UI uses the *installed* Noto
+/* KCIA v34: strict square geometry; bundled UI uses the *installed* Noto
    Sans JP family with Japanese CJK fallbacks. No external font requests. */
 *,
 *::before,
@@ -1472,7 +1467,7 @@ label select {
     color: var(--white);
 }
 
-/* Kagami v34: scroll inside data panels, not the entire desktop window. */
+/* KCIA v34: scroll inside data panels, not the entire desktop window. */
 html,
 body,
 button,
@@ -1514,12 +1509,11 @@ textarea {
     max-width: 100%;
 }
 
-/* Kagami v36: Japanese glyphs from Noto Sans JP; Latin preferentially
-   from the user-specified Myriad Pro provider, then local semiconductensed.
-   Font-family fallback naturally selects Noto Sans JP for missing glyphs. */
+/* v123: Adobe Fonts for Latin glyphs; Noto Sans JP and OS-native CJK fallbacks.
+   Fonts load asynchronously so no network dependency blocks startup. */
 :root {
-    --jp: "Myriad Pro SemiCondensed", "Myriad Pro", "Myriad SemiCondensed", "Noto Sans JP", sans-serif;
-    --latin: "Myriad Pro SemiCondensed", "Myriad Pro", "Myriad SemiCondensed", "Noto Sans JP", sans-serif;
+    --jp: "myriad-pro-cond", "Myriad Pro Condensed", "Noto Sans JP", "Noto Sans CJK JP", "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic", "Meiryo", sans-serif;
+    --latin: "myriad-pro-cond", "Myriad Pro Condensed", "Noto Sans JP", "Noto Sans CJK JP", "Arial Narrow", sans-serif;
 }
 html,
 body,
@@ -1926,3 +1920,193 @@ input::selection {
 .charts.focus-sft .chart-box:not(.chart-sft),
 .charts.focus-ppo .chart-box:not(.chart-ppo) { display: none; }
 .charts-toolbar { position: sticky; top: 0; z-index: 2; background: var(--panel, #102119); }
+
+/* v114: exact uploaded KCIA SVG, scaled to the sidebar without rasterization. */
+.brand-logo {display:flex; align-items:center; width:100%; height:54px; padding:0 5px 6px;}
+.kcia-logo {display:block; height:auto; width:100%; max-width:200px; max-height:49px;}
+.model-picker-entry {display:flex; align-items:stretch; gap:7px; min-width:0;}
+.model-picker-entry input {flex:1; min-width:0; min-height:32px; padding:6px 9px;}
+.model-picker-entry button {flex:0 0 auto; padding:6px 10px; font-size:11px; white-space:nowrap;}
+#newModelStatus {font-size:10px; max-width:200px; text-align:right; line-height:1.4; overflow-wrap:anywhere;}
+@media (max-width:700px) {.model-picker-entry {flex-wrap:wrap;} .model-picker-entry button{width:100%;}}
+
+/* v115 — frameless native window with a narrow, deliberate drag handle. */
+.window-drag { flex: 1 1 auto; min-width: 70px; align-self: stretch; display:flex;
+  flex-direction:column; justify-content:center; cursor:move; user-select:none; }
+.window-controls { display:flex; gap:2px; align-items:center; margin-left:6px;
+  border-left:1px solid var(--line); padding-left:9px; }
+.window-controls button { appearance:none; color:#bde8d2; background:transparent;
+  border:0; width:33px; height:32px; padding:0; cursor:pointer;
+  font:600 20px var(--latin); border-radius:0; }
+.window-controls button:hover,.window-controls button:focus-visible { background:#164b33; outline:1px solid #34d399; }
+.window-controls #windowClose:hover,.window-controls #windowClose:focus-visible { background:#a52c37; color:white; outline:0; }
+@media (max-width:1120px) { .window-controls button { width:28px; } }
+
+/* v117: reliable, explicit native drag handles and flush-left KCIA brand. */
+.sidebar .brand-logo {
+  justify-content: flex-start;
+  align-items: center;
+  text-align: left;
+  margin: 0;
+  padding: 0 0 6px 0;
+  width: 100%;
+  cursor: grab;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.sidebar .brand-logo:active, .window-drag:active { cursor: grabbing; }
+.sidebar .brand-logo .kcia-logo {
+  width: 100%;
+  max-width: 195px;
+  height: auto;
+  margin: 0 auto 0 0;
+  align-self: flex-start;
+  flex: 0 1 auto;
+  pointer-events: none;
+}
+/* Pointer targets inside the draggable surface must not intercept dragging. */
+.window-drag {cursor: grab; -webkit-user-select: none; user-select: none;}
+.window-drag > * {pointer-events: none; -webkit-user-select: none; user-select: none;}
+.window-controls, .top-actions, .window-controls button {
+  -webkit-app-region: no-drag;
+  pointer-events: auto;
+}
+@media (max-width:1120px) {
+  .sidebar .brand-logo .kcia-logo {max-width: 100%;}
+}
+
+/* v118: align painted KCIA geometry, not just the letterboxed SVG viewport.
+   v117's width:100% with max-height:49px introduced invisible side margins. */
+.sidebar .brand-logo {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  text-align: left;
+  padding-left: 0;
+  padding-right: 0;
+}
+.sidebar .brand-logo .kcia-logo {
+  display: block;
+  flex: 0 0 auto;
+  width: 138px;
+  height: auto;
+  max-width: 100%;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  align-self: center;
+  overflow: visible;
+  pointer-events: none;
+}
+
+/* v119: restore breathing room and align the KCIA mark with sidebar text. */
+.sidebar .brand-logo {box-sizing:border-box; padding:6px 10px 12px; height:72px; min-height:72px;}
+.sidebar .brand-logo .kcia-logo {width:154px; max-width:calc(100% - 1px); height:auto;}
+/* Training metric descriptions must never paint over the chart divider. */
+.training-left {grid-template-rows:minmax(130px,auto) minmax(0,1fr) minmax(100px,.25fr); gap:14px;}
+.training-left .metrics {min-height:130px; overflow:visible; align-items:stretch;}
+.metrics .metric {min-width:0; min-height:130px; justify-content:space-around; gap:7px; padding:16px 18px; overflow-wrap:anywhere;}
+.metrics .metric strong {font-size:clamp(22px,2vw,33px); line-height:1.05; letter-spacing:-.7px;}
+.metrics .metric span {line-height:1.3; font-size:11px;}
+.metrics .metric small {line-height:1.45; font-size:11px; max-width:100%;}
+.charts {padding:12px 16px;}
+.charts-toolbar {display:flex; flex-wrap:wrap; align-items:center; gap:10px; padding:8px 6px 12px; min-height:49px; justify-content:flex-start;}
+.charts-toolbar select,.charts-toolbar #chartFocus {height:35px; min-height:35px; width:auto; min-width:132px; padding:6px 26px 6px 10px;}
+.charts-toolbar span {font-size:11px; padding-right:4px; white-space:nowrap;}
+.charts {grid-template-rows:minmax(49px,auto) minmax(0,1fr) minmax(0,1fr);}
+.charts.focus-loss,.charts.focus-accuracy,.charts.focus-pt,.charts.focus-sft,.charts.focus-ppo {grid-template-rows:minmax(49px,auto) minmax(0,1fr);}
+.new-objective-panel,.new-optimization-panel {margin:18px 0 0; padding:20px 22px; background:var(--panel,#102119); border:1px solid var(--line);}
+.new-objective-panel summary {font-weight:700; padding:8px 0 14px; cursor:pointer;}
+.new-optimization-panel {display:grid; grid-template-columns:minmax(190px,1fr) minmax(160px,260px); gap:12px; align-items:center;}
+.new-optimization-panel p {grid-column:1; grid-row:2; margin:0;}
+.new-optimization-panel label {grid-column:2; grid-row:1 / 3;}
+.new-optimization-panel input[readonly] {opacity:.7; cursor:not-allowed;}
+@media(max-width:1100px) { .metrics .metric {padding:12px;}.training-left {grid-template-rows:minmax(142px,auto) minmax(0,1fr) minmax(95px,.25fr);} }
+@media(max-width:800px) { .training-left .metrics {grid-template-columns:repeat(2,minmax(0,1fr));}.metrics .metric {min-height:100px;}.training-left {grid-template-rows:minmax(200px,auto) minmax(0,1fr) minmax(100px,.25fr);}.new-optimization-panel {display:block;}.new-optimization-panel label {margin-top:12px;} }
+/* v119.1: keep all nine objective plots at readable fixed height while
+   the chart pane itself scrolls. A multi-row flexible grid collapsed their
+   headings over each other when the window was short. */
+.charts,
+.charts.focus-loss,.charts.focus-accuracy,.charts.focus-pt,.charts.focus-sft,.charts.focus-ppo {
+  display:grid;
+  grid-template-columns:minmax(0,1fr);
+  grid-template-rows: minmax(49px,49px);
+  grid-auto-rows: 185px;
+  align-content:start;
+  overflow-y:auto;
+  overflow-x:hidden;
+  scrollbar-gutter:stable;
+}
+.charts .chart-box {min-height:175px;height:185px;overflow:hidden;}
+.charts .chart-box svg {min-height:132px;max-height:147px;flex:1 1 auto;}
+.charts .chart-header {flex:0 0 auto;padding:3px 0 10px;line-height:1.4;}
+
+/* Room refresh is counted in publications; two columns avoid cramped 4-up stats. */
+.auto-status {grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px 16px;}
+.auto-status > div b {font-size:15px; white-space:normal;overflow-wrap:anywhere;}
+
+/* v120: no fake controls in recovery mode with the real OS titlebar. */
+.native-titlebar .window-controls { display: none !important; }
+.native-titlebar .pywebview-drag-region { cursor: default; }
+
+/* v121: destructive test-data reset is explicit and isolated from navigation. */
+.reset-all-trigger { width:100%; margin-top:12px; text-align:left; font-size:11px; }
+.kcia-reset-dialog[hidden] { display:none !important; }
+.kcia-reset-dialog { position:fixed; inset:0; z-index:99999; display:flex;
+  align-items:center; justify-content:center; padding:24px; }
+.kcia-reset-scrim { position:absolute; inset:0; background:rgba(0,0,0,.82); }
+.kcia-reset-content { position:relative; width:min(100%,650px); max-height:min(85vh,780px);
+  overflow:auto; padding:24px; background:#08150e; border:2px solid #46775c;
+  color:#e9fff0; box-shadow:0 12px 42px #000; line-height:1.65; }
+.kcia-reset-content > p { margin:14px 0; }
+.kcia-reset-content strong { font-weight:750; }
+.kcia-reset-content .reset-cli-choice { display:flex; align-items:center; gap:9px;
+  padding:9px 0; font-size:12px; flex-direction:row; justify-content:flex-start; }
+.kcia-reset-content .reset-cli-choice input { width:auto; margin:0; }
+.kcia-reset-content pre { white-space:pre-wrap; overflow-wrap:anywhere; font:12px/1.5 ui-monospace,Menlo,monospace;
+  max-height:190px; overflow:auto; border:1px solid #405a4b; padding:12px; }
+.kcia-reset-content .reset-phrase-label { display:flex; flex-direction:column; gap:6px; margin:16px 0; }
+.kcia-reset-content .buttonrow { margin-top:13px; display:flex; flex-wrap:wrap; }
+
+/* v123: keep the requested Adobe Fonts family first for Latin glyphs,
+   while retaining Japanese fallbacks on all platforms. */
+:root { --jp: "myriad-pro-cond", "Myriad Pro Condensed", "Noto Sans JP", "Noto Sans CJK JP", "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic", "Meiryo", sans-serif;
+        --latin: "myriad-pro-cond", "Myriad Pro Condensed", "Noto Sans JP", "Noto Sans CJK JP", "Arial Narrow", sans-serif; }
+html,body,button,input,select,textarea,pre,code,svg text {font-family:var(--jp)!important;}
+
+/* Actual modal, not a huge block appended below NEW MODEL's viewport. */
+#objectiveDialog[hidden] {display:none!important;}
+#objectiveDialog {position:fixed;inset:0;z-index:600;display:flex;align-items:center;justify-content:center;padding:clamp(12px,3vh,28px);}
+.objective-dialog-backdrop {position:absolute;inset:0;background:rgba(0,6,3,.84);}
+.objective-dialog-window {position:relative;display:flex;flex-direction:column;min-width:0;width:min(960px,calc(100vw - 32px));max-height:calc(100dvh - 32px);background:#091b13;border:1px solid #3b7c59;box-shadow:0 22px 100px #000d;overflow:hidden;}
+.objective-dialog-header {display:flex;justify-content:space-between;gap:12px;align-items:center;flex:0 0 auto;padding:16px 20px;border-bottom:1px solid #305841;background:#0d2419;}
+.objective-dialog-header h2{font-size:19px;line-height:1.2;}
+.objective-dialog-header small{color:#77cba0;}
+.objective-dialog-header button{min-width:35px;min-height:35px;}
+.objective-dialog-body {flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;scrollbar-gutter:stable;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:16px 20px 24px;touch-action:pan-y;}
+.objective-dialog-body .mixed-panel{margin:0;padding:0;border:0;background:transparent;display:block;width:100%;height:auto;overflow:visible;}
+.objective-dialog-body .mixed-panel summary{padding:10px 0 12px;}
+.objective-dialog-body .mixed-inner {min-height:0;overflow:visible;}
+.objective-dialog-body .mixed-segment {min-width:0;}
+.objective-dialog-body .mixed-path {flex-wrap:wrap;}
+.objective-dialog-body input,.objective-dialog-body select {width:100%;}
+.objective-dialog-body .mixed-path button {flex:0 0 auto;white-space:normal;}
+.objective-dialog-footer{flex:0 0 auto;padding:12px 20px;border-top:1px solid #305841;display:flex;justify-content:flex-end;gap:10px;background:#0d2419;}
+#chooseObjectives{margin-top:10px;display:block;min-height:40px;text-align:left;width:100%;}
+#objectiveSummary{line-height:1.5;overflow-wrap:anywhere;margin:6px 0 0;}
+/* Hub picker may be opened from within the objective editor. */
+.hub-picker{z-index:850;}
+@media(max-height:700px){#objectiveDialog{padding:8px;}.objective-dialog-window{max-height:calc(100dvh - 16px);}.objective-dialog-header{padding:10px 15px;}.objective-dialog-body{padding:12px 15px;}.objective-dialog-footer{padding:9px 15px;}}
+
+/* v124: consistently sized SVG nav symbols, no glyph fallback */
+.nav-btn .navicon { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 22px; width:22px; height:22px; line-height:1; }
+.nav-btn .navicon svg { display:block; flex:none; width:19px; height:19px; stroke:currentColor; }
+
+/* v125: nonblocking Adobe Fonts diagnostic; only a loaded FontFace is success. */
+.font-status { border:1px solid #365746; background:#091c13; color:#87ba9e;
+  font-family:var(--latin); padding:5px 8px; min-width:72px; height:30px;
+  font-size:11px; letter-spacing:.3px; cursor:pointer; white-space:nowrap; }
+.font-status.font-active { color:#64eab0; border-color:#285f47; }
+.font-status.font-error,.font-status.font-missing,.font-status.font-unsupported,.font-status.font-partial { color:#ffc59b; border-color:#81513a; }
+.font-status.font-loading { color:#b9cbbf; }
+@media (max-width:1130px) { .font-status {min-width:54px; padding-inline:4px;} .top-actions {gap:8px;} }

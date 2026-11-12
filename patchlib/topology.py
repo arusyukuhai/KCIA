@@ -19,7 +19,7 @@ _FNV_OFFSET = 0xcbf29ce484222325
 
 def _ring_key(peer: str, ring: int) -> tuple[int, str]:
     h = _FNV_OFFSET
-    for b in (f'kagami-v49-ring-{ring}:'.encode('ascii') + peer.encode('ascii')):
+    for b in (f'kcia-v49-ring-{ring}:'.encode('ascii') + peer.encode('ascii')):
         h = ((h ^ b) * _FNV_PRIME) & _MASK
     h ^= h >> 33
     h = h * 0xff51afd7ed558ccd & _MASK

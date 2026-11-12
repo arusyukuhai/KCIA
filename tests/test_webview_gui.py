@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import pytest
 
 from patchlib.webview_controller import WebviewController
-from patchlib.webview_gui import FedparaBridge, compose_html, run_webview
+from patchlib.webview_gui import KCIABridge, compose_html, run_webview
 
 
 def test_serverless_inline_webview_page():
@@ -26,7 +26,7 @@ def test_serverless_inline_webview_page():
 
 def test_bridge_roundtrip_room_dataset_and_code(tmp_path):
     controller = WebviewController(tmp_path)
-    bridge = FedparaBridge(controller)
+    bridge = KCIABridge(controller)
     rid = bridge.new_room()['room']
     defaults = bridge.defaults()
     assert defaults['sources']
@@ -60,7 +60,7 @@ def test_webview_launch_does_not_bind_tcp_port(tmp_path, monkeypatch):
             assert kw['debug'] is False
             assert self.info.get('url') is None
             assert 'html' in self.info
-            assert isinstance(self.info['js_api'], FedparaBridge)
+            assert isinstance(self.info['js_api'], KCIABridge)
     view = FakeWebview()
     import socket
     def forbidden(*args, **kwargs):
@@ -72,7 +72,7 @@ def test_webview_launch_does_not_bind_tcp_port(tmp_path, monkeypatch):
 def test_join_reads_room_v2_without_code_execution(tmp_path, monkeypatch):
     import patchlib.webview_controller as vc
     controller = vc.WebviewController(tmp_path)
-    bridge = FedparaBridge(controller)
+    bridge = KCIABridge(controller)
     manifest = vc.make_hf_manifest('org/model', 'abc123', [{
         'repo':'org/dataset','revision':'abc123','config':None,'split':'train',
         'columns':{'text':'text'},'weight':1.0
@@ -95,7 +95,7 @@ def test_cli_gui_uses_webview(monkeypatch):
     import patchlib.webview_gui as wg
     called=[]
     monkeypatch.setattr(wg, 'run_webview', lambda: called.append(True))
-    monkeypatch.setattr(sys, 'argv', ['fedpara','gui'])
+    monkeypatch.setattr(sys, 'argv', ['kcia','gui'])
     cli.main()
     assert called == [True]
 
@@ -143,7 +143,7 @@ def test_noir_emerald_design_system_with_user_selected_fonts():
     # A single invariant protects the requested black/white retro-modern
     # appearance against a return to the old blue/dark dashboard theme.
     html = compose_html()
-    assert 'Noto Sans JP' in html and 'Myriad Pro' in html
+    assert 'Noto Sans JP' in html and 'myriad-pro-cond' in html
     assert 'Courier New' not in html and 'Chicago' not in html
     assert '--color-paper: #000000' in html
     assert '--color-ink: #e5f6ec' in html
@@ -153,7 +153,8 @@ def test_noir_emerald_design_system_with_user_selected_fonts():
     assert '.model-card' in html and '.models-layout' in html
     assert 'prefers-reduced-motion' in html
     assert 'https://fonts.googleapis.com' in html
-    assert 'https://fonts.cdnfonts.com/css/myriad-pro' in html
+    assert 'Hiragino Kaku Gothic ProN' in html
+    assert 'fonts.cdnfonts.com/css/myriad-pro' not in html
     assert "background_color='#080e0b'" in Path(__import__('patchlib.webview_gui',fromlist=['__file__']).__file__).read_text()
     assert 'status-error' in html and 'status-ok' in html
     assert '#527cf0' not in html

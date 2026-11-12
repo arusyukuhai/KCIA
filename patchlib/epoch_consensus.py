@@ -1,4 +1,4 @@
-"""Crash-fault-tolerant, authenticated epoch decision protocol for Fedpara v2.
+"""Crash-fault-tolerant, authenticated epoch decision protocol for KCIA v2.
 
 A *single-decree Paxos* ballot is scoped to an immutable checkpoint/roster.
 All protocol statements are Ed25519 signed, durable BEFORE acknowledgements,
@@ -61,7 +61,7 @@ def make_value(epoch: str, base: str, committee: tuple[str,...], updates: list[d
         keys.add(key)
         canonical.append(dict(item))
     canonical.sort(key=lambda x:(x['origin'],x['seq']))
-    return {'format':'fedpara-epoch-value-v2','epoch':epoch,'base':base,
+    return {'format':'kcia-epoch-value-v2','epoch':epoch,'base':base,
             'committee_sha256':_hash(sorted(committee)),
             'updates':canonical,'eta':float(eta),'ridge':float(ridge)}
 

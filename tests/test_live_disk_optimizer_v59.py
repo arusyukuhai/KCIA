@@ -145,7 +145,7 @@ def test_live_fedsum_mutates_only_its_private_disk_base(tmp_path):
         return e
     first=install('alice')
     second=install('bob')
-    assert first.adapter.model[0]._fedpara_disk_path != second.adapter.model[0]._fedpara_disk_path
+    assert first.adapter.model[0]._kcia_disk_path != second.adapter.model[0]._kcia_disk_path
     original=second.adapter.model[0].parametrizations.weight.original.clone()
     opt=torch.optim.AdamW(first.adapter.trainable_parameters(),lr=.002)
     data=torch.randn(3,7)
@@ -238,8 +238,8 @@ def test_live_cli_model_loader_isolates_shadow_weights(tmp_path,monkeypatch):
     model_b,b=cli.load(args)
     assert len(set(used))==2
     assert all(str(p).startswith(str(args.disk_linear_dir)) for p in used)
-    backing_a=model_a[0]._fedpara_disk_source
-    backing_b=model_b[0]._fedpara_disk_source
+    backing_a=model_a[0]._kcia_disk_source
+    backing_b=model_b[0]._kcia_disk_source
     data_a=Path(backing_a).read_bytes()
     assert Path(backing_b).is_file()
     with torch.no_grad():

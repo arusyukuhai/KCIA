@@ -10,9 +10,9 @@
 
 ## 今すぐ復旧したいとき
 
-1. `python kagami.py disk-report --journal /path/to/events.sqlite3` で空き容量・保存領域を確認。
+1. `python kcia.py disk-report --journal /path/to/events.sqlite3` で空き容量・保存領域を確認。
 2. 実際の空きが十分あり、一時的に継続する場合のみ、GUIの **Journal GiB** を4→8などへ変更してから再起動。CLIは `--max-journal-gb 8` を指定。**物理容量が足りないなら上限増加は禁止。** これは暫定対策であり古い履歴は減りません。
-3. 学習を捨ててもよいデバッグルームなら、**全プロセス停止後** `python kagami.py reset-local-data --yes`（CLI既定領域も対象にするなら `--include-cli-defaults` を追加）を実行し、**新しいルーム**で開始。学習済みデータ・ローカル鍵を失うためバックアップを推奨。
+3. 学習を捨ててもよいデバッグルームなら、**全プロセス停止後** `python kcia.py reset-local-data --yes`（CLI既定領域も対象にするなら `--include-cli-defaults` を追加）を実行し、**新しいルーム**で開始。学習済みデータ・ローカル鍵を失うためバックアップを推奨。
 4. 署名履歴を消して学習成果を保持するには、委員会をピン留めした認証済み世代移行の成功が必要です。単に最新weightを保存するだけでは不十分です。
 
 ## 制約

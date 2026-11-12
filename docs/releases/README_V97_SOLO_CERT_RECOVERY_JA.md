@@ -1,4 +1,4 @@
-# Kagami v97: 1/1 epoch candidate が `candidate-offered` で停止する問題の対策
+# KCIA v97: 1/1 epoch candidate が `candidate-offered` で停止する問題の対策
 
 ## 今回提供されたログ
 
@@ -24,13 +24,13 @@
 
 ## 導入とデータ保護
 
-1. KagamiのGUIと学習プロセスをすべて停止する。
+1. KCIAのGUIと学習プロセスをすべて停止する。
 2. **現在のルーム保存領域（鍵・journal・carry・checkpoint・`.live-epoch`を含む）をまるごとバックアップ**する。HDD/SSDの空き容量を確保する。
 3. v97のソースを適用し、同じルームでGUIを再起動する。**`reset-local-data` は使わない**。
 4. 次の読み取り専用コマンドで現在の状態を確認する。
 
 ```bash
-python kagami.py journal-status --journal '/Users/al/Library/Application Support/Kagami/.fedpara-gui/rooms/gcaouHt6-VW-jo_kBI7BBdjIkELOV8Cz/peers/peer-0240df31ec25b1d1/events.sqlite3'
+python kcia.py journal-status --journal '/Users/al/Library/Application Support/KCIA/.kcia-gui/rooms/gcaouHt6-VW-jo_kBI7BBdjIkELOV8Cz/peers/peer-0240df31ec25b1d1/events.sqlite3'
 ```
 
 ## 未解決の可能性

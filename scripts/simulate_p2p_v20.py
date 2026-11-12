@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Offline deterministic Fedpara network scale/churn simulation (stdlib only)."""
+"""Offline deterministic KCIA network scale/churn simulation (stdlib only)."""
 from __future__ import annotations
 import argparse
 import json

@@ -86,7 +86,7 @@ def _reflinks_supported(directory: Path) -> bool:
     dest = source.with_name(source.name + '.clone')
     try:
         with source.open('xb') as writer:
-            writer.write(b'KAGAMI-COW')
+            writer.write(b'KCIA-COW')
         if _mac_clonefile(source, dest):
             return True
         with source.open('rb') as inp, dest.open('xb') as out:

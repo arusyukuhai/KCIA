@@ -8,7 +8,7 @@ import pytest
 
 from patchlib.effectiveness_benchmark import run_effectiveness_benchmark
 from patchlib.webview_controller import WebviewController
-from patchlib.webview_gui import FedparaBridge, compose_html
+from patchlib.webview_gui import KCIABridge, compose_html
 
 
 def test_real_loha_causal_lm_equal_data_budget_and_files(tmp_path):
@@ -51,12 +51,12 @@ def test_invalid_benchmark_dimensions_and_gui_input(tmp_path):
 
 def test_benchmark_gui_bridge_is_functional(tmp_path):
     html=compose_html()
-    # Kagami's six fixed tabs intentionally omit the old benchmark controls.
+    # KCIA's six fixed tabs intentionally omit the old benchmark controls.
     # Benchmark RPC remains supported for compatibility and scripting.
     assert 'id="panel-training"' in html
     assert 'id="panel-new"' in html
     ctl=WebviewController(tmp_path)
-    api=FedparaBridge(ctl)
+    api=KCIABridge(ctl)
     # Keep the CI GUI-process smoke test offline. User GUI defaults to TinyStories-1M.
     response=api.start_benchmark({'model':'toy','dataset':'auto','peers':2,'rounds':1,'local_steps':1,'kind':'loha','rank':4})
     assert response['pid']>0

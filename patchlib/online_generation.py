@@ -1,4 +1,4 @@
-"""Crash-fault quorum certificate and offline-peer recovery for future Kagami epochs.
+"""Crash-fault quorum certificate and offline-peer recovery for future KCIA epochs.
 
 IMPORTANT: This is a *control plane*, not an in-place v1 gossip rebase.
 Existing v1 trainer MUST NOT discard events based on these certificates alone.
@@ -19,7 +19,7 @@ from typing import Callable
 
 from .core import PatchError, _canonical_json
 
-PROTOCOL = 'kagami-online-generation-control-v1'
+PROTOCOL = 'kcia-online-generation-control-v1'
 MAX_VOTERS = 31
 MAX_MEMBERS = 256
 MAX_WIRE = 40 * 1024

@@ -100,7 +100,7 @@ def preflight_pretrained_scalar_head(args, *, download_config=None):
         from .hf_disk_preflight_v101 import is_no_space_error
         if is_no_space_error(exc):
             raise HFValueError('HF Critic config preflight failed due to insufficient physical disk space: '+str(exc)) from exc
-        _LOG.warning('KAGAMI HF CRITIC PREFLIGHT: config metadata unavailable for %s@%s (%s); model loader will verify head later',
+        _LOG.warning('KCIA HF CRITIC PREFLIGHT: config metadata unavailable for %s@%s (%s); model loader will verify head later',
                      spec['repo'],spec['revision'][:12],str(exc)[:180])
         return None
     counts=[]
@@ -122,7 +122,7 @@ def preflight_pretrained_scalar_head(args, *, download_config=None):
             'Hugging Face + Value head initialization = NEW; '
             'do not change an existing signed room protocol. '
             f'Checkpoint: {spec["repo"]}@{spec["revision"][:12]}')
-    _LOG.info('KAGAMI HF CRITIC PREFLIGHT: no declared multi-label mismatch for %s@%s; full pretrained-head verification still required',
+    _LOG.info('KCIA HF CRITIC PREFLIGHT: no declared multi-label mismatch for %s@%s; full pretrained-head verification still required',
               spec['repo'],spec['revision'][:12])
     return counts
 
@@ -201,7 +201,7 @@ class HFValueCritic(nn.Module):
             with torch.no_grad():
                 nn.init.zeros_(self.head.weight)
                 if self.head.bias is not None:nn.init.zeros_(self.head.bias)
-            _LOG.warning('KAGAMI HF CRITIC: NEW untrained scalar value head initialized to zero; PPO will train it, resume restores saved head. This is NOT a pretrained value function.')
+            _LOG.warning('KCIA HF CRITIC: NEW untrained scalar value head initialized to zero; PPO will train it, resume restores saved head. This is NOT a pretrained value function.')
         self.model=model.to(self.device)
         for p in self.model.parameters():p.requires_grad_(False)
         for p in self.head.parameters():p.requires_grad_(True)

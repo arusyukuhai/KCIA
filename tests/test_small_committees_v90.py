@@ -86,7 +86,7 @@ def test_real_compact_certificate_minimum_quorum(tmp_path,n,needed):
     votes=[]
     from patchlib.online_generation import _sign,_digest
     for peer in members[:needed]:
-        votes.append(_sign({'protocol':'kagami-compact-epoch-certificate-v2','kind':'vote',
+        votes.append(_sign({'protocol':'kcia-compact-epoch-certificate-v2','kind':'vote',
                             'room':'room','epoch':1,'proposal':_digest(p)},peer,signers[peer]))
     if needed>1:
         with pytest.raises(PatchError):ledgers[members[0]].certificate(p,votes[:-1])
@@ -124,7 +124,7 @@ def test_existing_two_member_committee_must_not_downgrade_when_peer_disappears(t
     proposal=proposal_v2(room='room',epoch=1,parent='a'*64,manifest='b'*64,
                   semantic='c'*64,inventory='d'*64,frontier_header=header,replicas=members)
     from patchlib.online_generation import _sign,_digest
-    only_owner=_sign({'protocol':'kagami-compact-epoch-certificate-v2','kind':'vote',
+    only_owner=_sign({'protocol':'kcia-compact-epoch-certificate-v2','kind':'vote',
                       'room':'room','epoch':1,'proposal':_digest(proposal)},
                      members[0],signers[members[0]])
     with pytest.raises(PatchError):ledger.certificate(proposal,[only_owner])

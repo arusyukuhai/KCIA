@@ -1,4 +1,4 @@
-"""Purpose-aware, metadata-only Hugging Face discovery for the Kagami desktop.
+"""Purpose-aware, metadata-only Hugging Face discovery for the KCIA desktop.
 
 Candidate ranking is heuristic. Never equate search matching with a validated
 schema, scalar value head, trained reward head, model license or loadability.
@@ -14,17 +14,26 @@ from collections import OrderedDict
 from concurrent.futures import Future
 from typing import Any
 
-ROLES = ('pt', 'sft', 'ppo', 'reward', 'critic')
+ROLES = ('model', 'pt', 'sft', 'ppo', 'reward', 'critic')
 _SHA = re.compile(r'[a-fA-F0-9]{40}\Z')
 # Role-specific seed searches. No hard-coded dataset/model allowlist.
 SEEDS = {
+    'model': ('tinystories', 'qwen', 'pythia'),
     'pt': ('pretraining', 'fineweb', 'text'),
     'sft': ('sft', 'instruction', 'conversation'),
     'ppo': ('prompts', 'rlhf', 'preference'),
     'reward': ('reward', 'rm', 'preference'),
     'critic': ('value', 'critic', 'value-head'),
 }
+MODEL_SEEDS = {
+    'causal-lm': ('tinystories', 'qwen', 'pythia'),
+    'masked-lm': ('bert', 'roberta', 'electra'),
+    'seq2seq-lm': ('t5', 'bart', 'flan'),
+    'sequence-classification': ('bert', 'roberta', 'distilbert'),
+}
+
 SIGNALS = {
+    'model': ('causal-lm', 'text-generation', 'gpt', 'llama', 'qwen', 'pythia', 'tinystories'),
     'pt': ('pretrain', 'fineweb', 'corpus', 'text', 'language-model', 'webtext', 'tinystories'),
     'sft': ('sft', 'instruction', 'conversation', 'chat', 'instruct', 'assistant', 'alpaca'),
     'ppo': ('prompt', 'rlhf', 'preference', 'feedback', 'question', 'ranking'),
@@ -38,13 +47,19 @@ def _string_attr(obj: Any, name: str) -> str:
     return val if isinstance(val, str) else ''
 
 
-def _classify(role: str, item: Any) -> tuple[int, str]:
+def _classify(role: str, item: Any, *, task: str | None = None) -> tuple[int, str]:
     name = _string_attr(item, 'id').lower()
     tags = ' '.join(str(s).lower() for s in (getattr(item, 'tags', None) or ()) if isinstance(s, str))
     haystack = name + ' ' + tags
     hits = [x for x in SIGNALS[role] if x in haystack]
     match = hits[0] if hits else ''
     score = len(hits) * 3 + (5 if any(s in name for s in SIGNALS[role]) else 0)
+    if role == 'model' and _string_attr(item, 'pipeline_tag') == {
+        'causal-lm':'text-generation', 'masked-lm':'fill-mask',
+        'seq2seq-lm':'text2text-generation', 'sequence-classification':'text-classification',
+    }.get(task or 'causal-lm'):
+        score += 5
+        match = match or 'text-generation task'
     if role == 'pt' and ('language-modeling' in tags or 'language_modeling' in tags):
         score += 3
         match = match or 'language-modeling tag'
@@ -57,7 +72,9 @@ def _classify(role: str, item: Any) -> tuple[int, str]:
         if role == 'critic' and ('reward' in name and not match):
             # A reward model is not automatically a trained value critic.
             score -= 3
-    if match:
+    if role == 'model':
+        reason = ('Model metadata: '+match if match else 'Task-category candidate') + '; verify config, weights, license and device compatibility'
+    elif match:
         reason = f'Metadata hint: {match}; columns/head must be checked'
     else:
         reason = 'Task category only; inspect columns/head before training'
@@ -122,11 +139,16 @@ def discover_hub_assets(payload: dict, *, api: Any = None, cache: HubDiscoveryCa
     if not isinstance(query, str) or len(query.strip()) > 100 or not isinstance(scope, str) or scope not in ('recommended', 'broader'):
         raise ValueError('Invalid Hub search query or filter')
     query = query.strip()
+    task = payload.get('task', 'causal-lm') if role == 'model' else None
+    pipelines = {'causal-lm':'text-generation','masked-lm':'fill-mask',
+                 'seq2seq-lm':'text2text-generation','sequence-classification':'text-classification'}
+    if role == 'model' and (not isinstance(task,str) or task not in pipelines):
+        raise ValueError('Invalid model task')
     if cache is not None:
         # Keep single-flight tracking out of the Hub's potentially slow network
         # operations. Cache is per-controller, so a private API credential cannot
         # accidentally influence the metadata shown by a different client.
-        return cache.get_or_load((role,scope,query),
+        return cache.get_or_load((role,scope,query,task),
             lambda: discover_hub_assets(payload,api=api,cache=None))
     if api is None:
         try:
@@ -136,7 +158,7 @@ def discover_hub_assets(payload: dict, *, api: Any = None, cache: HubDiscoveryCa
         api = HfApi()
 
     is_dataset = role in ('pt', 'sft', 'ppo')
-    searches = (query,) if query else (SEEDS[role] if scope == 'recommended' else ('',))
+    searches = (query,) if query else ((MODEL_SEEDS[task] if role == 'model' else SEEDS[role]) if scope == 'recommended' else ('',))
     seen: dict[str, tuple[int, dict]] = {}
     errors: list[str] = []
     for search in searches:
@@ -144,6 +166,8 @@ def discover_hub_assets(payload: dict, *, api: Any = None, cache: HubDiscoveryCa
         if scope == 'recommended':
             if role == 'pt':
                 opts['filter'] = 'task_ids:language-modeling'
+            elif role == 'model':
+                opts['pipeline_tag'] = pipelines[task]
             elif not is_dataset:
                 opts['pipeline_tag'] = 'text-classification'
         try:
@@ -153,7 +177,7 @@ def discover_hub_assets(payload: dict, *, api: Any = None, cache: HubDiscoveryCa
                 # Defensive output validation; never inject malformed IDs into the GUI.
                 if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9][A-Za-z0-9_.-]*', repo):
                     continue
-                score, reason = _classify(role, item)
+                score, reason = _classify(role, item, task=task)
                 if scope == 'recommended' and role in ('sft', 'ppo', 'reward', 'critic') and not query and score < 3:
                     continue
                 sha = _string_attr(item, 'sha')
@@ -179,5 +203,5 @@ def discover_hub_assets(payload: dict, *, api: Any = None, cache: HubDiscoveryCa
     if not ranked and errors:
         raise RuntimeError('Hugging Face discovery unavailable: ' + '; '.join(errors))
     return {'role': role, 'scope': scope, 'query': query, 'candidates': [r for _, r in ranked[:24]],
-            'notice': 'Metadata suggestions only. Verify dataset columns and model head before use.',
+            'notice': 'Metadata suggestions only. Verify model architecture or dataset columns before use.',
             'partial_errors': errors[:3]}

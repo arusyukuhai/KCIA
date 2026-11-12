@@ -17,7 +17,7 @@ def test_custom_guard_blocks_host_execution(tmp_path, monkeypatch):
     p.write_text(f"open({str(sentinel)!r}, 'w').write('EXECUTED')\ndef build_model():\n return None\n")
     args=types.SimpleNamespace(trust_remote_code=False,factory_file=str(p),model='x',revision='a'*40,
             allow_legacy_bin=False,cmd='train')
-    monkeypatch.delenv('FEDPARA_ISOLATED_RUNTIME',raising=False)
+    monkeypatch.delenv('KCIA_ISOLATED_RUNTIME',raising=False)
     with pytest.raises(PermissionError, match='Docker'):
         cli._untrusted_guard(args)
     assert not sentinel.exists()
@@ -45,7 +45,7 @@ def build_model():
     ids=torch.tensor([[1,2,3]],dtype=torch.long)
     save_file({'input_ids':ids,'labels':ids.clone()},str(samples/'example.safetensors'))
     out=tmp_path/'a.fpatch'; state=tmp_path/'a.fstate'
-    monkeypatch.setenv('FEDPARA_ISOLATED_RUNTIME','1')
+    monkeypatch.setenv('KCIA_ISOLATED_RUNTIME','1')
     monkeypatch.setenv('HF_HUB_OFFLINE','1')
     monkeypatch.setenv('TRANSFORMERS_OFFLINE','1')
     monkeypatch.setattr(sys,'argv',['cli','train','--model','/model','--factory-file',str(p),

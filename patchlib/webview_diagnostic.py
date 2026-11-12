@@ -1,4 +1,4 @@
-"""Minimal pywebview test independent of Fedpara/torch, for macOS focus/bridge diagnosis.
+"""Minimal pywebview test independent of KCIA/torch, for macOS focus/bridge diagnosis.
 
 Usage: python -m patchlib.webview_diagnostic
 """
@@ -8,7 +8,7 @@ HTML = '''<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.1.10"></script></head>
 <body class="min-h-screen bg-[#080e0b] px-6 py-7 font-mono text-sm text-[#e5f6ec]">
-<h2 class="mb-4 border-b border-emerald-700 pb-3 text-xl font-bold text-emerald-300">Fedpara WebView 操作診断</h2>
+<h2 class="mb-4 border-b border-emerald-700 pb-3 text-xl font-bold text-emerald-300">KCIA WebView 操作診断</h2>
 <p class="my-3 text-[#91a79b]">クリック・入力・Pythonブリッジを独立して確認します。</p>
 <button id="click" class="my-2 cursor-pointer border border-emerald-500 bg-emerald-500 px-4 py-2 font-bold text-emerald-950 hover:bg-emerald-300">1. JavaScriptクリックテスト</button>
 <div id="local" class="min-h-8 border border-emerald-900 bg-[#0d2116] p-3">待機中</div>
@@ -36,7 +36,7 @@ def main():
     import webview
     print('Python executable:', sys.executable, flush=True)
     print('This minimal diagnostic has no TCP listener and does not load torch.', flush=True)
-    webview.create_window('Fedpara WebView Diagnostic', html=HTML, js_api=Api(),
+    webview.create_window('KCIA WebView Diagnostic', html=HTML, js_api=Api(),
                           width=620, height=470, resizable=True)
     webview.start(debug=True)
 

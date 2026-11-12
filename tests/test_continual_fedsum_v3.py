@@ -44,7 +44,7 @@ def test_signed_v3_effects_are_exact_sum_and_dedup(tmp_path):
     _,meta,parts,_=unpack_event(wa,{},unsafe=True)
     assert meta['aggregation']=='sum' and meta['denominator']==1 and meta['elastic_protocol']==PROTOCOL
     # A v2 averaging event is not a valid v3 event.
-    meta['elastic_protocol']='fedpara-continual-elastic-v2'
+    meta['elastic_protocol']='kcia-continual-elastic-v2'
     forged=pack_event(encode_patch(meta,parts),'sum-alice')
     with pytest.raises(PatchError,match='continual protocol'):
         observer._check(forged)

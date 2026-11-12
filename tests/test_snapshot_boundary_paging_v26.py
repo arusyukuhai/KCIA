@@ -150,7 +150,7 @@ def test_sharded_manifest_can_describe_state_over_32_gib_without_allocating_mode
     nshards = 1024  # 64 GiB of state represented by kilobytes of metadata.
     size = shard_bytes * nshards
     meta = {
-        'format':'fedpara-sharded-state','version':1,
+        'format':'kcia-sharded-state','version':1,
         'model_id':'huge', 'revision':'r1', 'peer_id':'p'+'a'*32,
         'seq':0,'shard_bytes':shard_bytes,'total_tensor_bytes':size,
         'tensors':[{'name':'embedding.weight','entry':'tensors/000000.bin',

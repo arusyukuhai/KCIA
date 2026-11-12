@@ -16,7 +16,7 @@ def test_serial_gpu_worker_and_synchronize_on_failure(monkeypatch):
     calls=[]
     executing=0
     lock=threading.Lock()
-    context=contextvars.ContextVar('kagami_mps_test',default='none')
+    context=contextvars.ContextVar('kcia_mps_test',default='none')
     context.set('present')
     monkeypatch.setattr(mps, 'synchronize_mps', lambda: calls.append('sync'))
 
@@ -43,7 +43,7 @@ def test_serial_gpu_worker_and_synchronize_on_failure(monkeypatch):
 
     results=asyncio.run(run())
     assert len(set(threads))==1
-    assert threads[0].startswith('kagami-mps-model')
+    assert threads[0].startswith('kcia-mps-model')
     assert isinstance(results[3], ValueError)
     assert results[0]==0 and results[7]==7
     assert calls==['sync']*8

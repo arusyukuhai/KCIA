@@ -1,4 +1,4 @@
-"""Kagami: self-contained desktop style, legacy diagnostic screens preserved."""
+"""KCIA: self-contained desktop style, legacy diagnostic screens preserved."""
 from pathlib import Path
 
 from patchlib.webview_gui import compose_html
@@ -39,7 +39,7 @@ def test_all_other_html_views_are_tailwind_only():
 
 
 def test_retired_dashboard_is_not_bundled():
-    # Legacy Fedpara P2P console had no served route or runtime references.
+    # Legacy KCIA P2P console had no served route or runtime references.
     assert not (WEB / 'dashboard.html').exists()
 
 

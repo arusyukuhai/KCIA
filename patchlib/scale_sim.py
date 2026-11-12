@@ -1,4 +1,4 @@
-"""Deterministic, dependency-free *network* model of Fedpara sparse signed Gossip.
+"""Deterministic, dependency-free *network* model of KCIA sparse signed Gossip.
 
 This is NOT PyTorch training, aiortc, Nim signaling, or a measured physical
 network. It models bytes, serialization, bounded direct neighbors, drop/churn,

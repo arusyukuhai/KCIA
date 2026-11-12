@@ -26,6 +26,10 @@ def add_model_args(p):
     p.add_argument('--rank', type=int, default=16,help='SHARED room LoHa rank; do not auto-change between peers')
     p.add_argument('--auto-rank',action='store_true',
         help='Local train only: device-based rank default; prohibited for P2P genesis')
+    p.add_argument('--local-loha-rank', default='auto',
+        choices=('auto','full','1','2','4','8','16','32','64','128','256'),
+        help='Per-client physical LoHA factor rank (auto by device budget). '
+             'Reduces adapter, optimizer and signed event bytes. Pinned per journal.')
     p.add_argument('--resource-report',type=Path,
         help='Write device resource/rank/expert recommendations to JSON')
     p.add_argument('--disk-linear-dir',type=Path,
@@ -150,7 +154,7 @@ def add_train_args(p):
     p.add_argument('--critic-hf-max-length',type=int,default=512)
     p.add_argument('--critic-hf-head-init',choices=('pretrained','new'),default='pretrained',
         help='PRETRAINED requires a trained num_labels=1 scalar head. NEW constructs/zeros a fresh 1-output head (not pretrained), then trains it with PPO; new room required.')
-    p.add_argument('--critic-init',type=Path,help='Optional Kagami safetensors value-critic initial weights')
+    p.add_argument('--critic-init',type=Path,help='Optional KCIA safetensors value-critic initial weights')
     p.add_argument('--critic-state-dir',type=Path,help='Private local value-critic optimizer+weights directory')
     p.add_argument('--ppo-reward',choices=('token_match','exact','hf_model'),default='token_match',
                    help='Verifiable ground-truth reward; never model-judged')

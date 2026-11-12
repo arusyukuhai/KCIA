@@ -22,7 +22,7 @@ LOGP_ATOL = 2e-3  # cached-vs-full forward and cross-device floating point toler
 
 
 def _tensor_digest(items):
-    h=hashlib.sha256(b'KAGAMI-V81-MODEL-TENSOR-COMMITMENT\0')
+    h=hashlib.sha256(b'KCIA-V81-MODEL-TENSOR-COMMITMENT\0')
     for name, tensor in sorted(items, key=lambda x:x[0]):
         x=tensor.detach().to('cpu').contiguous()
         if x.layout != torch.strided:

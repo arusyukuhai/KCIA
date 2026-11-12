@@ -13,6 +13,7 @@ from urllib.parse import urlsplit
 from .core import _canonical_json, PatchError
 
 MAX_MANIFEST = 4096
+MAX_HF_MANIFEST = 16384
 HEX = re.compile(r'^[0-9a-f]{64}$')
 ID = re.compile(r'^[A-Za-z0-9_.:/@-]{1,160}$')
 
@@ -75,7 +76,7 @@ def make_manifest(model: str, revision: str, dataset: str, *,
 
 def load_manifest(path: Path) -> dict:
     path = Path(path)
-    if path.stat().st_size > MAX_MANIFEST + 256:raise PatchError('manifest too large')
+    if path.stat().st_size > MAX_HF_MANIFEST + 256:raise PatchError('manifest too large')
     return validate_manifest(json.loads(path.read_text(encoding='utf-8')))
 
 
@@ -147,8 +148,17 @@ def validate_manifest(data: dict) -> dict:
         raise PatchError('room manifest must be JSON object')
     if data.get('version') == 1:
         return _v1_validate_manifest(data)
-    if data.get('version') != 2 or not {'version','model','datasets','code'} <= set(data) or set(data) - {'version','model','datasets','code','design','adapter','generation'}:
+    if data.get('version') != 2 or not {'version','model','datasets','code'} <= set(data) or set(data) - {'version','model','datasets','code','design','adapter','generation','training','optimization'}:
         raise PatchError('invalid room manifest version or fields')
+    if 'training' in data:
+        from .room_training_v119 import validate_training
+        try:validate_training(data['training'],task=data['model']['architecture'])
+        except (ValueError,TypeError,KeyError) as exc:raise PatchError('invalid room training policy: '+str(exc)) from exc
+    if 'optimization' in data:
+        optim=data['optimization']
+        if (not isinstance(optim,dict) or set(optim)!={'reinit_every'} or
+            type(optim['reinit_every']) is not int or not 0 <= optim['reinit_every'] <= 100000):
+            raise PatchError('invalid room reinitialization policy')
     if 'design' in data:
         from .model_design import validate_design, DESCRIPTION
         design=validate_design(data['design'])
@@ -192,6 +202,6 @@ def validate_manifest(data: dict) -> dict:
         parsed=urlsplit(url)
         if parsed.scheme != 'https' or not parsed.hostname or parsed.username or parsed.password or not digest:
             raise PatchError('custom code source must be hash-pinned HTTPS without credentials')
-    if len(_canonical_json(data)) > MAX_MANIFEST:
-        raise PatchError('room manifest exceeds 4KiB')
+    if len(_canonical_json(data)) > MAX_HF_MANIFEST:
+        raise PatchError('room manifest exceeds 16KiB')
     return data

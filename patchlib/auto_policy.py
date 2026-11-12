@@ -58,8 +58,8 @@ def estimate_training_policy(*, config: dict | None, available_ram_bytes: int = 
                       'Live topology is measured after connecting.')}
 
 
-# The wire layout is SHARED and immutable for a given model. Auto-rank runs once
-# at model creation; peers must use the pinned result, not their own preference.
+# The canonical target layout and MAXIMUM rank are shared and immutable.
+# Each upgraded peer independently chooses its physical LoHA rank below the cap.
 RANK_CHOICES = (4, 8, 16, 32, 64)
 
 

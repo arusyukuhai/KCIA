@@ -148,7 +148,7 @@ def test_gui_live_real_command_async_defaults(tmp_path,monkeypatch):
     try:
         controller.start({'room':cfg['room'],'ws':cfg['ws']})
         cmd=calls[0]
-        pairs={'--local-steps':'4','--rank':'16','--wide-lora-rank':'4',
+        pairs={'--local-steps':'4','--rank':'32','--wide-lora-rank':'4',
                '--reinit-every':'20',
                '--rounds':'0','--lr':'0.0001'}
         for flag,value in pairs.items():

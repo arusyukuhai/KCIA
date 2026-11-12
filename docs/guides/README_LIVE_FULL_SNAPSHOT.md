@@ -1,9 +1,9 @@
-# Fedpara — live P2P full-weight bootstrapping (experimental)
+# KCIA — live P2P full-weight bootstrapping (experimental)
 
 This release changes actual data flow, not just `active` log formatting. Room peers now open two **separate ordered WebRTC DataChannels on the same RTCPeerConnection**:
 
-* `fedpara-patch`: authenticated hello, elastic event inventory and LoRA/LoHA deltas.
-* `fedpara-state`: authenticated sharded full *effective* model transfer, streamed to a content-addressed disk store.
+* `kcia-patch`: authenticated hello, elastic event inventory and LoRA/LoHA deltas.
+* `kcia-state`: authenticated sharded full *effective* model transfer, streamed to a content-addressed disk store.
 
 Neither payload goes via Mummy (except when a separately deployed TURN server is relaying traffic for NAT traversal).
 
@@ -12,9 +12,9 @@ Neither payload goes via Mummy (except when a separately deployed TURN server is
 1. GUI / `train-live` creates or validates its *immutable genesis* (`.fstate`), pins the room model manifest and opens a **distinct** per-window identity/journal.
 2. Mummy `group-join` establishes room membership. A new peer cannot assume the room is empty without confirmation.
 3. Each neighboring pair creates a normal WebRTC connection, DTLS and an authenticated Ed25519 `hello`. The receiving peer requests `snapshot-request`.
-4. An existing peer **seals uncommitted local LoRA/LoHA** and saves its then-current effective weights (embedding, buffers, all other registered parameters) directly as `.fmanifest` + SHA-256-addressed blobs. It signs the checkpoint *event vector clock* on `fedpara-patch` and signs the manifest transfer header on `fedpara-state`.
+4. An existing peer **seals uncommitted local LoRA/LoHA** and saves its then-current effective weights (embedding, buffers, all other registered parameters) directly as `.fmanifest` + SHA-256-addressed blobs. It signs the checkpoint *event vector clock* on `kcia-patch` and signs the manifest transfer header on `kcia-state`.
 5. The incoming peer requests **only missing shards**. Each shard is checked against the manifest. Completed chunks can be reused across interrupted transfers.
-6. Only when a full manifest, its signature, every shard, model ID/revision, and all source-included signed event IDs/digests match does Fedpara assemble `.fstate` and apply it to the existing parametrized PyTorch model. Later journal events beyond the signed snapshot cutoffs are replayed **once** on top of it.
+6. Only when a full manifest, its signature, every shard, model ID/revision, and all source-included signed event IDs/digests match does KCIA assemble `.fstate` and apply it to the existing parametrized PyTorch model. Later journal events beyond the signed snapshot cutoffs are replayed **once** on top of it.
 7. `SNAPSHOT READY` appears, followed by `JOIN READY`. **No new-room-peer training before verified state synchronization.** The full signed event log is retained for restart replay; it is not truncated or compacted.
 
 ### Important limitations
@@ -27,7 +27,7 @@ Neither payload goes via Mummy (except when a separately deployed TURN server is
 
 ## Install and try two windows
 
-Preserve **all** existing `.fedpara-gui` files (keys, SQLite journals, checkpoints, working-state files); **do not delete** them.
+Preserve **all** existing `.kcia-gui` files (keys, SQLite journals, checkpoints, working-state files); **do not delete** them.
 
 ```sh
 python -m pip install -r requirements-patches.txt

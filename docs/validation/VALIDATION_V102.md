@@ -1,4 +1,4 @@
-# Kagami v102 validation
+# KCIA v102 validation
 
 - User error: HFValueError `HF Critic must expose a PRETRAINED single scalar value head (num_labels=1)` in `hf_value_critic_v69.py`, called via `mixed_learning_v65.py`.
 - Added optional, explicitly selected `--critic-hf-head-init new`, GUI selector, GUI-to-CLI mapping, and pinned protocol identity for newly initialized scalar head.

@@ -1,4 +1,4 @@
-"""Kagami v46 compact quorum certificates over complete Merkle frontiers.
+"""KCIA v46 compact quorum certificates over complete Merkle frontiers.
 
 Proposal votes bind only a constant-sized root, NOT 256 inline origins.  A
 committee member must verify every requested frontier page and the actual
@@ -15,7 +15,7 @@ from .frontier_commitment_v44 import (build_frontier_pages, verify_full_frontier
                                       header_digest)
 from .online_generation import _digest, _sign, _verify, _sha
 
-PROTOCOL = 'kagami-compact-epoch-certificate-v2'
+PROTOCOL = 'kcia-compact-epoch-certificate-v2'
 MAX_COMMITTEE = 31
 
 

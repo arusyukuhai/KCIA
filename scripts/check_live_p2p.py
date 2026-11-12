@@ -2,7 +2,7 @@
 """Actual WebRTC transport diagnostic against the running Mummy signaling server.
 
 Launches TWO distinct signed peers in one Python process. It does not load a
-model or modify any Fedpara checkpoint. Run after updating and starting Mummy.
+model or modify any KCIA checkpoint. Run after updating and starting Mummy.
 """
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ from patchlib.roomid import auto_identity, pair_room, create_room_id
 from patchlib.elasticnet import ElasticNode
 
 async def check(url,token,timeout):
-    with tempfile.TemporaryDirectory(prefix='fedpara-peer-diagnostic-') as directory:
+    with tempfile.TemporaryDirectory(prefix='kcia-peer-diagnostic-') as directory:
         a,sa,pa,_=auto_identity(Path(directory)/'a.pem')
         b,sb,pb,_=auto_identity(Path(directory)/'b.pem')
         pair=pair_room(create_room_id(),a,b)

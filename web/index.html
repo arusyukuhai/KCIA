@@ -3,16 +3,12 @@
 <html lang="ja">
 <head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1" name="viewport"/>
 <title>Mummy WebRTC test</title>
-<style>
-  @import url("https://use.typekit.net/wzz8rse.css");
-</style>
 <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.1.10"></script></head><body class="min-h-screen bg-[#080e0b] text-[#e5f6ec] font-mono text-sm antialiased selection:bg-emerald-500 selection:text-[#080e0b] mx-auto max-w-[1100px] px-4 pb-16 pt-9 sm:px-7">
 <h1 class="mb-5 border-b-2 border-emerald-500 pb-3 text-3xl font-extrabold tracking-tight text-emerald-300 sm:text-4xl">Mummy WebRTC デモ</h1>
 <p class="hint my-3 leading-relaxed text-[#91a79b] my-3 text-xs leading-relaxed text-[#91a79b]">P2P: 同じルームを2つのタブで開きます。Native echo: -d:rtcNative でコンパイルしたサーバーにDataChannel接続します。</p>
 <div class="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-[9rem_minmax(0,1fr)] sm:items-center">
 <label class="my-3 block text-xs font-bold text-emerald-50" for="mode">モード</label><select class="mt-1 min-w-0 w-full border border-emerald-900 bg-[#0c1912] px-3 py-2.5 text-sm text-emerald-50 placeholder:text-[#89a596] caret-emerald-400 focus:outline-2 focus:outline-offset-2 focus:outline-emerald-500 disabled:opacity-50" id="mode"><option value="p2p">2者P2P</option><option value="echo">Nimネイティブエコー</option></select>
 <label class="my-3 block text-xs font-bold text-emerald-50" for="room">ルームID</label><input autocomplete="off" class="mt-1 min-w-0 w-full border border-emerald-900 bg-[#0c1912] px-3 py-2.5 text-sm text-emerald-50 placeholder:text-[#89a596] caret-emerald-400 focus:outline-2 focus:outline-offset-2 focus:outline-emerald-500 disabled:opacity-50" id="room" spellcheck="false"/>
-<label class="my-3 block text-xs font-bold text-emerald-50" for="token">APP_TOKEN</label><input class="mt-1 min-w-0 w-full border border-emerald-900 bg-[#0c1912] px-3 py-2.5 text-sm text-emerald-50 placeholder:text-[#89a596] caret-emerald-400 focus:outline-2 focus:outline-offset-2 focus:outline-emerald-500 disabled:opacity-50" id="token" placeholder="未設定なら空欄" type="password"/>
 <label class="my-3 block text-xs font-bold text-emerald-50" for="media">音声・映像</label><div><input class="mr-2 h-4 w-4 accent-emerald-500 align-middle" id="media" type="checkbox"/> P2P送受信 / nativeエコーはSRTP受信数を計測</div>
 <label class="my-3 block text-xs font-bold text-emerald-50" for="relay">接続経路</label><div><input class="mr-2 h-4 w-4 accent-emerald-500 align-middle" id="relay" type="checkbox"/> TURN relayだけを利用（検証用）</div>
 </div>
@@ -126,7 +122,7 @@ $('connect').onclick=async()=>{
     }
     if(mode==='p2p')location.hash=$('room').value;
     ws=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/ws');
-    ws.onopen=()=>{status('シグナリング接続');sendSignal({type:'join',mode,room:$('room').value,token:$('token').value});};
+    ws.onopen=()=>{status('シグナリング接続');sendSignal({type:'join',mode,room:$('room').value,token:''});};
     ws.onmessage=e=>{void handleMessage(e);};
     ws.onerror=()=>log('WebSocket transport error');
     ws.onclose=()=>{log('Signaling closed');disconnect();};
@@ -138,3 +134,4 @@ $('send').onclick=()=>{if(channel?.readyState==='open'){
 }};
 $('chat').onkeydown=e=>{if(e.key==='Enter')$('send').click();};
 </script></body></html>
+

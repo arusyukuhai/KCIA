@@ -21,7 +21,7 @@ from patchlib.epoch_live_rebase_v52 import StreamingCertifiedRebase, verify_cert
 
 
 def bench(size, repeats, origins):
-    with TemporaryDirectory(prefix='kagami-v55-benchmark-') as root:
+    with TemporaryDirectory(prefix='kcia-v55-benchmark-') as root:
         journal=EventJournal(Path(root)/'source.db','a'*64,sync='NORMAL')
         try:
             per_origin=size//origins

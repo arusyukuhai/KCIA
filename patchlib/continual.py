@@ -25,7 +25,7 @@ from .lazy_mutable_weights_v60 import prepare_base_group
 from .paged_mutable_v61 import paged_destination
 from .factor_ledger_v62 import _factor_tile
 
-PROTOCOL = 'fedpara-continual-elastic-fedsum-relora-mixed-async-v6'
+PROTOCOL = 'kcia-continual-elastic-fedsum-relora-mixed-async-v6'
 
 
 @dataclass(frozen=True)
@@ -56,7 +56,7 @@ def _invalidate_frozen_caches(model):
     """GPU LRU stores frozen base copies; writes to mmap make them stale."""
     seen=set()
     for module in model.modules():
-        cache=getattr(module,'_fedpara_disk_cache',None)
+        cache=getattr(module,'_kcia_disk_cache',None)
         if cache is not None and id(cache) not in seen:
             seen.add(id(cache));cache.invalidate()
 
@@ -152,8 +152,8 @@ class ContinualElasticEngine(ElasticEngine):
         # of times per event; one reduction per 8 MiB is much cheaper while
         # preserving nonfinite-base protection before each bounded write.
         # No model/optimizer tensors are modified until a batch passes.
-        ledger=getattr(self.adapter.model,'_fedpara_lazy_mutable_weights',None)
-        if ledger is not None and getattr(ledger,'_fedpara_is_factor_ledger',False):
+        ledger=getattr(self.adapter.model,'_kcia_lazy_mutable_weights',None)
+        if ledger is not None and getattr(ledger,'_kcia_is_factor_ledger',False):
             with self.adapter.lock,torch.no_grad():
                 ledger.apply_verified(self,[(info,prepared)])
                 if info.origin == self.self_id and self._is_current_event(info):
@@ -269,8 +269,8 @@ class ContinualElasticEngine(ElasticEngine):
         ids=[(info.origin,info.seq) for info,_ in updates]
         if len(set(ids)) != len(ids) or any(info.origin == self.self_id for info,_ in updates):
             raise PatchError('aggregate must contain distinct remote signed events')
-        ledger=getattr(self.adapter.model,'_fedpara_lazy_mutable_weights',None)
-        if ledger is not None and getattr(ledger,'_fedpara_is_factor_ledger',False):
+        ledger=getattr(self.adapter.model,'_kcia_lazy_mutable_weights',None)
+        if ledger is not None and getattr(ledger,'_kcia_is_factor_ledger',False):
             with self.adapter.lock,torch.no_grad():
                 ledger.apply_verified(self,updates)
                 _invalidate_frozen_caches(self.adapter.model)

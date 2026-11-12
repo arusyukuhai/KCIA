@@ -34,7 +34,7 @@ def save(root,critic,optimizer,*,identity,steps):
         raise HFValueError('HF Critic head+optimizer exceeds 128MiB; reduce head size')
     tmp=folder/('.hf-critic-'+secrets.token_hex(10)+'.tmp')
     try:
-        save_file(tensors,str(tmp),metadata={'format':'kagami-hf-value-head-v69','identity':_identity(critic,identity),'steps':str(steps)})
+        save_file(tensors,str(tmp),metadata={'format':'kcia-hf-value-head-v69','identity':_identity(critic,identity),'steps':str(steps)})
         with tmp.open('rb') as f:os.fsync(f.fileno())
         os.replace(tmp,target)
         d=os.open(folder,os.O_RDONLY)
@@ -48,7 +48,7 @@ def load(path,critic,optimizer,*,identity):
     if not path.is_file() or path.stat().st_size>129*1024**2:
         raise HFValueError('HF Critic checkpoint missing or oversized')
     with safe_open(str(path),framework='pt',device='cpu') as f:meta=f.metadata() or {}
-    if meta.get('format')!='kagami-hf-value-head-v69' or meta.get('identity')!=_identity(critic,identity):
+    if meta.get('format')!='kcia-hf-value-head-v69' or meta.get('identity')!=_identity(critic,identity):
         raise HFValueError('HF Critic checkpoint base revision/head/room mismatch')
     weights=load_file(str(path),device='cpu')
     expected={'h.'+k:v for k,v in critic.snapshot_weights().items()}

@@ -7,7 +7,7 @@ import pytest
 
 from patchlib.elastic import AppliedJournalIndex
 from patchlib.roomid import create_room_id
-from patchlib.webview_gui import FedparaBridge, compose_html
+from patchlib.webview_gui import KCIABridge, compose_html
 from patchlib.webview_controller import WebviewController
 
 
@@ -47,7 +47,7 @@ def test_unlimited_training_always_creates_separate_durable_shard_manifest(tmp_p
 def test_file_manager_actions_are_whitelisted_and_expose_real_room_paths(tmp_path,monkeypatch):
     import patchlib.webview_controller as wvc
     ctl=WebviewController(tmp_path)
-    bridge=FedparaBridge(ctl)
+    bridge=KCIABridge(ctl)
     room=_new_room(ctl)
     commands=[]
     monkeypatch.setattr(wvc.sys,'platform','darwin')

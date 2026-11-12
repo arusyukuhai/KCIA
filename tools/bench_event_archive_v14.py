@@ -18,7 +18,7 @@ from patchlib.elastic import EventJournal
 def run(count=20, mib=1, sync='NORMAL'):
     size = int(mib*1024*1024)
     payload = bytes((i % 251 for i in range(size)))
-    with tempfile.TemporaryDirectory(prefix='fedpara-v14-bench-') as directory:
+    with tempfile.TemporaryDirectory(prefix='kcia-v14-bench-') as directory:
         root = Path(directory)
         # v13-style: one BIG signed bytes BLOB for each SQLite WAL transaction.
         db = sqlite3.connect(root/'legacy.sqlite3')

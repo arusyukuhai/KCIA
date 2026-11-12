@@ -1,6 +1,6 @@
 """Safe, built-in architecture preflight for existing Hugging Face models.
 
-Do not execute remote code inside Kagami P2P peers.  This intentionally
+Do not execute remote code inside KCIA P2P peers.  This intentionally
 rejects FP8 native DeepSeek checkpoints until their fused kernels and
 quantization conventions can be verified in the training engine.
 """
@@ -20,7 +20,7 @@ def validate_training_config(config, model_id, *, streaming=False):
     # quantized kernels still require a checked dequantization backend.
     if quant:
         method=(quant.get('quant_method') if isinstance(quant,dict) else getattr(quant,'quant_method','unknown'))
-        raise ValueError(f'Kagami does not have an audited trainable backend for {method} quantized tensors. '
+        raise ValueError(f'KCIA does not have an audited trainable backend for {method} quantized tensors. '
                          'Supply non-quantized BF16/FP16 safetensors and LoRA/LoHA adapters.')
     # Avoid declaring all unknown architectures supported; the built-in
     # transformers factory/adapter then performs the concrete compatibility test.
@@ -98,7 +98,7 @@ def diagnose_hf_checkpoint(model_id, revision='main', *, local_files_only=False)
         report['notes'].append('Cannot safely infer a model_type. Identify the actual base model or repair a verified local built-in config.json; task=causal-lm is not an architecture model_type.')
         return report
     if inferred:
-        report['notes'].append('model_type inferred from unique built-in architectures; Kagami can normalize it on export without modifying the original')
+        report['notes'].append('model_type inferred from unique built-in architectures; KCIA can normalize it on export without modifying the original')
     try:
         validate_training_config(SimpleNamespace(**(cfg | {'model_type':detected_type})),model_id,streaming=True)
     except ValueError as exc:

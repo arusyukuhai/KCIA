@@ -7,7 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_source_dist_contains_no_live_user_state():
-    assert not list((ROOT / 'fedpara-rooms').glob('*.json'))
+    assert not list((ROOT / 'kcia-rooms').glob('*.json'))
     assert not (ROOT / '_patch_v100.py').exists()
     assert not (ROOT / 'CLEANUP_MANIFEST.tsv').exists()
 
@@ -26,7 +26,7 @@ def test_runtime_modules_and_compatibility_tools_retained():
     assert len(inventory) >= 147
     for path in ('patchlib/fast_resume_v85.py', 'patchlib/elastic.py',
                  'patchlib/mixed_learning_v65.py', 'patchlib/elasticnet.py',
-                 'patchlib/kagami_eval_worker.py', 'patchlib/webview_diagnostic.py',
+                 'patchlib/kcia_eval_worker.py', 'patchlib/webview_diagnostic.py',
                  'patchlib/training_sim.py', 'src/main.nim', 'web/patches.html'):
         assert (ROOT / path).is_file(), path
 

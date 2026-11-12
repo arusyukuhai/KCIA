@@ -66,7 +66,7 @@ class AsyncInboundPipeline:
     def start(self):
         if self.task is not None:
             raise RuntimeError('pipeline already started')
-        self.task = asyncio.create_task(self._run(), name='fedpara-async-inbound')
+        self.task = asyncio.create_task(self._run(), name='kcia-async-inbound')
         return self.task
 
     def check(self):

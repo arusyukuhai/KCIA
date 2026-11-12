@@ -1,4 +1,4 @@
-"""Audited Hugging Face configuration identity handling (Kagami v83).
+"""Audited Hugging Face configuration identity handling (KCIA v83).
 
 A peer must never guess the architecture of a model from its weights or its
 repository name.  The only supported legacy recovery is an unambiguous,
@@ -147,7 +147,7 @@ def _source_hint(model_id: str, revision: str, data: dict | None = None) -> str:
 
 def _raise_missing_identity(model_id, revision, data, exc):
     raise MissingModelTypeError(
-        "Kagami cannot identify the Hugging Face model: " +
+        "KCIA cannot identify the Hugging Face model: " +
         _source_hint(model_id, revision, data) + ". " + str(exc) +
         ". Run `python -m patchlib.cli hf-diagnose --model <MODEL_ID> "
         "--revision <REVISION>`. If model_type is truly absent, select a "
@@ -177,7 +177,7 @@ def load_hf_config(model_id, *, revision='main', trust_remote_code=False,
         data = _read_checkpoint_config(str(model_id), str(revision),
                                        local_files_only=local_files_only)
     except (OSError, ValueError, ImportError) as exc:
-        # Unlike earlier Kagami versions, never suppress a malformed local
+        # Unlike earlier KCIA versions, never suppress a malformed local
         # config or silently fall through to a potentially incorrect HF name
         # heuristic. Remote hub errors retain their proper HF diagnostics.
         if local.is_dir() or local.is_file():

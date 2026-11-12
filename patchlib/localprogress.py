@@ -77,7 +77,7 @@ def write_working_capture(captured):
         if disk_optimizer is not None:
             # Immutable reflinks are checksummed off the trainer/optimizer lock.
             disk_optimizer.finalize_moments(meta['disk_optimizer'],target.parent)
-        save_file(tensors,str(name),metadata={'fedpara':json.dumps(meta,sort_keys=True)})
+        save_file(tensors,str(name),metadata={'kcia':json.dumps(meta,sort_keys=True)})
         with name.open('rb') as fh: os.fsync(fh.fileno())
         os.replace(name,target)
         published=True
@@ -133,14 +133,14 @@ class AsyncWorkingSaver:
             captured = await model_task(capture_working,journal,adapter,optimizer,
                                         steps,journal_tip=journal_tip,model=adapter.model)
         except DiskPressureError as exc:
-            print(f'KAGAMI WORKING CHECKPOINT deferred: {exc}', flush=True)
+            print(f'KCIA WORKING CHECKPOINT deferred: {exc}', flush=True)
             self.skipped += 1
             return False
         async def flush():
             started=time.monotonic()
             await asyncio.to_thread(write_working_capture,captured)
             self.disk_ms=(time.monotonic()-started)*1000
-        self.task=asyncio.create_task(flush(),name='fedpara-working-snapshot-writer')
+        self.task=asyncio.create_task(flush(),name='kcia-working-snapshot-writer')
         return True
 
     def check(self):
@@ -157,7 +157,7 @@ def restore_working(journal, adapter, optimizer):
     if not target.is_file():
         return 0
     with safe_open(str(target),framework='pt',device='cpu') as reader:
-        try: meta = json.loads((reader.metadata() or {})['fedpara'])
+        try: meta = json.loads((reader.metadata() or {})['kcia'])
         except (KeyError,ValueError,TypeError) as e:
             raise PatchError('corrupt local working snapshot') from e
         if meta.get('genesis')!=journal.genesis or meta.get('layout')!=adapter.layout or meta.get('kind')!=adapter.kind or meta.get('rank')!=adapter.rank or meta.get('alpha')!=adapter.alpha:

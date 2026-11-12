@@ -17,7 +17,7 @@ def peer_sampling_seed(peer_id: str | None, room_seed: int = 42) -> int:
     identity = peer_id or 'standalone'
     if not isinstance(identity, str) or len(identity) > 256:
         raise ValueError('invalid sampling identity')
-    material = (b'fedpara/data-peer-seed/v1\0' + room_seed.to_bytes(8,'big') +
+    material = (b'kcia/data-peer-seed/v1\0' + room_seed.to_bytes(8,'big') +
                 identity.encode('utf-8'))
     return int.from_bytes(hashlib.sha256(material).digest()[:8], 'big') & ((1 << 63) - 1)
 

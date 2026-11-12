@@ -1,4 +1,4 @@
-"""Kagami v82: signed, content-addressed behavior checkpoint + verified PPO IS.
+"""KCIA v82: signed, content-addressed behavior checkpoint + verified PPO IS.
 
 KCP82 pages are independently authenticated, journaled, and requested through
 existing bounded trajectory frontier/need gossip. KTR82 references their exact
@@ -17,8 +17,8 @@ from .behavior_checkpoint_v82 import (PAGE_BYTES, MAX_CHECKPOINT_PAGES,
 
 TR_MAGIC=b'KTR82\0'
 CP_MAGIC=b'KCP82\0'
-TR_DOMAIN=b'KAGAMI-V82-CHECKPOINTED-TRAJECTORY\0'
-CP_DOMAIN=b'KAGAMI-V82-CHECKPOINT-PAGE\0'
+TR_DOMAIN=b'KCIA-V82-CHECKPOINTED-TRAJECTORY\0'
+CP_DOMAIN=b'KCIA-V82-CHECKPOINT-PAGE\0'
 
 
 def _seal(head,payload,signer,magic,domain):

@@ -1,6 +1,6 @@
-# Kagami DiskGuard — ディスク容量不足の対策
+# KCIA DiskGuard — ディスク容量不足の対策
 
-前回の軽量化・reset-local-data・fast-resume実装の上に、**Kagamiの保存経路を直接修正**しました。
+前回の軽量化・reset-local-data・fast-resume実装の上に、**KCIAの保存経路を直接修正**しました。
 
 ## 確認した原因
 
@@ -14,7 +14,7 @@
 ## 実装した保護
 
 1. GUIのJournal GiBを**明示的な数値設定**に変更。新規のCLI/GUIの初期値は **4GiB**。0は意図的な無制限指定として残すが推奨しない。既存学習のジャーナル自体は変換・削除しない。
-2. 署名イベントを追記する前に、パケット長とSQLiteの追加容量＋空き容量予備（初期値1024MiB）をチェック。残量不足では `KAGAMI DISK PRESSURE` と理由を出して拒否し、イベントの一部だけをコミットしない。Optimizer stepに入る前も定期チェック。上限到達時の学習停止は**意図したフェイルセーフ**。
+2. 署名イベントを追記する前に、パケット長とSQLiteの追加容量＋空き容量予備（初期値1024MiB）をチェック。残量不足では `KCIA DISK PRESSURE` と理由を出して拒否し、イベントの一部だけをコミットしない。Optimizer stepに入る前も定期チェック。上限到達時の学習停止は**意図したフェイルセーフ**。
 3. P2P**送信用**フルsnapshotを専用の `*.snapshots/offers/{manifests,store}` へ分離。受信済み状態・世代移行のオブジェクトは従来の `*.snapshots/objects` に保持。送信終了を確認できるときに限り、新専用領域で最新1件を残して過去のマニフェストと不要なシャードを自動GC。転送中のものは消さない。
 4. フルsnapshotエクスポート前に推定サイズの空き容量を確認。不足したら送信用snapshotだけ延期し、署名ジャーナルの予備容量を消費しない。
 5. WALが128MiB以上に増えた場合、PASSIVEに加えてSQLite API経由で `TRUNCATE` チェックポイントを短いタイムアウトで試す。使用中のWALを直接削除しない。
@@ -28,15 +28,15 @@
 まず学習中でも使える読み取り専用診断：
 
 ```bash
-python kagami.py disk-report --journal /path/to/events.sqlite3
+python kcia.py disk-report --journal /path/to/events.sqlite3
 ```
 
-GUIのジャーナルは通常 `.fedpara-gui/rooms/<room>/peers/<profile>/events.sqlite3` にあります。上のコマンドはこのレイアウトの場合、`models/<profile>`、`checkpoints/<profile>`、Critic、グラフ履歴も分類表示します。サイズは**論理サイズ**（APFSのCoW領域などでは実消費と異なる可能性）。HF共通キャッシュ・独自`--shard-store`・TMPDIRは外部領域なので自動集計しません。
+GUIのジャーナルは通常 `.kcia-gui/rooms/<room>/peers/<profile>/events.sqlite3` にあります。上のコマンドはこのレイアウトの場合、`models/<profile>`、`checkpoints/<profile>`、Critic、グラフ履歴も分類表示します。サイズは**論理サイズ**（APFSのCoW領域などでは実消費と異なる可能性）。HF共通キャッシュ・独自`--shard-store`・TMPDIRは外部領域なので自動集計しません。
 
-Kagamiを**完全停止してから**、安全に不要領域を回収：
+KCIAを**完全停止してから**、安全に不要領域を回収：
 
 ```bash
-python kagami.py disk-reclaim --journal /path/to/events.sqlite3
+python kcia.py disk-reclaim --journal /path/to/events.sqlite3
 ```
 
 書き込みロックが保持されていれば拒否します。既存の署名ジャーナル、モデルの確定checkpoint、認証済み世代は削除しません。新方式で作成した送信用キャッシュと、孤立したoptimizerバックアップだけを対象にします。
@@ -55,7 +55,7 @@ CLI `train-live` の新設定：
 - 旧版の `*.snapshots/objects` は、受信済み・世代保存データが混在するため**無条件に削除しません**。v86導入後の送信用だけが新しい専用領域へ書かれます。初回起動で旧形式を勝手に掃除しません。
 - `models/` と `checkpoints/` の認証済み・外部参照あり得るweight、Hugging Faceモデルやdatasets、OSが管理するキャッシュも勝手に消しません。実機で空き容量がほぼ0なら、まず不要な個人ファイル・未使用の別モデルキャッシュ等を移動して空きを作ってください。
 - 大規模モデルで **モデル本体と復元キャッシュ等を同時に保持する余裕がない**場合、追加のディスク、またはアーキテクチャ上の保存方法の再設計が必要です。今回のバージョンは複数GB級の実機・長期間・数千ピアでの完全検証をしていません。
-- Python/OS/外部ライブラリが予備容量を使うこともあります。ガードは「一切のENOSPCを数学的に不可能にする」ものではなく、把握できるKagamiの書き込みを事前に拒否する防御です。
+- Python/OS/外部ライブラリが予備容量を使うこともあります。ガードは「一切のENOSPCを数学的に不可能にする」ものではなく、把握できるKCIAの書き込みを事前に拒否する防御です。
 
 ## テスト
 

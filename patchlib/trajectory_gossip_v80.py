@@ -17,7 +17,7 @@ from .elastic import EventJournal
 from .paired_checkpoint_v75 import _record
 
 MAGIC=b'KTR80\0'
-DOMAIN=b'KAGAMI-V80-SIGNED-TRAJECTORY\0'
+DOMAIN=b'KCIA-V80-SIGNED-TRAJECTORY\0'
 MAX_WIRE=65536
 MAX_HEAD=4096
 MAX_STATE=8*1024*1024
@@ -127,7 +127,7 @@ class TrajectoryGossip:
     """
     def __init__(self,path,root_genesis,mixer,self_id,signer,*,pub=None,trusted=None,allowed_epochs,actor_epoch,max_bytes=256*1024**2,_lane_tag="v80"):
         if not _id(root_genesis):raise PatchError('invalid rollout room genesis')
-        self.genesis=hashlib.sha256(('kagami-signed-rollout-'+_lane_tag+':'+root_genesis).encode()).hexdigest()
+        self.genesis=hashlib.sha256(('kcia-signed-rollout-'+_lane_tag+':'+root_genesis).encode()).hexdigest()
         self.journal=EventJournal(path,self.genesis,max_bytes=max_bytes)
         self.mixer=mixer;self.self_id=self_id;self.signer=signer;self.pub=pub;self.trusted=trusted or {}
         self.allowed_epochs=allowed_epochs;self.actor_epoch=actor_epoch

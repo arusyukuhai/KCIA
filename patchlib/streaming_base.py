@@ -164,7 +164,7 @@ def materialize_meta_from_safetensors(model: nn.Module, snapshot_dir,
         # Hash the complete trusted starting weights without ever materializing
         # a complete checkpoint in RAM. This binds room genesis to exact data,
         # not a caller-supplied repository revision alone.
-        digest=hashlib.sha256(b'fedpara-streaming-safetensors-v1\n')
+        digest=hashlib.sha256(b'kcia-streaming-safetensors-v1\n')
         root=Path(snapshot_dir).resolve()
         for file in sorted(grouped):
             digest.update(str(file.relative_to(root)).encode('utf8')+b'\0')
@@ -177,7 +177,7 @@ def materialize_meta_from_safetensors(model: nn.Module, snapshot_dir,
     scratch=None
     if writable:
         if scratch_dir is not None:Path(scratch_dir).mkdir(parents=True,exist_ok=True)
-        scratch=tempfile.TemporaryDirectory(prefix='fedpara-weights-',dir=scratch_dir)
+        scratch=tempfile.TemporaryDirectory(prefix='kcia-weights-',dir=scratch_dir)
     by_name={}
     count=0;total_bytes=0
     try:
@@ -197,7 +197,7 @@ def materialize_meta_from_safetensors(model: nn.Module, snapshot_dir,
                     if mapped_value.is_floating_point() and mapped_value.dtype not in (
                             torch.float16, torch.bfloat16, torch.float32, torch.float64):
                         raise StreamingModelError(
-                            f'{key}: floating/FP8 checkpoint dtype {mapped_value.dtype} has no validated Kagami training kernel; '
+                            f'{key}: floating/FP8 checkpoint dtype {mapped_value.dtype} has no validated KCIA training kernel; '
                             'use BF16/FP16/FP32 safetensors instead')
                     if mapped_value.dtype!=ref.dtype:
                         if not (preserve_checkpoint_dtype and ref.is_floating_point() and mapped_value.is_floating_point()):
@@ -251,7 +251,7 @@ def materialize_meta_from_safetensors(model: nn.Module, snapshot_dir,
             if tuple(tensor.shape)!=tuple(sample.shape) or (tensor.dtype!=sample.dtype and not (preserve_checkpoint_dtype and tensor.is_floating_point() and sample.is_floating_point())):
                 raise StreamingModelError(f'tied alias incompatible: {names[0]}')
             p=nn.Parameter(tensor,requires_grad=sample.requires_grad)
-            if path:p._fedpara_raw_path=path
+            if path:p._kcia_raw_path=path
             new_params[ident]=p
         for name,(module,leaf,orig) in params.items():
             module._parameters[leaf]=new_params[id(orig)]
@@ -260,8 +260,8 @@ def materialize_meta_from_safetensors(model: nn.Module, snapshot_dir,
         for name,(module,leaf,_) in nonpersistent.items():
             module._buffers[leaf]=rebuilt_nonpersistent[name]
         if scratch:
-            object.__setattr__(model,'_fedpara_ephemeral_weights',scratch)
-        object.__setattr__(model,'_fedpara_streaming_base_info',{'tensors':count,'bytes':total_bytes,
+            object.__setattr__(model,'_kcia_ephemeral_weights',scratch)
+        object.__setattr__(model,'_kcia_streaming_base_info',{'tensors':count,'bytes':total_bytes,
                            'mode':'writable-ephemeral' if writable else 'read-only-mmap',
                            'source':str(Path(snapshot_dir).resolve()),
                            'genesis_digest':genesis_digest})

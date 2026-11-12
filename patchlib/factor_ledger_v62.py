@@ -22,14 +22,14 @@ def _factor_tile(spec, parts, rs, cs):
         return parts[0][rs,cs]
     a,b=parts[0],parts[1]
     if spec.kind=='lora':
-        return (a[rs] @ b[cs].T)*(spec.alpha/spec.rank)
+        return (a[rs] @ b[cs].T)*(spec.alpha/parts[0].shape[-1])
     c,d=parts[2],parts[3]
-    return ((a[rs] @ b[cs].T)*(c[rs] @ d[cs].T))*(spec.alpha/spec.rank)
+    return ((a[rs] @ b[cs].T)*(c[rs] @ d[cs].T))*(spec.alpha/parts[0].shape[-1])
 
 
 class FactorLedgerSource:
     """CPU tile source consumed by existing disk Linear/Conv1D/Embedding kernels."""
-    _fedpara_is_paged=True  # tells the disk kernel to tile, never cache full weight
+    _kcia_is_paged=True  # tells the disk kernel to tile, never cache full weight
     def __init__(self,base,spec,*,max_entries=32):
         if base.ndim!=2 or base.device.type!='cpu' or not base.is_contiguous():
             raise LazyWeightError('factor ledger requires contiguous CPU 2-D base')
@@ -113,14 +113,14 @@ class FactorLedgerSource:
 
 
 class _TransposeLedger:
-    _fedpara_is_paged=True
+    _kcia_is_paged=True
     def __init__(self,source):
         self.source=source;self.shape=source.shape[::-1];self.dtype=source.dtype
     def __getitem__(self,index):return self.source[index[1],index[0]].T.contiguous()
 
 
 class FactorLedgerManager:
-    _fedpara_is_factor_ledger=True
+    _kcia_is_factor_ledger=True
     def __init__(self,model,adapter,*,scratch_dir=None,max_entries=32,limit_gib=0):
         if type(max_entries) is not int or not 1<=max_entries<=256:
             raise ValueError('factor-ledger max_entries must be 1..256')
@@ -164,17 +164,17 @@ class FactorLedgerManager:
         members=self._members(group)
         spec=group.overlay.local
         if (base.ndim!=2 or base.device.type!='cpu' or not base.is_contiguous()
-            or spec.dense or any(not hasattr(m,'_fedpara_disk_source') for m in members)):
+            or spec.dense or any(not hasattr(m,'_kcia_disk_source') for m in members)):
             self.fallback.materialize_group(group)
             self.compacted.add(key)
             return False
         source=FactorLedgerSource(base,spec,max_entries=self.max_entries)
         self.sources[key]=source
         for mod in members:
-            cache=getattr(mod,'_fedpara_disk_cache',None)
+            cache=getattr(mod,'_kcia_disk_cache',None)
             if cache is not None:cache.invalidate()
-            mod._fedpara_disk_source=source
-            mod._fedpara_disk_path='<factor-separated-journal-overlay>'
+            mod._kcia_disk_source=source
+            mod._kcia_disk_path='<factor-separated-journal-overlay>'
         return True
 
     def _append(self,group,now,old):
@@ -332,11 +332,11 @@ class FactorLedgerManager:
 
 
 def attach_factor_ledger(model,adapter,*,scratch_dir=None,max_entries=32,limit_gib=0):
-    if getattr(model,'_fedpara_streaming_base_info',{}).get('mode')!='read-only-mmap':
+    if getattr(model,'_kcia_streaming_base_info',{}).get('mode')!='read-only-mmap':
         raise LazyWeightError('factor ledger requires immutable safetensors genesis')
     manager=FactorLedgerManager(model,adapter,scratch_dir=scratch_dir,
                                 max_entries=max_entries,limit_gib=limit_gib)
-    object.__setattr__(model,'_fedpara_lazy_mutable_weights',manager)
+    object.__setattr__(model,'_kcia_lazy_mutable_weights',manager)
     def forbid_stale_state(module,prefix,keep_vars):
         if manager.sources and not manager.export_allowed():
             raise LazyWeightError('virtual low-rank ledger: use sharded export, not model.state_dict')

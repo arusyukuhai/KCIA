@@ -76,7 +76,7 @@ def test_working_moment_gc_only_removes_unreferenced_folders(tmp_path):
     (active/'m.f32').write_bytes(b'keep')
     (stale/'m.f32').write_bytes(b'old')
     save_file({'f.0':torch.zeros(1)},str(target),metadata={
-        'fedpara':json.dumps({'disk_optimizer':{'folder':active.name}})})
+        'kcia':json.dumps({'disk_optimizer':{'folder':active.name}})})
     assert cleanup_working_orphans(j)==1
     assert active.exists() and not stale.exists()
     assert cleanup_working_orphans(j)==0
@@ -174,7 +174,7 @@ def test_offline_reclaim_keeps_active_journal(tmp_path):
 
 def test_gui_disk_report_includes_separate_model_objects(tmp_path):
     from patchlib.disk_health_v86 import snapshot_cache_report
-    room=tmp_path/'.fedpara-gui'/'rooms'/'r1'
+    room=tmp_path/'.kcia-gui'/'rooms'/'r1'
     profile='peer-'+'a'*16
     journal=room/'peers'/profile/'events.sqlite3'
     journal.parent.mkdir(parents=True)

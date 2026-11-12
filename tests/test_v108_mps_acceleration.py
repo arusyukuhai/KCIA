@@ -9,7 +9,7 @@ from patchlib import mps_launch_v108 as launch
 
 
 def test_mps_sampling_avoids_probability_cpu_copy_on_native(monkeypatch):
-    monkeypatch.delenv('KAGAMI_MPS_NATIVE_SAMPLING',raising=False)
+    monkeypatch.delenv('KCIA_MPS_NATIVE_SAMPLING',raising=False)
     distribution=torch.log_softmax(torch.tensor([3.0,1.0,-2.0]),dim=-1)
     called=[]
     old=acc.torch.multinomial
@@ -44,7 +44,7 @@ def test_mps_sampling_driver_errors_are_not_swallowed(monkeypatch):
 
 
 def test_mps_sampling_user_can_force_compatible_cpu_fallback(monkeypatch):
-    monkeypatch.setenv('KAGAMI_MPS_NATIVE_SAMPLING','0')
+    monkeypatch.setenv('KCIA_MPS_NATIVE_SAMPLING','0')
     sample,backend=acc.sample_next(torch.log_softmax(torch.randn(6),dim=-1),backend='mps')
     assert backend=='cpu-fallback' and sample.numel()==1
 
@@ -64,10 +64,10 @@ def test_gae_cpu_recurrence_matches_reference():
 def test_gpu_device_opt_in_only_local_and_requested():
     base={'A':'B'}
     assert launch.launch_environment(['--device','cpu'],base)==base
-    assert launch.launch_environment(['--device','mps'],base)['KAGAMI_EXPERIMENTAL_MPS']=='1'
+    assert launch.launch_environment(['--device','mps'],base)['KCIA_EXPERIMENTAL_MPS']=='1'
     assert launch.launch_environment(['--device','mps'],base)['PYTORCH_ENABLE_MPS_FALLBACK']=='1'
-    assert launch.launch_environment(['--device','cpu','--reward-model-device','mps'],base)['KAGAMI_EXPERIMENTAL_MPS']=='1'
-    assert launch.launch_environment(['--device','cpu','--critic-hf-device','mps'],base)['KAGAMI_EXPERIMENTAL_MPS']=='1'
+    assert launch.launch_environment(['--device','cpu','--reward-model-device','mps'],base)['KCIA_EXPERIMENTAL_MPS']=='1'
+    assert launch.launch_environment(['--device','cpu','--critic-hf-device','mps'],base)['KCIA_EXPERIMENTAL_MPS']=='1'
     assert launch.launch_environment(['--device','auto'],base)==base
     assert launch.needs_mps(['--device','mps'])
 
@@ -93,14 +93,14 @@ def test_mps_ppo_smoke_is_a_subprocess_with_pinned_worker(monkeypatch):
     cmd,opts=calls[0]
     assert cmd[1:4]==['-m','patchlib.ppo_doctor_v103','--device']
     assert '--mps-worker' in cmd
-    assert opts['env']['KAGAMI_EXPERIMENTAL_MPS']=='1'
+    assert opts['env']['KCIA_EXPERIMENTAL_MPS']=='1'
 
 
 @pytest.mark.skipif(not torch.backends.mps.is_available(),reason='Real Apple GPU required')
 def test_real_mps_sampling_gae_and_backward():
     from patchlib.mps_policy_v92 import check_device
     import os
-    os.environ['KAGAMI_EXPERIMENTAL_MPS']='1'
+    os.environ['KCIA_EXPERIMENTAL_MPS']='1'
     check_device('mps')
     logits=torch.randn(1,32,device='mps',requires_grad=True)
     sample,kind=acc.sample_next(torch.log_softmax(logits,dim=-1),backend='mps')

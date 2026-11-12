@@ -9,7 +9,7 @@ import pytest
 from patchlib.topology import ROOM_PEER_LIMIT, neighbors, topology_metrics
 from patchlib.roomid import list_public_rooms, public_room_endpoint, RoomDiscovery
 from patchlib.webview_controller import WebviewController
-from patchlib.webview_gui import FedparaBridge
+from patchlib.webview_gui import KCIABridge
 
 
 def ids(count):
@@ -95,9 +95,9 @@ def test_public_directory_bounded_and_no_private_disclosure(monkeypatch,tmp_path
     got=controller.list_rooms({'ws':'ws://127.0.0.1:8080/ws'})
     assert got['rooms']==[entry]
     assert received[0][0]=='http://127.0.0.1:8080/api/rooms'
-    assert FedparaBridge(controller).list_rooms({'ws':'ws://127.0.0.1:8080/ws'})['rooms']==[entry]
+    assert KCIABridge(controller).list_rooms({'ws':'ws://127.0.0.1:8080/ws'})['rooms']==[entry]
     with pytest.raises(PermissionError):public_room_endpoint('ws://external.example/ws')
-    assert public_room_endpoint('wss://fedpara.example/ws')=='https://fedpara.example/api/rooms'
+    assert public_room_endpoint('wss://kcia.example/ws')=='https://kcia.example/api/rooms'
 
 
 def test_directory_rejects_oversize_payload(monkeypatch):

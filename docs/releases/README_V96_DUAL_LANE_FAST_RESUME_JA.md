@@ -1,4 +1,4 @@
-# Kagami v96 — 認証済み世代移行後の高速RESUME（event replay削減）
+# KCIA v96 — 認証済み世代移行後の高速RESUME（event replay削減）
 
 ## 根本原因
 
@@ -16,11 +16,11 @@ v95までは `patchlib/elasticnet.py` の起動復元で、carry archive に1件
 
 ## 導入
 
-既存のjournal, carry, checkpoint, 署名鍵を**バックアップ**した上で、すべてのKagamiプロセスを終了し、v96へ更新してください。`reset-local-data` の実行は不要です。
+既存のjournal, carry, checkpoint, 署名鍵を**バックアップ**した上で、すべてのKCIAプロセスを終了し、v96へ更新してください。`reset-local-data` の実行は不要です。
 
-- **最初のv96起動**：v95のキャッシュにはcarry cursorが含まれていないため、carryがあるルームでは一度だけ従来の署名履歴復元が必要です。その後、学習の安全な境界でdual-lane checkpointが自動保存されます。アプリを異常終了させず、ログに `KAGAMI MATERIALIZED COMMITTED BASE` が出たことを確認します。
-- **その後の起動**：ログに `KAGAMI FAST RESUME loaded ...`, `KAGAMI FAST RESUME carry restored suffix=0` および `cached base + 0 signed suffix updates` が出ると、署名イベントの再生0件です。
-- `KAGAMI FAST RESUME: ... full replay` が出る場合、表示された理由（両レーンの進行、cursor不一致、容量不足等）を確認してください。
+- **最初のv96起動**：v95のキャッシュにはcarry cursorが含まれていないため、carryがあるルームでは一度だけ従来の署名履歴復元が必要です。その後、学習の安全な境界でdual-lane checkpointが自動保存されます。アプリを異常終了させず、ログに `KCIA MATERIALIZED COMMITTED BASE` が出たことを確認します。
+- **その後の起動**：ログに `KCIA FAST RESUME loaded ...`, `KCIA FAST RESUME carry restored suffix=0` および `cached base + 0 signed suffix updates` が出ると、署名イベントの再生0件です。
+- `KCIA FAST RESUME: ... full replay` が出る場合、表示された理由（両レーンの進行、cursor不一致、容量不足等）を確認してください。
 
 ### 必要な空き容量
 

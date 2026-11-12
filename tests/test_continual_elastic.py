@@ -134,7 +134,7 @@ def test_continual_restore_after_crash_and_reject_legacy(tmp_path):
     # Malformed payload marked v1 cannot be interpreted as continual.
     _,meta,weights,_=unpack_event(next(newer.journal.events()),{},unsafe=True)
     from patchlib.core import encode_patch
-    meta['elastic_protocol']='fedpara-elastic-v1'
+    meta['elastic_protocol']='kcia-elastic-v1'
     corrupt=pack_event(encode_patch(meta,weights),'alice')
     with pytest.raises(PatchError,match='continual protocol'):
         newer._check(corrupt)

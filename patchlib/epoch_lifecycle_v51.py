@@ -83,7 +83,7 @@ class DurableEpochLifecycle:
         if self.pointer.is_symlink() or self.pointer.stat().st_size > 4096:
             raise PatchError('unsafe active pointer during checkpoint cleanup')
         obj=json.loads(self.pointer.read_text())
-        if (not isinstance(obj,dict) or obj.get('format')!='kagami-hot-pointer-v1'
+        if (not isinstance(obj,dict) or obj.get('format')!='kcia-hot-pointer-v1'
                 or type(obj.get('epoch')) is not int or not digest_ok(obj.get('genesis'))
                 or not digest_ok(obj.get('checkpoint'))):
             raise PatchError('unverified active checkpoint pointer')

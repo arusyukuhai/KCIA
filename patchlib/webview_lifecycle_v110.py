@@ -46,7 +46,7 @@ def save_room(self, payload: dict):
     if code_path:
         file = Path(code_path).resolve()
         # Only code already vetted by the explicit upload endpoint may be registered.
-        allowed = (self.workdir / '.fedpara-gui' / 'codes').resolve()
+        allowed = (self.workdir / '.kcia-gui' / 'codes').resolve()
         if file.parent != allowed or not file.is_file():
             raise PermissionError('model code must first be uploaded through this dashboard')
     else:
@@ -90,8 +90,8 @@ def save_room(self, payload: dict):
             tok_revision=(payload.get('tokenizer_revision') or revision).strip()
             manifest['design']['tokenizer']={'id':tok_id,'revision':tok_revision}
         # A portable, strictly data-only config is network-shared; never execute source on peers.
-    # Pinned room-global adapter layout: selecting a different rank on
-    # another device would silently fork the genesis and Gossip stream.
+    # Pinned canonical adapter layout and MAXIMUM rank. Each upgraded client
+    # may allocate a smaller physical LoHA rank for signed event exchange.
     # Imported descriptors remain immutable, including legacy unpinned ones.
     # A remote room is an immutable shared object. When a peer joins,
     # preserve the ENTIRE server-confirmed descriptor, including adapter
@@ -125,10 +125,30 @@ def save_room(self, payload: dict):
         adapter_scope=payload.get('adapter_scope','auto')
         if adapter_scope not in ('auto','universal'):
             raise ValueError('invalid universal adapter coverage setting')
-        manifest['adapter']={'kind':kind, 'rank':recommendation['rank'],
+        # This is a CAP on peer ranks, not the creator's local allocation.
+        # Low-memory creators must not force high-memory Colab peers to share
+        # their physical rank.  Keep legacy LoRA room semantics unchanged.
+        room_max_rank=(32 if kind=='loha' else recommendation['rank'])
+        manifest['adapter']={'kind':kind, 'rank':room_max_rank,
                              'wide_lora_rank':4}
         if adapter_scope=='universal':
             manifest['adapter']['target_scope']='universal'
+    if imported_descriptor is None:
+        from .room_training_v119 import canonical_training
+        requested=payload.get('mixed_training',{'enabled':False})
+        if requested.get('enabled',False):
+            # Private dataset paths may be used by existing local-only trainers,
+            # but the public room must pin portable HF references only.
+            if requested.get('sft_jsonl') or requested.get('ppo_jsonl'):
+                raise ValueError('公開ルームのSFT/PPOにはHugging Faceのデータセットを選んでください。ローカルパスは共有されません。')
+            from .room_training_v119 import LOCAL_KEYS
+            portable={k:v for k,v in requested.items() if k not in LOCAL_KEYS}
+            pinned_training=canonical_training(portable,task=task)
+            if pinned_training:manifest['training']=pinned_training
+        optim=payload.get('reinit_every',20)
+        if type(optim) is not int or not 0 <= optim <= 100000:
+            raise ValueError('reinitialization interval must be 0..100000 signed events')
+        manifest['optimization']={'reinit_every':optim}
     validate_manifest(manifest)
     room_initialization(manifest)  # fail on non-pinned random models before writing
     # Preserve an imported code fingerprint if the user has not uploaded new code.
@@ -250,7 +270,7 @@ def start_training(self, payload: dict, *, profile_allocator):
             # old cache silently defeating the requested random initialization.
             genesis_name=('genesis.random.fstate' if initialization=='random' else
                           'genesis.config.fstate' if initialization=='config' else 'genesis.fstate')
-            base=(self.workdir/'.fedpara-gui'/'rooms'/room/genesis_name).resolve()
+            base=(self.workdir/'.kcia-gui'/'rooms'/room/genesis_name).resolve()
             automatic=True
         elif not sharded_base_manifest and not streaming_base and isinstance(raw_base,str):
             base=Path(raw_base.strip()).expanduser().resolve()
@@ -297,6 +317,14 @@ def start_training(self, payload: dict, *, profile_allocator):
                 streaming_base=True
                 automatic=False
                 base=None
+        # New rooms pin the signed refresh cadence in the manifest. Old rooms
+        # have no field and retain their existing launch/resume settings.
+        if manifest.get('optimization'):
+            reinit_every=manifest['optimization']['reinit_every']
+        from .room_training_v119 import for_local_peer, shared_policy
+        requested_mixed=payload.get('mixed_training',{})
+        if manifest.get('training'):
+            requested_mixed=for_local_peer(manifest,requested_mixed)
         from .mix_gui_v66 import normalize, objective_policy, atomic_json
         mixed_policy_file=path.parent/'mixed-objectives-v66.json'
         existing_policy=None
@@ -304,11 +332,20 @@ def start_training(self, payload: dict, *, profile_allocator):
             try:existing_policy=json.loads(mixed_policy_file.read_text(encoding='utf8'))
             except (OSError,ValueError) as exc:
                 raise ValueError('Pinned shared mixed-learning policy is unreadable') from exc
-        mixed=normalize(payload.get('mixed_training',{}),
+        mixed=normalize(requested_mixed,
                         task=manifest['model']['architecture'],
-                        allow_pt_only=existing_policy is not None)
+                        allow_pt_only=existing_policy is not None or bool(manifest.get('training')))
         if existing_policy is not None and not mixed['enabled']:
             raise ValueError('Mixed training objective policy is immutable for this room. Choose mixed mode or create a NEW room.')
+        manifest_policy=shared_policy(manifest)
+        if manifest_policy is not None:
+            if existing_policy is not None and existing_policy != manifest_policy:
+                raise ValueError('local mixed objective policy disagrees with room manifest')
+            # The shared manifest is already immutable and signed into genesis.
+            # Write the exact sidecar before invoking the policy's strict check.
+            if existing_policy is None:
+                atomic_json(mixed_policy_file,manifest_policy)
+                existing_policy=manifest_policy
         try:
             mixed_spec=objective_policy(mixed, pinned=mixed_policy_file if existing_policy is not None else None)
         except ValueError as exc:
@@ -345,7 +382,7 @@ def start_training(self, payload: dict, *, profile_allocator):
         if type(reinit_every) is not int or not 0 <= reinit_every <= 100000:
             raise ValueError('reinit_every must be 0..100000 local commits')
         # Private run-local file: never mix data between the two GUI windows.
-        telemetry_dir=self.workdir/'.fedpara-gui'/'telemetry'
+        telemetry_dir=self.workdir/'.kcia-gui'/'telemetry'
         telemetry_dir.mkdir(parents=True,exist_ok=True,mode=0o700)
         os.chmod(telemetry_dir,0o700)
         # Stable, profile-owned history: do not reset graph to a few

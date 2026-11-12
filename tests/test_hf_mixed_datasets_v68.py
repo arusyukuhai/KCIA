@@ -12,7 +12,7 @@ from torch import nn
 from patchlib.hf_mixed_datasets_v68 import HFRowCycle, HFMixedDatasetError, source_spec
 from patchlib.mix_gui_v66 import DEFAULT, normalize, command_options, objective_policy
 from patchlib.mixed_learning_v65 import MixedObjectiveTrainer, MixedLearningError
-from patchlib.webview_gui import FedparaBridge, compose_html
+from patchlib.webview_gui import KCIABridge, compose_html
 from test_gui_mixed_critic_v66 import make_controller
 
 REV='abcdef0123456789'*2+'abcdef01' # 40 hex characters
@@ -114,7 +114,7 @@ def test_actual_sft_and_ppo_gradient_with_fake_hf_sources(monkeypatch):
 
 def test_gui_real_bridge_hf_command_and_pinned_room(tmp_path,monkeypatch):
     c,room,commands=make_controller(tmp_path,monkeypatch)
-    b=FedparaBridge(c)
+    b=KCIABridge(c)
     options=hf_settings()
     kwargs={'room':room,'ws':'ws://127.0.0.1:8080/ws','kind':'loha','rank':16,
             'streaming_base':True,'mixed_training':options}
@@ -137,7 +137,7 @@ def test_gui_search_pin_uses_metadata_only(tmp_path,monkeypatch):
             assert revision==REV
             return [SimpleNamespace(config='default',split='train')]
     monkeypatch.setitem(sys.modules,'huggingface_hub',types.SimpleNamespace(HfApi=FakeApi))
-    info=FedparaBridge(c).pin_mixed_dataset({'repo':'myorg/sft'})
+    info=KCIABridge(c).pin_mixed_dataset({'repo':'myorg/sft'})
     assert info['revision']==REV and info['variants']==[{'config':'default','split':'train'}]
     with pytest.raises(ValueError):c.pin_mixed_dataset({'repo':'https://example.com'})
     markup=compose_html()

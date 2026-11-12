@@ -75,7 +75,7 @@ class MixedObjectiveTrainer:
                 except Exception as exc:
                     raise MixedLearningError(f'{role.upper()} Hub dataset preflight failed '
                                              f'before Reward/Critic model loading: {exc}') from exc
-                print(f'KAGAMI HF DATASET PREFLIGHT ready role={role}',flush=True)
+                print(f'KCIA HF DATASET PREFLIGHT ready role={role}',flush=True)
         # Validate pinned Critic metadata BEFORE loading a potentially large
         # Reward Model. This avoids multi-minute downloads followed by a
         # trivially detectable 2-label critic failure.
@@ -88,7 +88,7 @@ class MixedObjectiveTrainer:
         self._zero_reward_streak=0
         self._ppo_rollout_count=0
         if self.ppo and getattr(args,'ppo_reward','token_match')=='hf_model':
-            print('KAGAMI PPO INIT phase=reward-model repo=' + str(getattr(args,'reward_model_id','')) + ' device=' + str(getattr(args,'reward_model_device','cpu')),flush=True)
+            print('KCIA PPO INIT phase=reward-model repo=' + str(getattr(args,'reward_model_id','')) + ' device=' + str(getattr(args,'reward_model_device','cpu')),flush=True)
             from .reward_model_v67 import HFRewardScorer
             self.reward_scorer=HFRewardScorer(args)
         self.critic=None
@@ -107,7 +107,7 @@ class MixedObjectiveTrainer:
             kind=getattr(args,'critic_kind','mlp')
             hidden=int(getattr(args,'critic_hidden',32))
             if kind=='hf':
-                print('KAGAMI PPO INIT phase=value-critic repo=' + str(getattr(args,'critic_hf_repo','')) + ' device=' + str(getattr(args,'critic_hf_device','cpu')) + ' head=' + str(getattr(args,'critic_hf_head_init','pretrained')),flush=True)
+                print('KCIA PPO INIT phase=value-critic repo=' + str(getattr(args,'critic_hf_repo','')) + ' device=' + str(getattr(args,'critic_hf_device','cpu')) + ' head=' + str(getattr(args,'critic_hf_head_init','pretrained')),flush=True)
                 from .hf_value_critic_v69 import HFValueCritic
                 self.critic=HFValueCritic(args)
                 critic_params=self.critic.trainable_parameters()
@@ -115,7 +115,7 @@ class MixedObjectiveTrainer:
                 self.critic=LocalValueHead(kind,hidden)
                 critic_params=list(self.critic.parameters())
             self.critic_optim=torch.optim.AdamW(critic_params,lr=float(getattr(args,'critic_lr',1e-3)))
-            print('KAGAMI PPO INIT phase=ready critic=' + str(kind) + ' reward=' + str(getattr(args,'ppo_reward','token_match')) + ' actor_aux=' + str(float(getattr(args,'ppo_reference_aux_coef',0.))) + ' ppo_weight=' + str(float(getattr(args,'ppo_weight',.2))),flush=True)
+            print('KCIA PPO INIT phase=ready critic=' + str(kind) + ' reward=' + str(getattr(args,'ppo_reward','token_match')) + ' actor_aux=' + str(float(getattr(args,'ppo_reference_aux_coef',0.))) + ' ppo_weight=' + str(float(getattr(args,'ppo_weight',.2))),flush=True)
             self._critic_dir=getattr(args,'critic_state_dir',None)
             self._critic_identity=str(getattr(args,'room_id',None) or getattr(args,'model','local'))
             if kind=='hf':
@@ -138,7 +138,7 @@ class MixedObjectiveTrainer:
     def sft_loss(self,model,device):
         cap=effective_context_length(self.args,self.tok,model)
         if cap < int(self.args.max_length) and self._context_cap_logged != cap:
-            print('KAGAMI CONTEXT WINDOW: model/tokenizer limit=' + str(cap) +
+            print('KCIA CONTEXT WINDOW: model/tokenizer limit=' + str(cap) +
                   ' (requested max_length=' + str(self.args.max_length) +
                   '); SFT/PPO inputs will be bounded to the smaller limit',flush=True)
             self._context_cap_logged=cap
@@ -175,7 +175,7 @@ class MixedObjectiveTrainer:
         eos=getattr(self.tok,'eos_token_id',None)
         self._sft_window_count+=1
         if next_offset < len(response) and self._sft_window_count<=3:
-            print('KAGAMI SFT WINDOW: response_tokens=' + str(len(response)) +
+            print('KCIA SFT WINDOW: response_tokens=' + str(len(response)) +
                   ' context_limit=' + str(cap) + ' supervised=' +
                   str(next_offset) + '/' + str(len(response)),flush=True)
         pending['offset']=next_offset
@@ -499,7 +499,7 @@ class MixedObjectiveTrainer:
                 if (self._zero_reward_streak in (10, 50, 100) and
                         not float(getattr(self.args,'ppo_reference_aux_coef',0.)) and
                         getattr(self.args,'ppo_reward','token_match')!='hf_model'):
-                    print('KAGAMI PPO LEARNING WARNING: ' + str(self._zero_reward_streak) +
+                    print('KCIA PPO LEARNING WARNING: ' + str(self._zero_reward_streak) +
                           ' consecutive rollouts returned zero reference reward. '
                           'Actor PPO gradient may not improve the reference task; '
                           'consider SFT or --ppo-reference-aux-coef 0.1 in a NEW room.',flush=True)

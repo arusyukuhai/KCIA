@@ -57,7 +57,7 @@ def _tokens(tokenizer, text):
     if not isinstance(text,str) or not text or len(text)>16384:
         raise MixedLearningError('prompt/response/reference must be nonempty UTF-8 text <=16Ki chars')
     # Transformers warns on encoding texts longer than tokenizer.model_max_length
-    # *before* Kagami can split them into safe causal windows. Encoding the
+    # *before* KCIA can split them into safe causal windows. Encoding the
     # complete response is intentional; only model forwards are context bound.
     try:
         ids=tokenizer.encode(text, add_special_tokens=False, verbose=False)

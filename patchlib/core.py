@@ -18,6 +18,7 @@ import struct
 import threading
 from dataclasses import dataclass
 from typing import Any
+from types import SimpleNamespace
 
 import torch
 from torch import nn
@@ -108,7 +109,10 @@ class FrozenDelta(nn.Module):
     def __init__(self, spec: FactorDelta, tensors: list[torch.Tensor]):
         super().__init__()
         self.shape, self.kind = spec.shape, spec.kind
-        self.rank, self.alpha, self.dense = spec.rank, spec.alpha, spec.dense
+        # Signed incoming factors can have a different physical rank; use that
+        # actual factor width for the delta scale, never the receiver's rank.
+        self.rank = spec.rank if spec.dense else int(tensors[0].shape[-1])
+        self.alpha, self.dense = spec.alpha, spec.dense
         for i, tensor in enumerate(tensors):
             self.register_buffer(f"part{i}", tensor.detach().to(dtype=torch.float32).clone(), persistent=False)
         self.nparts = len(tensors)
@@ -167,7 +171,8 @@ class UniversalAdapter:
     def __init__(self, model: nn.Module, model_id: str, revision: str, *,
                  kind: str = 'loha', rank: int = 16, alpha: float | None = None,
                  max_peers: int = 8, target_scope: str = 'all',
-                 init_style: str = 'balanced', wide_lora_rank: int = 4):
+                 init_style: str = 'balanced', wide_lora_rank: int = 4,
+                 local_rank: int | None = None):
         if not isinstance(wide_lora_rank,int) or not 1 <= wide_lora_rank <= 16:
             raise ValueError('wide_lora_rank must be between 1 and 16')
         self.wide_lora_rank=wide_lora_rank
@@ -177,6 +182,13 @@ class UniversalAdapter:
             raise ValueError('kind must be lora or loha')
         self.model, self.model_id, self.revision = model, model_id, revision
         self.kind, self.rank = kind, rank
+        # The signed room rank is an immutable MAXIMUM, not a physical allocation.
+        # All members must run heterogeneous-rank aware clients before sharing
+        # updates from lower-ranked peers.
+        self.local_rank = rank if local_rank is None else local_rank
+        if (type(self.local_rank) is not int or not 1 <= self.local_rank <= rank or
+                (kind != 'loha' and self.local_rank != rank)):
+            raise ValueError('local_rank must be in 1..room rank for LoHA only')
         self.alpha = float(rank if alpha is None else alpha)
         if target_scope not in ('all','gpt_neo_linear','gpt_neo_full','auto','linear','universal'):
             raise ValueError('unsupported target_scope')
@@ -205,6 +217,13 @@ class UniversalAdapter:
                 'explicitly select --target-scope universal after a successful '
                 'training-preflight; never change a running room adapter layout.')
         self.layout = self._layout_digest()
+        self.local_training_rank = self.local_rank
+
+    def set_local_training_rank(self, rank: int) -> None:
+        # Changing factor shapes after allocating optimizer/anchor/working
+        # snapshots would corrupt signed history. Require a fresh peer.
+        if rank != self.local_rank:
+            raise ValueError('physical LoHA rank is pinned at adapter construction')
 
     def _attach(self):
         """Bind each original Parameter exactly once, including all tied aliases.
@@ -321,7 +340,11 @@ class UniversalAdapter:
             group_kind = 'lora' if wide else self.kind
             group_rank = self.wide_lora_rank if wide else self.rank
             group_alpha = float(group_rank) if wide else self.alpha
-            overlay = Overlay(FactorDelta(shape, group_kind, group_rank, group_alpha,
+            # Keep the dense fallback decision canonical: when a small tensor
+            # did not support the shared rank, all peers must use dense.
+            physical_rank = (self.local_rank if group_kind == 'loha' and
+                             shape and min(shape) >= group_rank else group_rank)
+            overlay = Overlay(FactorDelta(shape, group_kind, physical_rank, group_alpha,
                                           init_style=self.init_style)).to(device=param.device)
             param.requires_grad_(False)
             # Some weight-tied models expose the same Parameter through several
@@ -331,13 +354,15 @@ class UniversalAdapter:
                     continue
                 bound_fields.add((id(module),pname))
                 parametrize.register_parametrization(module, pname, overlay,
-                    unsafe=bool(getattr(self.model,'_fedpara_streaming_base_info',None)))
+                    unsafe=bool(getattr(self.model,'_kcia_streaming_base_info',None)))
             self.groups.append(Group(name, aliases, shape, overlay))
         self.groups.sort(key=lambda x: x.canonical)
 
     def _layout_digest(self):
         schema = [[x.canonical, list(x.aliases), list(x.shape),
-                   x.overlay.local.kind, x.overlay.local.rank, x.overlay.local.alpha]
+                   x.overlay.local.kind,
+                   self.rank if x.overlay.local.kind == 'loha' and not x.overlay.local.dense else x.overlay.local.rank,
+                   x.overlay.local.alpha]
                   for x in self.groups]
         return hashlib.sha256(_canonical_json(schema)).hexdigest()
 
@@ -359,6 +384,7 @@ class UniversalAdapter:
 
     def _metadata(self, peer_id: str, seq: int) -> dict[str, Any]:
         return {"format": 1, "model_id": self.model_id, "revision": self.revision,
+                **({"rank_protocol": "heterogeneous-loha-v1"} if self.local_rank != self.rank else {}),
                 "layout": self.layout, "kind": self.kind, "rank": self.rank,
                 "alpha": self.alpha, "peer_id": peer_id, "seq": seq,
                 "targets": [{"name": g.canonical, "aliases": list(g.aliases),
@@ -386,27 +412,59 @@ class UniversalAdapter:
                 meta.update(extra_meta)
             return encode_patch(meta, weights)
 
-    def _validate(self, meta: dict[str, Any], weights: dict[str, torch.Tensor]) -> list[list[torch.Tensor]]:
+    def _validate(self, meta: dict[str, Any], weights: dict[str, torch.Tensor], *,
+                  local_only: bool = False) -> list[list[torch.Tensor]]:
+        """Validate either legacy full-rank or signed heterogeneous LoHA wire.
+
+        Never pad incoming low-rank tensors: they are authenticated under their
+        actual shapes, so wire bytes and replay buffers scale with sender rank.
+        """
         reference = self._metadata(meta.get('peer_id', ''), meta.get('seq', -1))
-        for key in ('format', 'model_id', 'revision', 'layout', 'kind', 'rank', 'alpha', 'targets'):
+        for key in ('format','model_id','revision','layout','kind','rank','alpha'):
             if meta.get(key) != reference[key]:
                 raise PatchError(f'patch incompatible: {key}')
-        if not isinstance(meta.get('seq'), int) or meta['seq'] < 0:
+        if type(meta.get('seq')) is not int or meta['seq'] < 0:
             raise PatchError('invalid patch sequence')
-        if not isinstance(meta.get('peer_id'), str) or not PEER_ID.fullmatch(meta['peer_id']):
+        if not isinstance(meta.get('peer_id'),str) or not PEER_ID.fullmatch(meta['peer_id']):
             raise PatchError('invalid patch peer ID')
-        all_parts = []
-        expected = set()
-        for i, g in enumerate(self.groups):
-            spec = g.overlay.local
-            parts = []
-            for j, shape in enumerate(spec.expected_shapes()):
-                key = f'p{i}.f{j}'
+        incoming = meta.get('targets')
+        canonical = reference['targets']
+        if not isinstance(incoming,list) or len(incoming) != len(canonical):
+            raise PatchError('invalid patch targets count')
+        protocol = meta.get('rank_protocol')
+        if protocol not in (None, 'heterogeneous-loha-v1'):
+            raise PatchError('unsupported rank protocol')
+        all_parts,expected=[],set()
+        for i, (g, target, orig) in enumerate(zip(self.groups,incoming,canonical)):
+            if not isinstance(target,dict) or set(target)!=set(orig):
+                raise PatchError('invalid signed target metadata')
+            for key in ('name','aliases','shape','dense','kind','alpha'):
+                if target.get(key)!=orig[key]:
+                    raise PatchError(f'patch incompatible target {i}: {key}')
+            signed_rank = target.get('rank')
+            if type(signed_rank) is not int or not 1 <= signed_rank <= self.rank:
+                raise PatchError('invalid signed factor rank')
+            local=g.overlay.local
+            if local.kind != 'loha' or local.dense:
+                if signed_rank != local.rank:
+                    raise PatchError('non-LoHA/dense target rank cannot vary')
+            elif signed_rank != local.rank and protocol is None and signed_rank != self.rank:
+                raise PatchError('low-rank patch requires heterogeneous protocol')
+            if local.kind=='loha' and signed_rank != self.rank and protocol is None:
+                raise PatchError('missing heterogeneous rank protocol')
+            if local_only and signed_rank != local.rank:
+                raise PatchError('local checkpoint rank differs from pinned physical rank')
+            if target['dense']:
+                shapes=[g.shape]
+            else:
+                shapes=[(d,signed_rank) for _ in range(1 if local.kind=='lora' else 2) for d in g.shape]
+            parts=[]
+            for j,shape in enumerate(shapes):
+                key=f'p{i}.f{j}'
                 expected.add(key)
-                if key not in weights:
-                    raise PatchError(f'missing tensor {key}')
-                t = weights[key]
-                if tuple(t.shape) != shape or t.dtype not in (torch.float16, torch.float32, torch.bfloat16):
+                if key not in weights:raise PatchError(f'missing tensor {key}')
+                t=weights[key]
+                if tuple(t.shape)!=tuple(shape) or t.dtype not in (torch.float16,torch.float32,torch.bfloat16):
                     raise PatchError(f'invalid shape/dtype: {key}')
                 if not torch.isfinite(t).all().item():
                     raise PatchError(f'nonfinite values: {key}')
@@ -422,11 +480,17 @@ class UniversalAdapter:
         if expected_peer is not None and meta.get('peer_id') != expected_peer:
             raise PatchError('local checkpoint sender mismatch')
         with self.lock, torch.no_grad():
-            parts = self._validate(meta, weights)
+            parts = self._validate(meta, weights, local_only=True)
             for g, group_parts in zip(self.groups, parts):
                 for param, tensor in zip(g.overlay.local.parts, group_parts):
                     param.copy_(tensor.to(param.device, dtype=param.dtype))
             return meta['peer_id']
+
+    @staticmethod
+    def _incoming_spec(local, ps):
+        return SimpleNamespace(shape=local.shape, kind=local.kind,
+            rank=local.rank if local.dense else ps[0].shape[-1],
+            alpha=local.alpha, dense=local.dense)
 
     def import_remote(self, data: bytes, expected_peer: str | None = None) -> str:
         meta, weights = decode_patch(data)
@@ -440,7 +504,7 @@ class UniversalAdapter:
             if peer_id not in self.remote_versions and len(self.remote_versions) >= self.max_peers:
                 raise PatchError('too many remote peers')
             # Validation and allocations all complete before swapping live state.
-            prepared = [FrozenDelta(g.overlay.local, ps).to(g.overlay.local.parts[0].device)
+            prepared = [FrozenDelta(self._incoming_spec(g.overlay.local, ps), ps).to(g.overlay.local.parts[0].device)
                         for g, ps in zip(self.groups, parts)]
             key = hashlib.sha256(peer_id.encode()).hexdigest()
             for g, remote in zip(self.groups, prepared):

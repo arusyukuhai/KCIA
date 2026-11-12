@@ -10,6 +10,11 @@ import sys
 import re
 from pathlib import Path
 
+# Start the owner-liveness guard before importing potentially slow ML libraries.
+# Only GUI-launched children receive this flag; manual CLI jobs remain detached.
+from .gui_worker_guard import enable_gui_parent_watchdog
+enable_gui_parent_watchdog()
+
 import torch
 from safetensors.torch import load_file
 from .core import UniversalAdapter, PatchError, decode_patch
@@ -270,7 +275,7 @@ def save_model(model, folder):
     folder = Path(folder); folder.mkdir(parents=True, exist_ok=True)
     if hasattr(model,'save_pretrained'):
         model.save_pretrained(str(folder),safe_serialization=True)
-        # HF models normally write this themselves; enforce it on all Kagami
+        # HF models normally write this themselves; enforce it on all KCIA
         # merged checkpoint exports, including third-party config serializers.
         config = getattr(model, 'config', None)
         if (config is not None and hasattr(config, 'save_pretrained')
@@ -469,7 +474,7 @@ def main():
     add_train_args(live)
     live.add_argument('--ws', default='ws://127.0.0.1:8080/ws')
     live.add_argument('--room', required=True)
-    live.add_argument('--token', default=os.getenv('APP_TOKEN',''))
+    live.add_argument('--token', default='' )
     live.add_argument('--sync-steps', type=int, default=10)
     live.add_argument('--connect-timeout', type=float, default=120)
     live.add_argument('--sync-grace', type=float, default=10)
@@ -493,7 +498,7 @@ def main():
     livefed.add_argument('--link',action='append',default=[],help='One per remote: OTHER_PEER=PAIRWISE_ROOM')
     livefed.add_argument('--peers',type=int,help='Synchronous mode only (not allowed for elastic)')
     livefed.add_argument('--expected-peers',type=int,default=2,help='Deprecated cosmetic CLI field; live membership is discovered automatically')
-    livefed.add_argument('--token',default=os.getenv('APP_TOKEN',''))
+    livefed.add_argument('--token',default='' )
     livefed.add_argument('--local-steps',type=int,default=4,help='Maximum local minibatches before publishing; receive no longer forces early seal')
     livefed.add_argument('--max-sync-steps',type=int,default=64,help='Maximum local steps per published event as room grows')
     livefed.add_argument('--fixed-sync',dest='adaptive_sync',action='store_false',help='Disable room-size-based publication spacing')
@@ -544,7 +549,7 @@ def main():
     exchange = sub.add_parser('exchange',help='Exchange saved .fpatch via WebRTC')
     exchange.add_argument('--ws', default='ws://127.0.0.1:8080/ws')
     exchange.add_argument('--room', required=True)
-    exchange.add_argument('--token', default=os.getenv('APP_TOKEN',''))
+    exchange.add_argument('--token', default='' )
     exchange.add_argument('--send', type=Path, help='Previously trained local .fpatch')
     exchange.add_argument('--recv-dir', type=Path, default=Path('received'))
     exchange.add_argument('--timeout', type=float, default=120)
@@ -572,7 +577,7 @@ def main():
     sexchange = sub.add_parser('state-exchange',help='Stream full model parameters via WebRTC DataChannel')
     sexchange.add_argument('--ws',default='ws://127.0.0.1:8080/ws')
     sexchange.add_argument('--room',required=True)
-    sexchange.add_argument('--token',default=os.getenv('APP_TOKEN',''))
+    sexchange.add_argument('--token',default='' )
     sexchange.add_argument('--send',type=Path,help='Optional full-state archive to send')
     sexchange.add_argument('--recv-dir',type=Path,default=Path('received-states'))
     sexchange.add_argument('--timeout',type=float,default=600)
@@ -607,7 +612,7 @@ def main():
     shexchange = sub.add_parser('shard-exchange',help='Request only missing shards over Mummy/WebRTC')
     shexchange.add_argument('--ws',default='ws://127.0.0.1:8080/ws')
     shexchange.add_argument('--room',required=True)
-    shexchange.add_argument('--token',default=os.getenv('APP_TOKEN',''))
+    shexchange.add_argument('--token',default='' )
     shexchange.add_argument('--send',type=Path,help='Optional local .fmanifest to advertise')
     shexchange.add_argument('--store',type=Path,required=True,help='Content-addressed shard cache')
     shexchange.add_argument('--recv-dir',type=Path,default=Path('received-manifests'))
@@ -620,7 +625,7 @@ def main():
     real.add_argument('--room-id',required=True)
     real.add_argument('--journal',type=Path,default=Path('expert-demo'))
     real.add_argument('--ws',default='ws://127.0.0.1:8080/ws')
-    real.add_argument('--token',default=os.getenv('APP_TOKEN',''))
+    real.add_argument('--token',default='' )
     real.add_argument('--enroll-seconds',type=float,default=8.0)
     real.add_argument('--quant4',action='store_true',help='4-bit frozen expert base and fp32 trainable factors')
     real.add_argument('--kind',choices=['lora','loha'],default='loha')
@@ -639,7 +644,7 @@ def main():
     eplan.add_argument('--output',type=Path,required=True)
     code = sub.add_parser('code-register',help='Validate and store a local .py/.zip without executing')
     code.add_argument('--file',type=Path,required=True)
-    code.add_argument('--registry',type=Path,default=Path('.fedpara-codes'))
+    code.add_argument('--registry',type=Path,default=Path('.kcia-codes'))
     fetch = sub.add_parser('fetch-custom',help='Download pinned HF repo code+safe weights without executing')
     fetch.add_argument('--repo',required=True)
     fetch.add_argument('--revision',required=True)
@@ -650,7 +655,7 @@ def main():
     info=sub.add_parser('room-info',help='Fetch room model and HF dataset collection without training')
     info.add_argument('--room-id',required=True)
     info.add_argument('--ws',default='ws://127.0.0.1:8080/ws')
-    info.add_argument('--token',default=os.getenv('APP_TOKEN',''))
+    info.add_argument('--token',default='' )
     info.add_argument('--output',type=Path,help='Save validated room manifest')
     rm = sub.add_parser('room-manifest-create',help='Create a validated room model/dataset/code descriptor')
     rm.add_argument('--model',required=True)

@@ -1,4 +1,4 @@
-"""Bounded-factor, asynchronous effective-weight snapshots for Kagami.
+"""Bounded-factor, asynchronous effective-weight snapshots for KCIA.
 
 Only call capture() at a *sealed* trainer step boundary while serialized with
 all incoming signed model mutations. Frozen low-rank factors are independent
@@ -60,8 +60,8 @@ class FrozenExport:
 
     def assert_immutable_base(self):
         """Fail closed on normal PyTorch in-place/storage/base replacements."""
-        manager=getattr(self.model,'_fedpara_lazy_mutable_weights',None)
-        with (manager.export_context() if getattr(manager,'_fedpara_is_factor_ledger',False)
+        manager=getattr(self.model,'_kcia_lazy_mutable_weights',None)
+        with (manager.export_context() if getattr(manager,'_kcia_is_factor_ledger',False)
               else nullcontext()):
             now = effective_state_sources(self.model, self.adapter)
         if set(now) != {x[0] for x in self.sources}:
@@ -85,8 +85,8 @@ def capture(*, journal, model, adapter, max_factor_bytes=256 * 1024**2,
     """
     if type(max_factor_bytes) is not int or max_factor_bytes <= 0:
         raise ValueError('invalid frozen factor budget')
-    manager=getattr(model,'_fedpara_lazy_mutable_weights',None)
-    ledger=manager if getattr(manager,'_fedpara_is_factor_ledger',False) else None
+    manager=getattr(model,'_kcia_lazy_mutable_weights',None)
+    ledger=manager if getattr(manager,'_kcia_is_factor_ledger',False) else None
     with adapter.lock, torch.no_grad(), (ledger.export_context() if ledger is not None else nullcontext()):
         sources = effective_state_sources(model, adapter)
         virtual=ledger.frozen_sources() if ledger is not None else None

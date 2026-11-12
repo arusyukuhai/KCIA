@@ -1,4 +1,4 @@
-"""Native Python desktop UI for Fedpara (Tkinter, no HTTP listener).
+"""Native Python desktop UI for KCIA (Tkinter, no HTTP listener).
 
 Dataset references are registered with the room, never proxied via Mummy.
 All actions invoke fixed Python module commands without a shell.
@@ -146,6 +146,7 @@ class DesktopController:
                 '--room-manifest',str(manifest),'--ws',ws,
                 '--kind',kind,'--optimizer',optimizer,'--rank',str(rank),
                 '--wide-lora-rank',str(wide_lora_rank),
+                '--local-loha-rank','auto',
                 '--push-fanout',str(push_fanout),
                 '--reinit-every',str(reinit_every),
                 '--target-scope',(
@@ -164,7 +165,7 @@ class DesktopController:
                   '--streaming-base','--gradient-checkpointing',
                   '--stream-chunk-mib',str(stream_chunk_mib),
                   '--disk-cache-fraction',str(disk_cache_fraction),
-                  '--streaming-scratch-dir',str((Path(shard_store) if shard_store is not None else Path(journal).parent / (Path(journal).stem + '-streaming')) / '.temporary-streaming-pages')])) + (['--auto-state'] if auto_state else []) + (['--swarm-pause-file',str(pause_file)] if pause_file is not None else []) + (['--eval-snapshot-request-file',str(snapshot_request_file)] if snapshot_request_file is not None else []) + (['--room-public'] if room_public else []) + (['--hf-shuffle-buffer',str(int(os.environ['FEDPARA_HF_SHUFFLE_BUFFER']))] if os.environ.get('FEDPARA_HF_SHUFFLE_BUFFER','').isdigit() else [])
+                  '--streaming-scratch-dir',str((Path(shard_store) if shard_store is not None else Path(journal).parent / (Path(journal).stem + '-streaming')) / '.temporary-streaming-pages')])) + (['--auto-state'] if auto_state else []) + (['--swarm-pause-file',str(pause_file)] if pause_file is not None else []) + (['--eval-snapshot-request-file',str(snapshot_request_file)] if snapshot_request_file is not None else []) + (['--room-public'] if room_public else []) + (['--hf-shuffle-buffer',str(int(os.environ['KCIA_HF_SHUFFLE_BUFFER']))] if os.environ.get('KCIA_HF_SHUFFLE_BUFFER','').isdigit() else [])
         if mixed_options and mixed_options.get('enabled'):
             from .mix_gui_v66 import command_options
             command.extend(command_options(mixed_options,state_dir=critic_state_dir))
@@ -201,12 +202,15 @@ class DesktopController:
             from .mps_launch_v108 import launch_environment
             env=launch_environment(command,env)
             threads=max(1,min(4,(os.cpu_count() or 4)//4))
-            if os.environ.get('FEDPARA_WORKER_THREADS','').isdigit():
-                threads=max(1,min(64,int(os.environ['FEDPARA_WORKER_THREADS'])))
+            if os.environ.get('KCIA_WORKER_THREADS','').isdigit():
+                threads=max(1,min(64,int(os.environ['KCIA_WORKER_THREADS'])))
             for name in ('OMP_NUM_THREADS','MKL_NUM_THREADS','OPENBLAS_NUM_THREADS',
                          'VECLIB_MAXIMUM_THREADS','NUMEXPR_NUM_THREADS'):
                 env[name]=str(threads)
             env.setdefault('TOKENIZERS_PARALLELISM','false')
+            # Train workers may detach their process session for clean disk
+            # writes, but must NOT continue training after their GUI owner dies.
+            env['KCIA_GUI_PARENT_PID'] = str(os.getpid())
             # Give the trainer its own process session on POSIX. Closing the
             # WebView/terminal must not SIGHUP a multi-GB checkpoint export.
             self.proc=subprocess.Popen(command,cwd=ROOT,env=env,
@@ -275,7 +279,7 @@ class FederatedDesktop:
         self.root=root
         self.ctrl=DesktopController()
         self.imported_manifest=None
-        root.title('Fedpara — P2P Training')
+        root.title('KCIA — P2P Training')
         root.geometry('900x820')
         try:
             root.configure(bg='#080e0b')
@@ -385,7 +389,7 @@ class FederatedDesktop:
 
     def _error(self,exc):
         from tkinter import messagebox
-        messagebox.showerror('Fedpara',str(exc))
+        messagebox.showerror('KCIA',str(exc))
 
     def browse(self,key):
         from tkinter import filedialog

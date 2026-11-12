@@ -1,4 +1,4 @@
-"""Crash-consistent append-only payload archive for signed Fedpara events.
+"""Crash-consistent append-only payload archive for signed KCIA events.
 
 A frame is [8-byte magic][uint64 payload length][sha256][exact signed bytes].
 A frame is fdatasync/fsync'd BEFORE its small SQLite index row is committed.

@@ -1,8 +1,8 @@
-# Kagami v105: PPO Critic GUI起動前の互換性チェック
+# KCIA v105: PPO Critic GUI起動前の互換性チェック
 
 ## 今回のエラーの意味
 
-`OpenHands/openhands-critic-4b-v1.0` の固定リビジョン（80369c1468c5...）の `config.json` は `id2label` を27個宣言します。これはPPOが予測する単一スカラー状態価値 `V(s)` の学習済みheadとは異なります。このモデルの公開カードもエージェント軌跡の複数項目評価（rubric）向けと説明しています。モデルカード本文のラベル数表記とconfig.jsonの実際の数は異なることがあるので、Kagamiのhead互換性判定は実際の固定されたconfig.jsonに従います。
+`OpenHands/openhands-critic-4b-v1.0` の固定リビジョン（80369c1468c5...）の `config.json` は `id2label` を27個宣言します。これはPPOが予測する単一スカラー状態価値 `V(s)` の学習済みheadとは異なります。このモデルの公開カードもエージェント軌跡の複数項目評価（rubric）向けと説明しています。モデルカード本文のラベル数表記とconfig.jsonの実際の数は異なることがあるので、KCIAのhead互換性判定は実際の固定されたconfig.jsonに従います。
 
 v104のCLI preflightは正しく不一致を検出しましたが、GUI側のチェックはワーカー開始後だったため、同じ設定での失敗を繰り返せました。
 
@@ -25,5 +25,5 @@ HF Value Criticにこだわる場合は、PPO用の単一状態価値headを既�
 ## 検証
 
 - v105 GUI起動の新規3テストを含む対象65件成功、MPS依存1件スキップ。
-- `python kagami.py ppo-doctor` はLinux CPUで4ステップ成功し、LoRA weightが更新されました。
+- `python kcia.py ppo-doctor` はLinux CPUで4ステップ成功し、LoRA weightが更新されました。
 - Apple Silicon/MPSの実機およびユーザーの実データでは未検証です。

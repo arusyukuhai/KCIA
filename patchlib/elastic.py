@@ -31,7 +31,7 @@ from .event_archive import append_frame, read_frame, recover_tail, payload_path
 
 MAGIC = b'FPEL1\0'
 MAX_ENVELOPE_HEADER = 4096
-PROTOCOL = 'fedpara-elastic-v1'
+PROTOCOL = 'kcia-elastic-v1'
 
 
 def pack_event(patch: bytes, origin: str, signer=None, *, public_key: str | None = None) -> bytes:
@@ -115,11 +115,11 @@ class EventJournal:
         self.sync = sync
         self._write_lock = threading.RLock()
         self._async_slots = None
-        self._journal_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="fedpara-journal")
+        self._journal_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="kcia-journal")
         self._worker_connection = None
         self.path = Path(path)
         if Path(str(self.path)+'.retired.json').exists():
-            raise PatchError('journal belongs to a retired Kagami generation; load the certified replacement checkpoint')
+            raise PatchError('journal belongs to a retired KCIA generation; load the certified replacement checkpoint')
         self.path.parent.mkdir(parents=True, exist_ok=True)
         # SQLite permits multiple writers, but two trainers MUST NOT share an
         # identity and append conflicting gradients to the same peer journal.
@@ -849,10 +849,10 @@ class ElasticEngine:
                 # the GUI log rather than appearing permanently unresponsive.
                 now=time.monotonic()
                 if now-last_report >= 5.0:
-                    print(f'KAGAMI RESUME replaying signed history: {seen} events applied',flush=True)
+                    print(f'KCIA RESUME replaying signed history: {seen} events applied',flush=True)
                     last_report=now
             if seen:
-                print(f'KAGAMI RESUME restored {seen} durable signed updates',flush=True)
+                print(f'KCIA RESUME restored {seen} durable signed updates',flush=True)
         finally:
             self.applied.replaying=False
 
@@ -869,7 +869,7 @@ class ElasticEngine:
                 seen += 1
         finally:
             self.applied.replaying = False
-        print(f'KAGAMI FAST RESUME cached base + {seen} signed suffix updates '
+        print(f'KCIA FAST RESUME cached base + {seen} signed suffix updates '
               f'in {time.monotonic()-start:.2f}s', flush=True)
         return seen
 

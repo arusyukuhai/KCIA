@@ -1,6 +1,6 @@
-# Kagami v94 validation
+# KCIA v94 validation
 
-- Source base: v93 `kagami_v93_event_id_fix.zip`.
+- Source base: v93 `kcia_v93_event_id_fix.zip`.
 - Regression proof (old v93): `test_exact_prior_error_missing_journal_digest_is_not_generated_by_replayed_carry` raises `PatchError: conflicting event ID: ... journal_sha256=missing ... local_origin=True`.
 - Identical test (v94): passes.
 - Related test selection: 85 passed in local Linux/CPU environment, including six new v94 tests.

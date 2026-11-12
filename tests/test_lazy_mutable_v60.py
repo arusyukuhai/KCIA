@@ -70,8 +70,8 @@ def test_lazy_unsigned_read_and_signed_update_dedup_replay(tmp_path):
     # cached safetensors tensor after a signed update.
     for name in ('first','second'):
         module=getattr(model,name)
-        assert isinstance(module._fedpara_disk_source,str)
-        assert Path(module._fedpara_disk_source).exists()
+        assert isinstance(module._kcia_disk_source,str)
+        assert Path(module._kcia_disk_source).exists()
     x=torch.randn(3,10)
     expected=model(x).detach().clone()
     assert engine.ingest(wire) is False
@@ -199,7 +199,7 @@ def test_gpt2_conv1d_lazy_stream_signed_apply(tmp_path):
     model(x).pow(2).mean().backward();optim.step()
     eng.seal_local(1)
     assert mgr.used_bytes==9*7*4
-    assert isinstance(model._fedpara_disk_source,str)
+    assert isinstance(model._kcia_disk_source,str)
     assert (immutable/'model.safetensors').read_bytes()==initial
     assert model(x).isfinite().all()
     j.close()
@@ -239,10 +239,10 @@ def test_cli_train_elastic_meta_loader_is_lazily_writable(tmp_path,monkeypatch):
         disk_linear_dir=None,auto_rank=False,resource_report=None,
         gradient_checkpointing=False)
     mdl,ada=load_model(args,use_adapter=True)
-    manager=mdl._fedpara_lazy_mutable_weights
+    manager=mdl._kcia_lazy_mutable_weights
     assert manager.used_bytes==0
-    assert not list((tmp_path/'scratch'/'kagami-lazy-v60').rglob('*.raw'))
-    assert mdl._fedpara_streaming_base_info['mode']=='read-only-mmap'
+    assert not list((tmp_path/'scratch'/'kcia-lazy-v60').rglob('*.raw'))
+    assert mdl._kcia_streaming_base_info['mode']=='read-only-mmap'
     assert mdl(torch.rand(2,10)).shape==(2,6)
     j=EventJournal(tmp_path/'e.sqlite','e'*64)
     eng=ContinualElasticEngine(ada,'peer','e'*64,j,unsafe=True)
@@ -271,4 +271,4 @@ def test_disk_full_before_publication_does_not_mutate_genesis(tmp_path,monkeypat
     assert manager.used_bytes==0
     assert not list(manager.directory.glob('*.raw'))
     assert torch.equal(original,old)
-    assert not isinstance(getattr(adapter.model.get_submodule(owner),'_fedpara_disk_source',None),str)
+    assert not isinstance(getattr(adapter.model.get_submodule(owner),'_kcia_disk_source',None),str)

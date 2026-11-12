@@ -54,7 +54,7 @@ def test_signed_trace_counterfactual_workflow(tmp_path,monkeypatch):
                     # Both branches nonzero so the resulting update isn't zero.
                     for factor in group.overlay.local.parts:factor.fill_(.01*(seq+i+1))
             patch=adapter.export(origin,seq=seq,dtype='float32',extra_meta={
-                'elastic_protocol':'fedpara-elastic-v1','genesis':digest,'denominator':2})
+                'elastic_protocol':'kcia-elastic-v1','genesis':digest,'denominator':2})
             wire=pack_event(patch,origin,signer=sign,public_key=pub)
             journal.append(origin,seq,wire)
     journal.close()

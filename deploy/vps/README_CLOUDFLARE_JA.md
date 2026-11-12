@@ -1,4 +1,4 @@
-# Kagami v112.2 — Cloudflare Tunnel / VPS / Mac + Colab 検証
+# KCIA v112.2 — Cloudflare Tunnel / VPS / Mac + Colab 検証
 
 ## アーキテクチャ（Caddy / nginx 不要）
 
@@ -14,13 +14,13 @@ Colab (PyTorch + aiortc) ─ WSS ──┘
 
 **重要**: 普通の Cloudflare DNS/CDN/Tunnel は汎用 UDP TURN relay をプロキシしない。TURN サーバー用の DNS は **DNS only (灰色の雲)** にする。Cloudflare Realtime TURN / Spectrum は別サービスであり、この構成では使っていない。シグナリングだけ Cloudflare Tunnel (オレンジの雲)。TURN 用の VPS IP は DNS から見える。Cloudflare Tunnel が代わりに TURN 通信を隠すことはできない。
 
-**VPS で LLM を学習しない**。VPS は Nim Mummy のルーム管理・SDP/ICE シグナリング・coturn のみ。更新・重み・署名イベントは DataChannel 側で送る。server の `APP_TOKEN` は全ピア共通のデモ用 bearer access token。個人端末の秘密署名鍵はサーバーへ送らない。
+**VPS で LLM を学習しない**。VPS は Nim Mummy のルーム管理・SDP/ICE シグナリング・coturn のみ。更新・重み・署名イベントは DataChannel 側で送る。全員がトークンなしでシグナリングとモデル公開登録を利用できる。個人端末の秘密署名鍵はサーバーへ送らない。
 
 ## 1. Cloudflare で公開ホスト名を作る
 
 * Cloudflare で管理するドメインを使用。
-* `Networking > Tunnels` から **remotely-managed** Tunnel を新規作成。名前は `kagami-prototype` など。**Tunnel token (`eyJ...`)** を控え、第三者に公開しない。
-* `Published application` のホスト名: `signal.example.com`、**Service URL: `http://signal:8080`**。`cloudflared` と `signal` は同じ Docker Compose bridge にいるため、 `localhost` ではなく service 名 `signal` を使う。HTTP WebSockets を許可する。Cloudflare の challenge / Access login を `/ws` に適用しないこと（Python aiortc クライアントにはログイン画面を処理できない）。アクセス制限は Kagami の APP_TOKEN + 複雑な room ID で行う。
+* `Networking > Tunnels` から **remotely-managed** Tunnel を新規作成。名前は `kcia-prototype` など。**Tunnel token (`eyJ...`)** を控え、第三者に公開しない。
+* `Published application` のホスト名: `signal.example.com`、**Service URL: `http://signal:8080`**。`cloudflared` と `signal` は同じ Docker Compose bridge にいるため、 `localhost` ではなく service 名 `signal` を使う。HTTP WebSockets を許可する。Cloudflare の challenge / Access login を `/ws` に適用しないこと（Python aiortc クライアントにはログイン画面を処理できない）。Cloudflare側で利用状況・濫用対策を設定する。非公開roomのIDはランダムに生成し、参加リンクを知る人だけに共有する。
 * Cloudflare DNS に別の A レコード `turn.example.com` → VPS のグローバル IPv4。**Proxy status: DNS only** を必ず選ぶ。
 * `signal.example.com` と `turn.example.com` は必ず別のホスト名にする。
 
@@ -37,7 +37,7 @@ python3 deploy/vps/setup_env.py \
   --public-ip 198.51.100.1  # 実際のパブリック IPv4 に置換。予約文書アドレスは使用不可
 ```
 
-`deploy/vps/.env` がパーミッション `0600` で生成される。`CF_TUNNEL_TOKEN=PASTE_...` を Cloudflare Tunnel の実 token に置換する。他の `APP_TOKEN`, `TURN_SECRET`, `ROOM_PUBLISH_TOKEN` は自動生成される。この `.env` は**絶対に公開 ZIP/リポジトリに入れない**。Mac/Colab には `.env` をコピーしない。テストには **APP_TOKEN の値だけ**を安全に渡す。
+`deploy/vps/.env` がパーミッション `0600` で生成される。`CF_TUNNEL_TOKEN=PASTE_...` を Cloudflare Tunnel の実 token に置換する。TURN用の内部鍵 `TURN_SECRET` は自動生成される。この `.env` は**絶対に公開 ZIP/リポジトリに入れない**。Mac/Colab への秘密ファイルの転送は不要。
 
 VPS/クラウドの両方のファイアウォールで以下だけをインバウンド許可する（SSH は別途管理者のアクセス元のみ許可）:
 
@@ -71,7 +71,7 @@ python -m pip install -r deploy/vps/requirements-transport.txt
 
 # 通信サーバーの単独検査（モデルをロードしない）:
 python scripts/check_signaling_vps.py \
-  --ws wss://signal.example.com/ws --token 'APP_TOKEN'
+  --ws wss://signal.example.com/ws
 
 # Mac のピア署名鍵（秘密鍵は Mac のみ、0600。消さない）:
 python scripts/check_wan_p2p.py identity --key ./private/mac.pem
@@ -81,7 +81,7 @@ python scripts/check_wan_p2p.py identity --key ./private/mac.pem
 
 ## 4. Colab
 
-この ZIP に含む `notebooks/Kagami_Cloudflare_Mac_Colab.ipynb` を Colab で開く。最初のセルで Kagami の ZIP をアップロードして依存関係をインストールし、Colab のピア署名鍵を作って **Colab の公開鍵のみ** Mac 側へ渡す。Colab セッション再作成時には鍵が変わるので、リモート公開鍵を更新する。
+この ZIP に含む `notebooks/KCIA_Cloudflare_Mac_Colab.ipynb` を Colab で開く。最初のセルで KCIA の ZIP をアップロードして依存関係をインストールし、Colab のピア署名鍵を作って **Colab の公開鍵のみ** Mac 側へ渡す。Colab セッション再作成時には鍵が変わるので、リモート公開鍵を更新する。
 
 両者で **同じランダムな room ID** を使う。例えば Mac で:
 
@@ -95,7 +95,7 @@ Mac から先に `connect` コマンドを実行し、120 秒以内に Colab の
 python scripts/check_wan_p2p.py connect \
   --key ./private/mac.pem \
   --ws wss://signal.example.com/ws \
-  --token 'APP_TOKEN' \
+  \
   --room-id '共有したランダムroom-id' \
   --remote-public-key 'Colabに表示された公開鍵' \
   --timeout 180
@@ -103,9 +103,21 @@ python scripts/check_wan_p2p.py connect \
 
 両側に `PASS: cross-host ICE/DTLS/SCTP and signed Ed25519 peer handshake` が表示されれば接続が成立している。`--turn-only` を両側に追加すると **TURN relay 候補だけ**をSDPに載せた検証ができる。パケットが Cloudflare Tunnel を経由して転送されたことはこの試験では意味せず、TURN 経由の接続候補だけが残る。
 
+## GUIでの実通信（Mac）
+
+`python -m pip install -r requirements-gui.txt -r requirements-patches.txt` の後、`python kcia.py` で起動する。
+
+1. `NETWORK` → 接続モード `INTERNET · Cloudflare / VPS` を選択する。
+2. シグナリングURLを `wss://signal.example.com/ws` にし、`設定保存・接続テスト` を押す。HTTPディレクトリに加えて **実際の WSS ping/pong** を試験する。
+3. `NEW MODEL` に移動しモデル・データセットを決めて `モデルを作成` を押す。ルームIDは非表示で自動生成され、公開/非公開に合わせてリモート登録される。接続できなければローカル設定は保持される。
+4. `MODELS` で選択→ `TRAINING` → `開始`。既存の `train-live` が指定のWSSに接続し、署名付きWebRTC Gossipを開始する。
+5. ほかのGUIは公開モデル一覧から選ぶ。非公開モデルは `参加用リンク` をコピーして、相手のGUIの `参加リンクを読み込む` で登録する。IDを手入力する必要はない。
+
+接続テストは **WSS接続のみ**で、他ピアとの ICE / TURN 接続・実学習を保証しない。学習稼働中は接続先変更をブロックする。ColabはGUIでなくNotebook / CLIで同じルームに接続する。
+
 ## 5. フェーズを分ける
 
-1. `check_signaling_vps.py`: HTTP + 認証付き WSS + SDP 中継、**WebRTC 成否は検証しない**。
+1. `check_signaling_vps.py`: HTTP + 公開 WSS + SDP 中継、**WebRTC 成否は検証しない**。
 2. `check_wan_p2p.py connect`: 別ホスト 2 台の ICE / DTLS / SCTP + Ed25519 署名ハンドシェイク、**LLM 学習はしない**。
 3. (次段階) `python -m patchlib.cli train-live --help`、GUI、同一 room manifest / モデル / tokenizer / Genesis を揃えて実分散学習。v112.2 の CUDA と MPS 同期・再開実績はこの ZIP だけで保証されないので、小さなモデル・小ステップで進める。
 
@@ -114,6 +126,7 @@ python scripts/check_wan_p2p.py connect \
 * 本構成で実機接続成功を確認したことにはならない。SSH/VPS、Cloudflare アカウント、ドメイン、実機ネットワークはこの配布物には含まれない。Docker build や実 Colab/Mac の疎通はユーザー環境で実施が必要。
 * Cloudflare の WAF / CAPTCHA / Access 認証 / WebSocket timeout により WSS が妨げられる場合がある。クライアントは切断時に再接続するが、大規模・長時間の無停止稼働保証はしない。
 * TURN UDP 3478, relay UDP 49160-49200 の到達性が Colab 側 egress に依存する。TCP 3478 の候補は用意するが、UDP メディアが厳しいネットワークでの成功は保証しない。ブラウザ対応の TURN/TLS 443 はこの構成に含まれない。
+* 公開サーバーのWSSは認証不要。CloudflareのWAFレート制限、VPSのFD/帯域監視、TURNのクォータ・短寿命credentials、メトリクス監視を必須とする。無制限の公開 TURN リレーや本番品質を保証する設定ではない。
 * TURN を 1 VPS・41 relay ports で運用する試験用構成なので 4096 peers 規模向けではない。帯域使用・費用監視・送受信上限・失敗時挙動を段階的に確認する。
 * 秘密鍵 `private/*.pem`、自動保存 journals/weights を ZIP やクラウドに含めない。
 
@@ -129,10 +142,9 @@ MacとColabの**両側**にフルZIPを展開し、`requirements-patches.txt` �
 python -c 'from huggingface_hub import model_info; print(model_info("HuggingFaceTB/SmolLM2-135M").sha)'
 ```
 
-両側で `HF_SHA`, `TRAIN_ROOM`, `APP_TOKEN` を揃える。ただし **秘密鍵・journal・state-base の保存先は別々**とする。学習用ルームは通信診断のルームと別のランダムIDを使う。`APP_TOKEN` は履歴に書かず `getpass` で入力する。
+両側で `HF_SHA`, `TRAIN_ROOM` を揃える。ただし **秘密鍵・journal・state-base の保存先は別々**とする。学習用ルームは通信診断のルームと別のランダムIDを使う。
 
 ```bash
-export APP_TOKEN="$(python -c 'import getpass;print(getpass.getpass("APP_TOKEN: "))')"
 export HF_SHA='ここに上で得た40桁のcommit SHA'
 export TRAIN_ROOM="$(python -c 'import secrets;print(secrets.token_urlsafe(24))')"
 # 共有するのは TRAIN_ROOM の文字列のみ。Colabは Mac の同じ値を設定する。
@@ -148,6 +160,6 @@ python -m patchlib.cli train-live \
   --journal ./wan_state/mac/events.sqlite3 --rounds 0
 ```
 
-Colabでは **別の** `--state-base ./wan_state/colab/genesis.fstate`, `--journal ./wan_state/colab/events.sqlite3`, `--signing-key ./private/colab.pem` を使い、`--device cuda` (GPUランタイム使用時) にする。それ以外の共有設定は同一。`TRAIN_ROOM` も同一値を指定。Colabノートブック最初のセルで展開した場合、作業ディレクトリは `/content/kagami`。ColabでPythonからCLIを起動する際は、ノートブックの `app_token` を `os.environ["APP_TOKEN"] = app_token` として子プロセスへ渡す。ノートブックを共有する際は出力・セルにトークンを書かないこと。
+Colabでは **別の** `--state-base ./wan_state/colab/genesis.fstate`, `--journal ./wan_state/colab/events.sqlite3`, `--signing-key ./private/colab.pem` を使い、`--device cuda` (GPUランタイム使用時) にする。それ以外の共有設定は同一。`TRAIN_ROOM` も同一値を指定。Colabノートブック最初のセルで展開した場合、作業ディレクトリは `/content/kcia`。学習用のクライアント認証トークンは不要。
 
 既存ジャーナルやルームを消さず、各側で `bootstrap: saved ... semantic_sha256=...` とログに出る *semantic SHA* が一致することを確認。相互認証・オンラインピア数2・送信／受信イベント・lossの進行を見て、小数回の更新のあと終了する。`--rounds 0` は継続動作なので実験後は **Ctrl+C** で終了すること。CPU/MPS/CUDA別の数値差や、resume後の動作は別途検証する。

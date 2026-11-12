@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read-only diagnostic: which Kagami generations are waiting for GC?"""
+"""Read-only diagnostic: which KCIA generations are waiting for GC?"""
 from __future__ import annotations
 import argparse
 import json

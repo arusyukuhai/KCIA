@@ -1,4 +1,4 @@
-# Kagami v112 — Serial PT Comparison Validation
+# KCIA v112 — Serial PT Comparison Validation
 
 ## Scope
 
@@ -42,6 +42,6 @@ The higher peer counts do **not** outperform 1 peer on this small, synchronous, 
 
 ## Compatibility
 
-- Existing `kagami.py`, `patchlib/cli.py`, `patchlib/elasticnet.py`, `web/` remain byte-for-byte identical to v111.
+- Existing `kcia.py`, `patchlib/cli.py`, `patchlib/elasticnet.py`, `web/` remain byte-for-byte identical to v111.
 - No room reset, data migration, genesis change or GUI wiring.
 - No performance/accuracy guarantees for Mac MPS or for real large language models.

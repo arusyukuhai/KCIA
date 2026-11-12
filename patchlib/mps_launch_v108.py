@@ -22,7 +22,7 @@ def launch_environment(command,env=None):
     if needs_mps(command):
         # Never enable GPU just because the system has one: the user explicitly
         # chose an MPS component in the local (non-signed) GUI controls.
-        env['KAGAMI_EXPERIMENTAL_MPS']='1'
+        env['KCIA_EXPERIMENTAL_MPS']='1'
         # Must be set *before* the child imports torch. Unsupported kernels
         # may run on CPU while native MPS matmuls/backward stay GPU-backed.
         # PyTorch cannot use this fallback for float64; v100 CPU FP64 path
@@ -44,7 +44,7 @@ def validate_devices(device, mixed=None):
     if 'mps' in required:
         import torch
         if not torch.backends.mps.is_available():
-            raise ValueError('Apple MPS selected but unavailable in this PyTorch/macOS build. Run python kagami.py mps-ppo-smoke to diagnose.')
+            raise ValueError('Apple MPS selected but unavailable in this PyTorch/macOS build. Run python kcia.py mps-ppo-smoke to diagnose.')
     if 'cuda' in required:
         import torch
         if not torch.cuda.is_available():

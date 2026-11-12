@@ -1,4 +1,4 @@
-# Kagami v102 — HF Critic が scalar pretrained head を持たず停止する問題への対応
+# KCIA v102 — HF Critic が scalar pretrained head を持たず停止する問題への対応
 
 ## 何が起きていたか
 

@@ -1,4 +1,4 @@
-"""Bounded-memory effective-weight generation for sharded Fedpara snapshots.
+"""Bounded-memory effective-weight generation for sharded KCIA snapshots.
 
 Only selected row/flat ranges are materialized.  No call to a parametrized
 module's ``weight`` property is made for a complete adapted parameter.

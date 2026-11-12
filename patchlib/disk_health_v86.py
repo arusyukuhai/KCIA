@@ -37,9 +37,9 @@ def require_space(path, *, additional=0, reserve_mib=MIN_FREE_DEFAULT_MIB,
     needed = additional + reserve_mib * MIB
     if free < needed:
         raise DiskPressureError(
-            f'KAGAMI DISK PRESSURE: {action}: free={free // MIB} MiB, '
+            f'KCIA DISK PRESSURE: {action}: free={free // MIB} MiB, '
             f'required={needed // MIB} MiB (including {reserve_mib} MiB reserve). '
-            'Stop training, run `python kagami.py disk-report`, free space or '
+            'Stop training, run `python kcia.py disk-report`, free space or '
             'enable a certified epoch transition. Signed events were NOT deleted.')
     return free
 
@@ -64,7 +64,7 @@ def cleanup_working_orphans(journal_path):
     if target.is_file() and not target.is_symlink():
         try:
             with safe_open(str(target), framework='pt', device='cpu') as reader:
-                meta = json.loads((reader.metadata() or {})['fedpara'])
+                meta = json.loads((reader.metadata() or {})['kcia'])
                 keep = (meta.get('disk_optimizer') or {}).get('folder')
         except (KeyError, OSError, ValueError, TypeError):
             # Could be a partially damaged recovery point. Never delete its
@@ -103,7 +103,7 @@ def snapshot_cache_report(journal_path):
             paths['GUI model object store'] = [room/'models'/profile]
             paths['GUI checkpoint manifests'] = [room/'checkpoints'/profile]
             paths['GUI critic state'] = [room/'critics'/profile]
-            # .fedpara-gui/rooms/<room> -> .fedpara-gui/telemetry
+            # .kcia-gui/rooms/<room> -> .kcia-gui/telemetry
             paths['GUI telemetry history'] = [
                 room.parent.parent/'telemetry'/f'history-{room.name}-{profile}.jsonl']
     elif base.name == 'events.sqlite3' and base.parent.name not in ('peers','.'):
@@ -155,7 +155,7 @@ def _signed_log_quota(journal_path):
 
 def report(journal_path):
     path = Path(journal_path).expanduser().absolute()
-    print(f'KAGAMI DISK REPORT: {path}')
+    print(f'KCIA DISK REPORT: {path}')
     print(f'available on volume: {free_bytes(path) / GIB:.2f} GiB')
     signed = _signed_log_quota(path)
     if signed is not None:
@@ -190,7 +190,7 @@ def reclaim(journal_path):
         try:
             fcntl.flock(fd,fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError as exc:
-            raise RuntimeError('Kagami trainer is running; close GUI and training first') from exc
+            raise RuntimeError('KCIA trainer is running; close GUI and training first') from exc
         from .snapshot_offer_gc_v86 import collect
         stats={}
         stats['orphan optimizer backups']=cleanup_working_orphans(journal)
@@ -207,7 +207,7 @@ def reclaim(journal_path):
             factor=_factor_path(root,current['factors'])
             if manifest.is_file() and factor.is_file():
                 _clean_unreferenced(root,manifest,factor)
-        print('KAGAMI OFFLINE RECLAIM: signed journal/epoch/model untouched')
+        print('KCIA OFFLINE RECLAIM: signed journal/epoch/model untouched')
         for name, count in stats.items():
             print(f'  {name}: {count}')
         report(journal)

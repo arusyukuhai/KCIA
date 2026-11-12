@@ -127,6 +127,6 @@ class DiskAdamW(torch.optim.Optimizer):
 
 
 def adapter_named_parameters(adapter):
-    """Stable optimizer names from Fedpara canonical alias + local factor index."""
+    """Stable optimizer names from KCIA canonical alias + local factor index."""
     return [(f'{group.canonical}::factor{i}',p)
             for group in adapter.groups for i,p in enumerate(group.overlay.local.parts)]

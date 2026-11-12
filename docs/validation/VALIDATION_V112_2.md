@@ -1,4 +1,4 @@
-# Kagami v112.2: PT scaled-work and discrete-event latency validation
+# KCIA v112.2: PT scaled-work and discrete-event latency validation
 
 Scope: offline serial benchmark only (`benchmarks/bench_serial_pt_v112.py`,
 `patchlib/serial_pt_benchmark_v112.py`, new `patchlib/serial_pt_network_v1122.py`).

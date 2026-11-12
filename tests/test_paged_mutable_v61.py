@@ -229,7 +229,7 @@ def test_cli_paged_mode_on_real_elastic_loader_path(tmp_path,monkeypatch):
         disk_linear_dir=None,disk_linear_min_mib=.00001,
         auto_rank=False,resource_report=None,gradient_checkpointing=False)
     m,a=load_model(args,use_adapter=True)
-    mgr=m._fedpara_lazy_mutable_weights
+    mgr=m._kcia_lazy_mutable_weights
     assert mgr.stats()['allocated_page_bytes']==0
     j=EventJournal(tmp_path/'journal.sqlite','e'*64)
     eng=ContinualElasticEngine(a,'one','e'*64,j,unsafe=True)
