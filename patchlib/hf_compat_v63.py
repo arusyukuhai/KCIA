@@ -53,7 +53,16 @@ def diagnose_hf_checkpoint(model_id, revision='main', *, local_files_only=False)
             raise RuntimeError(f'Unable to inspect {model_id}@{revision}: {typ}: {exc}') from exc
         source=None
     if not config_path.is_file():
-        raise FileNotFoundError(f'No config.json in {model_id}')
+        kind='peft-adapter' if source is not None and (source/'adapter_config.json').is_file() else (
+             'dataset' if source is not None and ((source/'dataset_info.json').is_file() or
+                       (source/'dataset_infos.json').is_file()) else 'unknown')
+        return {'model':str(model_id),'revision':revision,'model_type':None,
+                'architecture_identity_verified':False,'checkpoint_present':False,
+                'streaming_candidate':False,'source_kind':kind,'config_path':str(config_path),
+                'notes':[('PEFT adapter is not a base checkpoint; use its '
+                          'base_model_name_or_path' if kind=='peft-adapter' else
+                          'Dataset directory supplied in place of a base model' if kind=='dataset' else
+                          'No config.json found at the model path root')]}
     cfg=json.loads(config_path.read_text(encoding='utf8'))
     if not isinstance(cfg,dict):
         raise ValueError('invalid Hugging Face config.json')
@@ -76,8 +85,17 @@ def diagnose_hf_checkpoint(model_id, revision='main', *, local_files_only=False)
         report['local_safetensors_bytes']=sum(p.stat().st_size for p in source.glob('*.safetensors'))
         if not report['checkpoint_present']:
             report['notes'].append('Expected model.safetensors or sharded model.safetensors.index.json; .bin/pickle not supported in safe streaming mode')
+    report['config_path']=str(config_path)
+    report['raw_model_type']=cfg.get('model_type')
+    report['architecture_identity_verified']=not bool(identity_error)
+    if source is not None:
+        if (source/'adapter_config.json').is_file():
+            report['notes'].append('This looks like a PEFT adapter: load its base_model_name_or_path as the model, not the adapter directory')
+        if (source/'dataset_info.json').is_file() or (source/'dataset_infos.json').is_file():
+            report['notes'].append('This directory appears to contain a dataset, not a full pretrained model')
     if identity_error:
         report['notes'].append(identity_error)
+        report['notes'].append('Cannot safely infer a model_type. Identify the actual base model or repair a verified local built-in config.json; task=causal-lm is not an architecture model_type.')
         return report
     if inferred:
         report['notes'].append('model_type inferred from unique built-in architectures; Kagami can normalize it on export without modifying the original')

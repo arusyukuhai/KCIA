@@ -336,8 +336,11 @@ def replay_logps(model,blob,rollout,args,device,*,base_resolver=None):
         out=_logits(model,ids,args,start=len(prompt)-1,length=n)
         actual=F.log_softmax(out.float(),dim=-1).gather(
             -1,torch.tensor(actions,device=device).view(1,n,1)).view(n)
-    claimed=torch.tensor(rollout['behavior_logp'],dtype=torch.float64,device=device)
+    # Metal does not support float64; these short verification vectors can be
+    # safely compared in CPU double without altering the model/device.
+    actual_cpu=actual.detach().to(device='cpu',dtype=torch.float64)
+    claimed=torch.tensor(rollout['behavior_logp'],dtype=torch.float64,device='cpu')
     if (actual.numel()!=n or not bool(torch.isfinite(actual).all()) or
-            not bool(torch.all(torch.abs(actual.double()-claimed)<=LOGP_ATOL))):
+            not bool(torch.all(torch.abs(actual_cpu-claimed)<=LOGP_ATOL))):
         raise PatchError('behavior probabilities disagree with LoHA checkpoint')
     return actual.detach().cpu().tolist()

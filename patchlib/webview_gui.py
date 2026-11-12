@@ -129,6 +129,9 @@ class FedparaBridge:
     def pin_mixed_dataset(self, payload):
         return self._controller.pin_mixed_dataset(payload)
 
+    def probe_mixed_dataset(self, payload):
+        return self._controller.probe_mixed_dataset(payload)
+
     def discover_hub_assets(self, payload):
         return self._controller.discover_hub_assets(payload)
 

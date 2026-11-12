@@ -11,8 +11,8 @@ from pathlib import Path
 from types import SimpleNamespace
 import secrets
 
-FIELDS=('critic_offpolicy','critic_rollout_gossip','distributed_critic', 'sft_hf_revision', 'sft_hf_repo', 'enabled', 'sft_jsonl', 'ppo_jsonl', 'pt_weight', 'sft_weight', 'ppo_weight', 'ppo_clip', 'ppo_kl_coef', 'ppo_value_coef', 'ppo_gamma', 'ppo_gae_lambda', 'ppo_max_tokens', 'ppo_reuse', 'ppo_reward', 'critic_kind', 'critic_hidden', 'critic_lr', 'critic_init', 'critic_hf_repo', 'critic_hf_revision', 'critic_hf_loader', 'critic_hf_device', 'critic_hf_max_length', 'reward_model_id', 'reward_model_revision', 'reward_model_device', 'reward_model_idle_offload', 'reward_model_loader', 'reward_model_output', 'reward_model_format', 'reward_model_index', 'reward_model_scale', 'reward_model_max_length', 'sft_hf_config', 'sft_hf_split', 'sft_hf_prompt_column', 'sft_hf_response_column', 'ppo_hf_repo', 'ppo_hf_revision', 'ppo_hf_config', 'ppo_hf_split', 'ppo_hf_prompt_column', 'ppo_hf_reference_column')
-DEFAULT={'critic_offpolicy':'auto','critic_rollout_gossip': False,'distributed_critic': False, 'sft_hf_repo': '', 'sft_hf_revision': '', 'sft_hf_config': '', 'sft_hf_split': 'train', 'sft_hf_prompt_column': 'prompt', 'sft_hf_response_column': 'response', 'ppo_hf_repo': '', 'ppo_hf_revision': '', 'ppo_hf_config': '', 'ppo_hf_split': 'train', 'ppo_hf_prompt_column': 'prompt', 'ppo_hf_reference_column': 'reference', 'enabled': False, 'sft_jsonl': '', 'ppo_jsonl': '', 'pt_weight': 1.0, 'sft_weight': 1.0, 'ppo_weight': 0.2, 'ppo_clip': 0.2, 'ppo_kl_coef': 0.02, 'ppo_value_coef': 0.5, 'ppo_gamma': 0.99, 'ppo_gae_lambda': 0.95, 'ppo_max_tokens': 8, 'ppo_reuse': 2, 'ppo_reward': 'token_match', 'critic_kind': 'mlp', 'critic_hidden': 32, 'critic_lr': 0.001, 'critic_init': '', 'critic_hf_repo': '', 'critic_hf_revision': '', 'critic_hf_loader': 'sequence_classification', 'critic_hf_device': 'cpu', 'critic_hf_max_length': 512, 'reward_model_id': '', 'reward_model_revision': '', 'reward_model_device': 'cpu', 'reward_model_idle_offload': False, 'reward_model_loader': 'sequence_classification', 'reward_model_output': 'logits', 'reward_model_format': 'plain', 'reward_model_index': 0, 'reward_model_scale': 1.0, 'reward_model_max_length': 512}
+FIELDS=('ppo_reference_aux_coef','mixed_actor_grad_norm','ppo_adv_norm','ppo_target_kl','ppo_adaptive_kl','ppo_kl_horizon','ppo_entropy_coef','ppo_critic_grad_norm','sft_label_smoothing','sft_pref_coef','sft_pref_beta','sft_pref_margin','critic_offpolicy','critic_rollout_gossip','distributed_critic', 'sft_hf_revision', 'sft_hf_repo', 'enabled', 'sft_jsonl', 'ppo_jsonl', 'pt_weight', 'sft_weight', 'ppo_weight', 'ppo_clip', 'ppo_kl_coef', 'ppo_value_coef', 'ppo_gamma', 'ppo_gae_lambda', 'ppo_max_tokens', 'ppo_reuse', 'ppo_reward', 'critic_kind', 'critic_hidden', 'critic_lr', 'critic_init', 'critic_hf_repo', 'critic_hf_revision', 'critic_hf_loader', 'critic_hf_device', 'critic_hf_max_length', 'critic_hf_head_init', 'reward_model_id', 'reward_model_revision', 'reward_model_device', 'reward_model_idle_offload', 'reward_model_loader', 'reward_model_output', 'reward_model_format', 'reward_model_index', 'reward_model_scale', 'reward_model_max_length', 'sft_hf_config', 'sft_hf_split', 'sft_hf_prompt_column', 'sft_hf_response_column', 'ppo_hf_repo', 'ppo_hf_revision', 'ppo_hf_config', 'ppo_hf_split', 'ppo_hf_prompt_column', 'ppo_hf_reference_column')
+DEFAULT={'ppo_reference_aux_coef':0.0,'mixed_actor_grad_norm':0.0,'ppo_adv_norm':'legacy','ppo_target_kl':0.0,'ppo_adaptive_kl':False,'ppo_kl_horizon':128,'ppo_entropy_coef':0.0,'ppo_critic_grad_norm':0.0,'sft_label_smoothing':0.0,'sft_pref_coef':0.0,'sft_pref_beta':2.0,'sft_pref_margin':0.0,'critic_offpolicy':'auto','critic_rollout_gossip': False,'distributed_critic': False, 'sft_hf_repo': '', 'sft_hf_revision': '', 'sft_hf_config': '', 'sft_hf_split': 'train', 'sft_hf_prompt_column': 'prompt', 'sft_hf_response_column': 'response', 'ppo_hf_repo': '', 'ppo_hf_revision': '', 'ppo_hf_config': '', 'ppo_hf_split': 'train', 'ppo_hf_prompt_column': 'prompt', 'ppo_hf_reference_column': 'reference', 'enabled': False, 'sft_jsonl': '', 'ppo_jsonl': '', 'pt_weight': 1.0, 'sft_weight': 1.0, 'ppo_weight': 0.2, 'ppo_clip': 0.2, 'ppo_kl_coef': 0.02, 'ppo_value_coef': 0.5, 'ppo_gamma': 0.99, 'ppo_gae_lambda': 0.95, 'ppo_max_tokens': 8, 'ppo_reuse': 2, 'ppo_reward': 'token_match', 'critic_kind': 'mlp', 'critic_hidden': 32, 'critic_lr': 0.001, 'critic_init': '', 'critic_hf_repo': '', 'critic_hf_revision': '', 'critic_hf_loader': 'sequence_classification', 'critic_hf_device': 'cpu', 'critic_hf_max_length': 512, 'critic_hf_head_init': 'pretrained', 'reward_model_id': '', 'reward_model_revision': '', 'reward_model_device': 'cpu', 'reward_model_idle_offload': False, 'reward_model_loader': 'sequence_classification', 'reward_model_output': 'logits', 'reward_model_format': 'plain', 'reward_model_index': 0, 'reward_model_scale': 1.0, 'reward_model_max_length': 512}
 
 
 def _path(value, *, ext, role=None, hf_reward=False):
@@ -61,16 +61,24 @@ def normalize(payload, *, task, allow_pt_only=False):
         from .hf_value_critic_v69 import critic_spec
         critic_spec(SimpleNamespace(**values))
         if values['critic_init']:raise ValueError('Hub Critic loads pretrained weights, not a local Critic initial file')
-    for key in ('pt_weight','sft_weight','ppo_weight','ppo_clip','ppo_kl_coef',
+    for key in ('ppo_reference_aux_coef','mixed_actor_grad_norm','ppo_target_kl','ppo_entropy_coef','ppo_critic_grad_norm','sft_label_smoothing','sft_pref_coef','sft_pref_beta','sft_pref_margin','pt_weight','sft_weight','ppo_weight','ppo_clip','ppo_kl_coef',
                 'ppo_value_coef','ppo_gamma','ppo_gae_lambda','critic_lr','reward_model_scale'):
         raw=values[key]
         if type(raw) not in (int,float) or not math.isfinite(float(raw)):
             raise ValueError(key+' must be a finite number')
         values[key]=float(raw)
-    for key in ('critic_hidden','critic_hf_max_length','ppo_max_tokens','ppo_reuse','reward_model_index','reward_model_max_length'):
+    for key in ('ppo_kl_horizon','critic_hidden','critic_hf_max_length','ppo_max_tokens','ppo_reuse','reward_model_index','reward_model_max_length'):
         if type(values[key]) is not int:raise ValueError(key+' must be an integer')
     if values['critic_kind'] not in ('mlp','linear','hf') or values['ppo_reward'] not in ('token_match','exact','hf_model'):
         raise ValueError('Unsupported critic or PPO reward type')
+    if values['ppo_reference_aux_coef'] < 0 or values['ppo_reference_aux_coef'] > 10:
+        raise ValueError('ppo_reference_aux_coef must be in [0,10]')
+    if values['ppo_adv_norm'] not in ('legacy','rms','none'):
+        raise ValueError('Invalid PPO advantage normalization mode')
+    if type(values['ppo_adaptive_kl']) is not bool:
+        raise ValueError('ppo_adaptive_kl must be boolean')
+    if values['sft_pref_coef']>0 and values['sft_hf_repo']:
+        raise ValueError('Preference SFT currently requires local JSONL with prompt/response/rejected')
     if type(values['reward_model_idle_offload']) is not bool:
         raise ValueError('Reward idle offload must be a boolean')
     if type(values['distributed_critic']) is not bool:raise ValueError('distributed_critic must be boolean')
@@ -109,11 +117,23 @@ def command_options(values, *, state_dir):
             '--ppo-gae-lambda',str(values['ppo_gae_lambda']),
             '--ppo-max-tokens',str(values['ppo_max_tokens']),
             '--ppo-reuse',str(values['ppo_reuse']),
+            '--ppo-adv-norm',values['ppo_adv_norm'],
+            '--ppo-target-kl',str(values['ppo_target_kl']),
+            '--ppo-kl-horizon',str(values['ppo_kl_horizon']),
+            '--ppo-entropy-coef',str(values['ppo_entropy_coef']),
+            '--ppo-critic-grad-norm',str(values['ppo_critic_grad_norm']),
+            '--ppo-reference-aux-coef',str(values['ppo_reference_aux_coef']),
+            '--sft-label-smoothing',str(values['sft_label_smoothing']),
+            '--sft-pref-coef',str(values['sft_pref_coef']),
+            '--sft-pref-beta',str(values['sft_pref_beta']),
+            '--sft-pref-margin',str(values['sft_pref_margin']),
+            '--mixed-actor-grad-norm',str(values['mixed_actor_grad_norm']),
             '--ppo-reward',values['ppo_reward'],
             '--critic-kind',values['critic_kind'],
             '--critic-hidden',str(values['critic_hidden']),
             '--critic-lr',str(values['critic_lr']),
             '--critic-state-dir',str(state_dir)]
+    if values['ppo_adaptive_kl']:result.append('--ppo-adaptive-kl')
     if values['distributed_critic']:result.append('--distributed-critic')
     if values['critic_rollout_gossip']:result.append('--critic-rollout-gossip')
     result.extend(['--critic-offpolicy',values['critic_offpolicy']])
@@ -122,7 +142,8 @@ def command_options(values, *, state_dir):
                          ('critic_hf_revision','--critic-hf-revision'),
                          ('critic_hf_loader','--critic-hf-loader'),
                          ('critic_hf_device','--critic-hf-device'),
-                         ('critic_hf_max_length','--critic-hf-max-length')):
+                         ('critic_hf_max_length','--critic-hf-max-length'),
+                         ('critic_hf_head_init','--critic-hf-head-init')):
             result.extend([flag,str(values[key])])
     if values['ppo_reward']=='hf_model':
         for key,flag in (('reward_model_id','--reward-model-id'),
@@ -153,6 +174,35 @@ def objective_policy(values, *, pinned=None):
     from .mixed_learning_v65 import spec
     args=SimpleNamespace(**values,input_map='',mix_policy=pinned)
     return spec(args)
+
+
+
+def preflight_gui_critic(values):
+    """Reject incompatible pinned PPO critics before launch/policy persistence.
+
+    Only fetches Hub config.json; no model weights, optimizer or signed room
+    state is accessed.  Local MLP, disabled PPO and deliberately NEW scalar
+    heads do not need the pretrained scalar check.
+    """
+    if not values.get('enabled') or float(values.get('ppo_weight', 0)) <= 0:
+        return None
+    if not (values.get('ppo_jsonl') or values.get('ppo_hf_repo')):
+        return None
+    if (values.get('critic_kind') != 'hf' or
+            values.get('critic_hf_head_init', 'pretrained') != 'pretrained'):
+        return None
+    from .hf_value_critic_v69 import preflight_pretrained_scalar_head, HFValueError
+    try:
+        return preflight_pretrained_scalar_head(SimpleNamespace(**values))
+    except HFValueError as exc:
+        raise HFValueError(
+            'Cannot start PPO in this signed room: '+str(exc)+' '
+            'A Hugging Face multi-label agent evaluator is not automatically '
+            'a PPO state-value function. To train PPO, create a NEW room with '
+            'Value Critic = Local MLP (no HF Critic download) or with a '
+            'deliberately NEW scalar head. Existing signed room settings and '
+            'its journal have NOT been modified.'
+        ) from exc
 
 
 def atomic_json(path,document):

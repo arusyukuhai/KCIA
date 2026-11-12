@@ -143,7 +143,7 @@ class ContinualElasticEngine(ElasticEngine):
                     raise PatchError('excessive continual effective update RMS')
                 deltas.append((blocks[0] if len(blocks)==1 else torch.cat(blocks,dim=0))
                               if cache_group else None)
-        info=EventInfo(origin,meta['seq'],hashlib.sha256(wire).hexdigest(),meta['denominator'])
+        info=EventInfo(origin,meta['seq'],hashlib.sha256(wire).hexdigest(),meta['denominator'],expected_genesis)
         return info, PreparedContinualUpdate(now_parts,old_parts,deltas)
 
     def _apply_checked(self, info, prepared):
@@ -156,7 +156,7 @@ class ContinualElasticEngine(ElasticEngine):
         if ledger is not None and getattr(ledger,'_fedpara_is_factor_ledger',False):
             with self.adapter.lock,torch.no_grad():
                 ledger.apply_verified(self,[(info,prepared)])
-                if info.origin == self.self_id:
+                if info.origin == self.self_id and self._is_current_event(info):
                     for group,parts in zip(self.adapter.groups,prepared.now_parts):
                         spec=group.overlay.local
                         for param,tensor in zip(spec.parts,parts):
@@ -170,7 +170,8 @@ class ContinualElasticEngine(ElasticEngine):
                         reset_committed_factors(self.adapter,seed=reinit_seed(
                             self.genesis,self.self_id,info.seq))
                 _invalidate_frozen_caches(self.adapter.model)
-                self.applied.add((info.origin,info.seq))
+                if self._is_current_event(info):
+                    self.applied.add((info.origin,info.seq))
             return
         with self.adapter.lock, torch.no_grad():
             pending = []
@@ -231,7 +232,7 @@ class ContinualElasticEngine(ElasticEngine):
                     pending_device = dest.device
                     if staged_bytes >= 8 * 1024 * 1024:
                         flush()
-                if info.origin == self.self_id:
+                if info.origin == self.self_id and self._is_current_event(info):
                     # Defer local anchor/factor changes until every candidate
                     # base has been validated and written. Otherwise even our
                     # own frequent publication would synchronize once PER
@@ -246,12 +247,13 @@ class ContinualElasticEngine(ElasticEngine):
                 for idx, tensor in enumerate(factor_parts):
                     getattr(group.overlay.anchor, f'part{idx}').copy_(
                         tensor.to(spec.parts[idx].device, dtype=torch.float32))
-            if info.origin == self.self_id and self.should_reinitialize(info.seq):
+            if info.origin == self.self_id and self._is_current_event(info) and self.should_reinitialize(info.seq):
                 from .relora import reset_committed_factors, reinit_seed
                 reset_committed_factors(self.adapter, seed=reinit_seed(
                     self.genesis, self.self_id, info.seq))
             _invalidate_frozen_caches(self.adapter.model)
-            self.applied.add((info.origin, info.seq))
+            if self._is_current_event(info):
+                self.applied.add((info.origin, info.seq))
 
     def _apply_checked_many(self, updates):
         """One base application for a signed, de-duplicated multi-origin FedSum.
@@ -272,7 +274,8 @@ class ContinualElasticEngine(ElasticEngine):
             with self.adapter.lock,torch.no_grad():
                 ledger.apply_verified(self,updates)
                 _invalidate_frozen_caches(self.adapter.model)
-                self.applied.update(ids)
+                self.applied.update((info.origin,info.seq) for info,_ in updates
+                                    if self._is_current_event(info))
             return
         with self.adapter.lock, torch.no_grad():
             pending=[]
@@ -330,7 +333,8 @@ class ContinualElasticEngine(ElasticEngine):
                         flush()
             flush()
             _invalidate_frozen_caches(self.adapter.model)
-            self.applied.update(ids)
+            self.applied.update((info.origin,info.seq) for info,_ in updates
+                                if self._is_current_event(info))
 
     def _make_wire(self, denominator, seq, dtype='float32', max_wire_bytes=None):
         if type(denominator) is not int or denominator != 1:
@@ -365,11 +369,16 @@ class ContinualElasticEngine(ElasticEngine):
     async def seal_local_responsive(self, denominator, *, dtype='float32',max_wire_bytes=None):
         # sqlite3 connections are thread-affine: obtain next sequence on the
         # owning event-loop thread, then serialize tensors off-loop.
-        seq=self.journal.next_seq(self.self_id)
-        started = time.monotonic()
-        wire=await asyncio.to_thread(self._make_wire,denominator,seq,dtype,max_wire_bytes)
-        export_ms=(time.monotonic()-started)*1000
-        if not await self.ingest_responsive(wire):
-            raise PatchError('new local continual update had duplicate sequence')
-        self.last_local_seal_stages_ms = (export_ms, *self.last_ingest_stages_ms)
-        return wire
+        # Seal requires one atomic logical sequence allocation + durable
+        # application, even if another coroutine requests a seal mid-export.
+        async with self._local_seal_lock:
+            seq=self.journal.next_seq(self.self_id)
+            started = time.monotonic()
+            from .mps_runtime_v91 import model_task
+            wire=await model_task(self._make_wire,denominator,seq,dtype,max_wire_bytes,
+                                  model=self.adapter.model)
+            export_ms=(time.monotonic()-started)*1000
+            if not await self.ingest_responsive(wire):
+                raise PatchError('new local continual update had duplicate sequence')
+            self.last_local_seal_stages_ms = (export_ms, *self.last_ingest_stages_ms)
+            return wire

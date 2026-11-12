@@ -196,6 +196,76 @@ class AutonomousPagedEpoch:
             return None
         return [json.loads(raw) for _,raw in rows]
 
+    def reconcile_quorum(self):
+        """Finish a certificate from already-persisted authentic votes.
+
+        A crash can occur after the stage DB commits its final vote but before
+        the separately durable certificate ledger commits.  In that case the
+        normal local vote scheduler intentionally sees `already voted`, so
+        nothing previously retried the certificate.  This method is idempotent:
+        it verifies the pinned quorum again and does not create signatures,
+        change weights, or retire history.
+        """
+        next_epoch = (self.ledger.latest()['proposal']['epoch'] + 1
+                      if self.ledger.latest() is not None else 1)
+        row = self.db.execute(
+            'SELECT digest,wire FROM proposals WHERE epoch=?',
+            (next_epoch,)).fetchone()
+        if row is None:
+            return False
+        digest, raw = row
+        p = json.loads(raw)
+        votes = [json.loads(v[0]) for v in self.db.execute(
+            'SELECT wire FROM votes WHERE digest=? ORDER BY peer', (digest,))]
+        if len(votes) < self.ledger.majority:
+            return False
+        # Certificate reconstruction must never infer consent from the roster:
+        # each vote is cryptographically checked by certificate/accept.
+        certificate = self.ledger.certificate(p, votes)
+        return self.ledger.accept(certificate)
+
+    def vote_progress(self, epoch):
+        """Cheap diagnostic stage; not an authorization to certify or GC."""
+        if type(epoch) is not int or epoch < 1:
+            return {'stage': 'invalid-epoch'}
+        cert = self.ledger.certified_epoch(epoch)
+        if cert is not None:
+            return {'stage': 'certified-awaiting-activation', 'votes': len(cert['votes']),
+                    'required': self.ledger.majority}
+        row = self.db.execute('SELECT digest,wire FROM proposals WHERE epoch=?',
+                              (epoch,)).fetchone()
+        if row is None:
+            return {'stage': 'no-candidate'}
+        digest, raw = row
+        proposal = json.loads(raw)
+        votes = self.db.execute('SELECT COUNT(*) FROM votes WHERE digest=?',
+                                (digest,)).fetchone()[0]
+        pages = self.db.execute('SELECT COUNT(*) FROM pages WHERE digest=?',
+                                (digest,)).fetchone()[0]
+        receipt = self.db.execute('SELECT 1 FROM exporter_receipts WHERE digest=?',
+                                  (digest,)).fetchone() is not None
+        status = {'votes': votes, 'required': self.ledger.majority,
+                  'pages': pages, 'required_pages': proposal['frontier_header']['pages'],
+                  'receipt': receipt}
+        if votes >= self.ledger.majority:
+            status['stage'] = 'quorum-votes-persisted-certificate-recovery'
+        elif not receipt:
+            status['stage'] = 'missing-export-receipt'
+        elif pages < proposal['frontier_header']['pages']:
+            status['stage'] = 'frontier-pages-incomplete'
+        elif self.ledger.peer not in proposal['replicas']:
+            status['stage'] = 'local-peer-not-checkpoint-replica'
+        elif self.db.execute('SELECT 1 FROM votes WHERE digest=? AND peer=?',
+                             (digest, self.ledger.peer)).fetchone():
+            status['stage'] = 'own-vote-stored-waiting-for-other-signatures'
+        elif not self.local_export_verified(proposal):
+            status['stage'] = 'local-export-validation-unavailable'
+        elif self.local_checkpoint(proposal) is None:
+            status['stage'] = 'checkpoint-manifest-missing'
+        else:
+            status['stage'] = 'eligible-for-local-vote'
+        return status
+
     def ready_for_vote(self):
         """Choose one locally receipted, fully paged candidate for worker I/O.
 

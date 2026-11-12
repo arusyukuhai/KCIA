@@ -23,7 +23,7 @@ def proposal_v2(*, room, epoch, parent, manifest, semantic, inventory, frontier_
     if (not isinstance(room,str) or not 1 <= len(room) <= 160 or
             type(epoch) is not int or not 1 <= epoch < 2**32 or
             not all(_sha(x) for x in (parent,manifest,semantic,inventory)) or
-            not isinstance(replicas,list) or not 2 <= len(replicas) <= MAX_COMMITTEE or
+            not isinstance(replicas,list) or not 1 <= len(replicas) <= MAX_COMMITTEE or
             len(set(replicas))!=len(replicas) or
             any(not isinstance(x,str) or not x or len(x)>128 for x in replicas)):
         raise PatchError('invalid compact epoch proposal')
@@ -67,7 +67,7 @@ class CompactEpochLedger:
                  genesis:str):
         if (not _sha(genesis) or not isinstance(room,str) or not room or
                 not isinstance(committee,list) or len(committee)!=len(set(committee)) or
-                not 3 <= len(committee) <= MAX_COMMITTEE or
+                not 1 <= len(committee) <= MAX_COMMITTEE or
                 not set(committee).issubset(trusted)):
             raise PatchError('invalid compact epoch committee or genesis')
         self.room=room;self.peer=peer;self.committee=tuple(sorted(committee));self.signer=signer

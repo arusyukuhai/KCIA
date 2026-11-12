@@ -1,1 +1,0 @@
-nim c --opt:speed --threads:on --passC:-march=native --passL:-flto --mm:orc -d:release -r src/main.nim

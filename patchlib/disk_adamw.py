@@ -16,7 +16,8 @@ import torch
 
 class DiskAdamW(torch.optim.Optimizer):
     def __init__(self, named_parameters, directory, *, lr=1e-4, weight_decay=0.,
-                 betas=(.9,.999), eps=1e-8, resume=False):
+                 betas=(.9,.999), eps=1e-8, resume=False,
+                 preallocate=False):
         named=list(named_parameters)
         if not named or len({name for name,_ in named})!=len(named):
             raise ValueError('named parameters must be nonempty and unique')
@@ -51,7 +52,28 @@ class DiskAdamW(torch.optim.Optimizer):
                     if not path.is_file() or path.stat().st_size!=size:
                         raise ValueError(f'missing/truncated disk moment for {name}')
                 else:
-                    with path.open('wb') as f:f.truncate(size)
+                    # Live mmap moment storage must reserve real blocks, not
+                    # sparse logical bytes that later SIGBUS when the disk
+                    # fills. Non-live callers keep their old sparse behavior.
+                    with path.open('xb') as f:
+                        if preallocate and size:
+                            reserved=False
+                            if hasattr(os,'posix_fallocate'):
+                                try:
+                                    os.posix_fallocate(f.fileno(),0,size)
+                                    reserved=True
+                                except OSError as exc:
+                                    import errno
+                                    if exc.errno not in (errno.ENOSYS,errno.EOPNOTSUPP,errno.EINVAL):
+                                        raise
+                            if not reserved:
+                                block=b'\0' * min(1024*1024,size)
+                                remaining=size
+                                while remaining:
+                                    chunk=min(len(block),remaining)
+                                    f.write(block[:chunk])
+                                    remaining-=chunk
+                        f.truncate(size)
         if resume:
             for _,p,key in self.entries:
                 self.state[p]['step']=int(restored_steps[key])

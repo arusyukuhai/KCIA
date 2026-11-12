@@ -147,7 +147,7 @@ def validate_manifest(data: dict) -> dict:
         raise PatchError('room manifest must be JSON object')
     if data.get('version') == 1:
         return _v1_validate_manifest(data)
-    if data.get('version') != 2 or not {'version','model','datasets','code'} <= set(data) or set(data) - {'version','model','datasets','code','design','adapter'}:
+    if data.get('version') != 2 or not {'version','model','datasets','code'} <= set(data) or set(data) - {'version','model','datasets','code','design','adapter','generation'}:
         raise PatchError('invalid room manifest version or fields')
     if 'design' in data:
         from .model_design import validate_design, DESCRIPTION
@@ -157,6 +157,9 @@ def validate_manifest(data: dict) -> dict:
             raise PatchError('design/initialization fingerprint mismatch')
         if design['mode']=='code' and not data['code'].get('sha256'):
             raise PatchError('Python architecture requires a content hash')
+    if 'generation' in data:
+        from .auto_committee_v88 import validate_owner
+        validate_owner(data)
     if 'adapter' in data:
         adapter=data['adapter']
         if (not isinstance(adapter,dict) or set(adapter) not in ({'kind','rank','wide_lora_rank'}, {'kind','rank','wide_lora_rank','target_scope'}) or

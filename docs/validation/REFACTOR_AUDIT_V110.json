@@ -1,0 +1,255 @@
+{
+  "baseline_zip": "kagami_v109_long_sft_context_fix.zip",
+  "ast_identical_moved_declarations": 44,
+  "ast_comparison_passed": true,
+  "preserved_unchanged_files": 424,
+  "changed_files": [
+    "README.md",
+    "patchlib/cli.py",
+    "patchlib/elasticnet.py",
+    "patchlib/mixed_learning_v65.py",
+    "patchlib/webview_controller.py"
+  ],
+  "new_files": [
+    "README_V110_REFACTOR_JA.md",
+    "patchlib/cli_arguments_v110.py",
+    "patchlib/elastic_control_v110.py",
+    "patchlib/local_training_v110.py",
+    "patchlib/mixed_errors_v110.py",
+    "patchlib/mixed_kernels_v110.py",
+    "patchlib/mixed_policy_v110.py",
+    "patchlib/mixed_sources_v110.py",
+    "patchlib/model_loading_v110.py",
+    "patchlib/webview_lifecycle_v110.py",
+    "patchlib/webview_validation_v110.py",
+    "tests/test_v110_modular_refactor.py"
+  ],
+  "special_not_identical": {
+    "patchlib/cli.py::training_batches": "Compatibility wrapper injects the original cli.load_file binding into local_training_v110.training_batches",
+    "patchlib/webview_controller.py::start": "Compatibility wrapper passes original allocate_profile binding to webview_lifecycle_v110.start_training; redundant pass branch simplified",
+    "patchlib/mixed_learning_v65.py::ppo_loss": "Two identical AdamW moment placement loops use one shared helper",
+    "patchlib/mixed_learning_v65.py::MixedLearningError": "One shared error class imported by all modules; behavior/instance identity preserved"
+  },
+  "semantic_checks": [
+    {
+      "old": "patchlib/cli.py::load_model",
+      "new": "patchlib/model_loading_v110.py::load_model",
+      "ast_identical": true
+    },
+    {
+      "old": "patchlib/cli.py::resolve_device",
+      "new": "patchlib/model_loading_v110.py::resolve_device",
+      "ast_identical": true
+    },
+    {
+      "old": "patchlib/cli.py::input_device",
+      "new": "patchlib/model_loading_v110.py::input_device",
+      "ast_identical": true
+    },
+    {
+      "old": "patchlib/cli.py::check_adapter_placement",
+      "new": "patchlib/model_loading_v110.py::check_adapter_placement",
+      "ast_identical": true
+    },
+    {
+      "old": "patchlib/cli.py::_create_factory",
+      "new": "patchlib/model_loading_v110.py::_create_factory",
+      "ast_identical": true
+    },
+    {
+      "old": "patchlib/cli.py::_untrusted_guard",
+      "new": "patchlib/model_loading_v110.py::_untrusted_guard",
+      "ast_identical": true
+    },
+    {
+      "old": "patchlib/cli.py::run_step",
+      "new": "patchlib/local_training_v110.py::run_step",
+      "ast_identical": true
+    },
+    {
+      "old": "patchlib/cli.py::causal_labels_from_attention",
+      "new": "patchlib/local_training_v110.py::causal_labels_from_attention",
+      "ast_identical": true
+    },
+    {
+      "old": "patchlib/cli.py::add_model_args",
+      "new": "patchlib/cli_arguments_v110.py::add_model_args",
+      "ast_identical": true
+    },
+    {
+      "old": "patchlib/cli.py::add_train_args",
+      "new": "patchlib/cli_arguments_v110.py::add_train_args",
+      "ast_identical": true
+    },
+    {
+      "old": "patchlib/cli.py::add_identity",
+      "new": "patchlib/cli_arguments_v110.py::add_identity",
+      "ast_identical": true
+    },
+    {
+      "old": "patchlib/mixed_learning_v65.py::enabled",
+      "new": "patchlib/mixed_policy_v110.py::enabled",
+      "ast_identical": true
+    },
+    {
+      "old": "patchlib/mixed_learning_v65.py::spec",
+      "new": "patchlib/mixed_policy_v110.py::spec",
+      "ast_identical": true
+    },
+    {
+      "old": "patchlib/mixed_learning_v65.py::validate_args",
+      "new": "patchlib/mixed_policy_v110.py::validate_args",
+      "ast_identical": true
+    },
+    {
+      "old": "patchlib/mixed_learning_v65.py::_v99_options",
+      "new": "patchlib/mixed_policy_v110.py::_v99_options",
+      "ast_identical": true
+    },
+    {
+      "old": "patchlib/mixed_learning_v65.py::_normalize_advantages",
+      "new": "patchlib/mixed_kernels_v110.py::_normalize_advantages",
+      "ast_identical": true
+    },
+    {
+      "old": "patchlib/mixed_learning_v65.py::clip_actor_grads",
+      "new": "patchlib/mixed_kernels_v110.py::clip_actor_grads",
+      "ast_identical": true
+    },
+    {
+      "old": "patchlib/mixed_learning_v65.py::_response_mean_logp",
+      "new": "patchlib/mixed_kernels_v110.py::_response_mean_logp",
+      "ast_identical": true
+    },
+    {
+      "old": "patchlib/mixed_learning_v65.py::_tokens",
+      "new": "patchlib/mixed_kernels_v110.py::_tokens",
+      "ast_identical": true
+    },
+    {
+      "old": "patchlib/mixed_learning_v65.py::_logits",
+      "new": "patchlib/mixed_kernels_v110.py::_logits",
+      "ast_identical": true
+    },
+    {
+      "old": "patchlib/mixed_learning_v65.py::_cached_step_logits",
+      "new": "patchlib/mixed_kernels_v110.py::_cached_step_logits",
+      "ast_identical": true
+    },
+    {
+      "old": "patchlib/mixed_learning_v65.py::_features",
+      "new": "patchlib/mixed_kernels_v110.py::_features",
+      "ast_identical": true
+    },
+    {
+      "old": "patchlib/mixed_learning_v65.py::LocalValueHead",
+      "new": "patchlib/mixed_kernels_v110.py::LocalValueHead",
+      "ast_identical": true
+    },
+    {
+      "old": "patchlib/mixed_learning_v65.py::effective_context_length",
+      "new": "patchlib/mixed_kernels_v110.py::effective_context_length",
+      "ast_identical": true
+    },
+    {
+      "old": "patchlib/mixed_learning_v65.py::_sft_window",
+      "new": "patchlib/mixed_kernels_v110.py::_sft_window",
+      "ast_identical": true
+    },
+    {
+      "old": "patchlib/mixed_learning_v65.py::JsonlCycle",
+      "new": "patchlib/mixed_sources_v110.py::JsonlCycle",
+      "ast_identical": true
+    },
+    {
+      "old": "patchlib/elasticnet.py::frontier_advertisement_delay",
+      "new": "patchlib/elastic_control_v110.py::frontier_advertisement_delay",
+      "ast_identical": true
+    },
+    {
+      "old": "patchlib/elasticnet.py::inventory_cycle_delay",
+      "new": "patchlib/elastic_control_v110.py::inventory_cycle_delay",
+      "ast_identical": true
+    },
+    {
+      "old": "patchlib/elasticnet.py::frontier_advertisement_page",
+      "new": "patchlib/elastic_control_v110.py::frontier_advertisement_page",
+      "ast_identical": true
+    },
+    {
+      "old": "patchlib/elasticnet.py::selective_push_targets",
+      "new": "patchlib/elastic_control_v110.py::selective_push_targets",
+      "ast_identical": true
+    },
+    {
+      "old": "patchlib/elasticnet.py::validated_need",
+      "new": "patchlib/elastic_control_v110.py::validated_need",
+      "ast_identical": true
+    },
+    {
+      "old": "patchlib/elasticnet.py::validated_frontiers",
+      "new": "patchlib/elastic_control_v110.py::validated_frontiers",
+      "ast_identical": true
+    },
+    {
+      "old": "patchlib/elasticnet.py::inventory_missing_bounded",
+      "new": "patchlib/elastic_control_v110.py::inventory_missing_bounded",
+      "ast_identical": true
+    },
+    {
+      "old": "patchlib/elasticnet.py::eligible_snapshot_sources",
+      "new": "patchlib/elastic_control_v110.py::eligible_snapshot_sources",
+      "ast_identical": true
+    },
+    {
+      "old": "patchlib/elasticnet.py::SnapshotProviderPool",
+      "new": "patchlib/elastic_control_v110.py::SnapshotProviderPool",
+      "ast_identical": true
+    },
+    {
+      "old": "patchlib/elasticnet.py::snapshot_history_still_unchanged",
+      "new": "patchlib/elastic_control_v110.py::snapshot_history_still_unchanged",
+      "ast_identical": true
+    },
+    {
+      "old": "patchlib/elasticnet.py::can_supply_snapshot",
+      "new": "patchlib/elastic_control_v110.py::can_supply_snapshot",
+      "ast_identical": true
+    },
+    {
+      "old": "patchlib/elasticnet.py::encode_control",
+      "new": "patchlib/elastic_control_v110.py::encode_control",
+      "ast_identical": true
+    },
+    {
+      "old": "patchlib/elasticnet.py::decode_control",
+      "new": "patchlib/elastic_control_v110.py::decode_control",
+      "ast_identical": true
+    },
+    {
+      "old": "patchlib/elasticnet.py::pump_heartbeats",
+      "new": "patchlib/elastic_control_v110.py::pump_heartbeats",
+      "ast_identical": true
+    },
+    {
+      "old": "patchlib/elasticnet.py::HandshakeError",
+      "new": "patchlib/elastic_control_v110.py::HandshakeError",
+      "ast_identical": true
+    },
+    {
+      "old": "patchlib/webview_controller.py::check_signaling_url",
+      "new": "patchlib/webview_validation_v110.py::check_signaling_url",
+      "ast_identical": true
+    },
+    {
+      "old": "patchlib/webview_controller.py::_exclusive_manifest_lock",
+      "new": "patchlib/webview_validation_v110.py::_exclusive_manifest_lock",
+      "ast_identical": true
+    },
+    {
+      "old": "patchlib/webview_controller.py::save",
+      "new": "patchlib/webview_lifecycle_v110.py::save_room",
+      "ast_identical": true
+    }
+  ]
+}

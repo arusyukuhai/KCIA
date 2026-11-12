@@ -33,37 +33,59 @@ def _compat_config(repo, revision, local_files_only=False):
 
 def load_hf_tokenizer(repo, *, revision='main', trust_remote_code=False,
                       local_files_only=False, config=None, **kwargs):
-    """Retry missing-model_type tokenizer errors using an audited HF config.
+    """Use an auditable config, and always identify the failing tokenizer repo.
 
-    Only retry the specific ValueError; all other errors (missing tokenizer
-    assets, gated auth, tokenization incompatibility) stay unchanged. A passed
-    config permits deterministic newly-created models to load a tokenizer.
+    The initial attempt is retained to support tokenizer repos whose own
+    tokenizer_config.json already identifies their class. If it recursively
+    invokes AutoConfig, use the confirmed config for a single controlled retry.
     """
     from transformers import AutoTokenizer
     opts=dict(revision=revision,trust_remote_code=trust_remote_code,
               local_files_only=local_files_only,**kwargs)
     if config is not None:
-        return AutoTokenizer.from_pretrained(repo, config=config, **opts)
+        try:
+            return AutoTokenizer.from_pretrained(repo, config=config, **opts)
+        except ValueError as exc:
+            if is_missing_model_type_error(exc):
+                raise MissingModelTypeError(
+                    f'Tokenizer {repo!r}@{revision!r} still called AutoConfig even when '
+                    'an explicit verified config was supplied. Check tokenizer_config.json '
+                    'and whether tokenizer repo matches the base model. Original: '
+                    +str(exc)) from exc
+            raise
     try:
         return AutoTokenizer.from_pretrained(repo, **opts)
     except ValueError as exc:
         if not is_missing_model_type_error(exc) or trust_remote_code:
             raise
         config=_compat_config(repo, revision, local_files_only=local_files_only)
-        return AutoTokenizer.from_pretrained(repo, config=config, **opts)
-
+        return load_hf_tokenizer(repo, revision=revision,
+                   trust_remote_code=trust_remote_code,
+                   local_files_only=local_files_only, config=config, **kwargs)
 
 def load_hf_model(model_class, repo, *, revision='main', trust_remote_code=False,
                   local_files_only=False, **kwargs):
-    """Retry missing-model_type AutoModel failures (e.g. separate RM/Critic)."""
+    """Recover a legacy config for a model without guessing its architecture."""
     opts=dict(revision=revision,trust_remote_code=trust_remote_code,
               local_files_only=local_files_only,**kwargs)
-    if 'config' in opts:
-        return model_class.from_pretrained(repo, **opts)
     try:
         return model_class.from_pretrained(repo, **opts)
     except ValueError as exc:
         if not is_missing_model_type_error(exc) or trust_remote_code:
             raise
+        if 'config' in opts:
+            raise MissingModelTypeError(
+                f'Model {repo!r}@{revision!r} failed inside from_pretrained '
+                'despite an explicit config. This is not an inference problem '
+                'that Kagami can safely repair; check the exact base model '
+                'directory and its config.json. Original: '+str(exc)) from exc
         opts['config']=_compat_config(repo, revision, local_files_only=local_files_only)
-        return model_class.from_pretrained(repo, **opts)
+        try:
+            return model_class.from_pretrained(repo, **opts)
+        except ValueError as second:
+            if is_missing_model_type_error(second):
+                raise MissingModelTypeError(
+                    f'Model {repo!r}@{revision!r} failed after verified config recovery. '
+                    'Check the exact model directory, not the adapter directory. Original: '
+                    +str(second)) from second
+            raise

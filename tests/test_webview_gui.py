@@ -145,7 +145,7 @@ def test_noir_emerald_design_system_with_user_selected_fonts():
     html = compose_html()
     assert 'Noto Sans JP' in html and 'Myriad Pro' in html
     assert 'Courier New' not in html and 'Chicago' not in html
-    assert '--color-paper: #080e0b' in html
+    assert '--color-paper: #000000' in html
     assert '--color-ink: #e5f6ec' in html
     assert 'color-scheme: dark' in html
     assert '#10b981' in html

@@ -49,12 +49,17 @@ def exact_trajectory_value_surrogate(values, behavior_logp, target_logp, termina
         raise OffPolicyCorrectionError('IS requires a finite terminal reward')
     if not (isinstance(gamma,(int,float)) and math.isfinite(gamma) and 0<float(gamma)<=1):
         raise OffPolicyCorrectionError('IS requires gamma in (0,1]')
+    # Metal/MPS cannot allocate float64 tensors. Move ONLY this small
+    # per-token correction to CPU FP64; .to() on the Critic values preserves
+    # autograd back to the original MPS head. On CPU/CUDA keep the old path.
+    working_device = torch.device('cpu') if values.device.type == 'mps' else values.device
+    work_values = values.to(device=working_device, dtype=torch.float64)
     with torch.no_grad():
         # Float64 reduces catastrophic cancellation of long log-likelihood
         # products. No ratio clipping or fake normalization can preserve the
         # exact target-policy gradient expectation.
-        old=behavior_logp.detach().to(dtype=torch.float64)
-        new=target_logp.detach().to(dtype=torch.float64)
+        old=behavior_logp.detach().to(device=working_device,dtype=torch.float64)
+        new=target_logp.detach().to(device=working_device,dtype=torch.float64)
         if not bool(torch.isfinite(old).all() and torch.isfinite(new).all()):
             raise OffPolicyCorrectionError('nonfinite behavior/target policy probabilities')
         log_ratios=new-old
@@ -67,17 +72,17 @@ def exact_trajectory_value_surrogate(values, behavior_logp, target_logp, termina
             raise OffPolicyCorrectionError('trajectory importance ratio overflow; resample on policy')
         occupancy=prefix.exp()
         all_actions=total.exp()
-        powers=torch.arange(values.numel()-1,-1,-1,device=values.device,dtype=torch.float64)
+        powers=torch.arange(values.numel()-1,-1,-1,device=working_device,dtype=torch.float64)
         discounted=(float(gamma)**powers)*float(terminal_reward)
-        square=occupancy * values.detach().double().square()
-        cross=2.*all_actions*values.detach().double()*discounted
+        square=occupancy * work_values.detach().square()
+        cross=2.*all_actions*work_values.detach()*discounted
         constant=all_actions*discounted.square()
         if not bool(torch.isfinite(square-cross+constant).all()):
             raise OffPolicyCorrectionError('nonfinite importance-weighted value objective')
     # Keep weights as constants (no Actor gradients through the Critic
     # objective). Evaluate the Critic expression in double precision to avoid
     # overflow before validating its value and backward scale.
-    v=values.double()
+    v=work_values
     result=(occupancy*v.square() - 2.*all_actions*discounted*v +
             all_actions*discounted.square()).mean()*0.5
     if not bool(torch.isfinite(result)):
@@ -92,6 +97,12 @@ def exact_trajectory_value_surrogate(values, behavior_logp, target_logp, termina
         limit=torch.finfo(values.dtype).max
         if bool((grad.abs()>limit).any()):
             raise OffPolicyCorrectionError('off-policy gradient exceeds value tensor dtype')
+    if values.device.type == 'mps':
+        # Scalar back on the Critic's original device. No double precision
+        # operations ever run on Metal, including the returned backward graph.
+        if bool((result.detach().abs() > torch.finfo(torch.float32).max)):
+            raise OffPolicyCorrectionError('off-policy loss exceeds MPS float32 range')
+        result = result.to(device=values.device, dtype=torch.float32)
     return result, {'trajectory_ratio':float(all_actions),
                     'max_log_ratio':float(log_ratios.abs().max()),
                     'max_occupancy_ratio':float(occupancy.max()),

@@ -13,6 +13,37 @@ from pathlib import Path
 
 
 class LocalTelemetry:
+    MAX_LOG_BYTES = 16 * 1024 * 1024
+    KEEP_LOG_BYTES = 8 * 1024 * 1024
+
+    def _trim(self):
+        """Bound disposable chart data, preserving chronological suffix.
+
+        Atomic replacement is safe for the WebView reader; reconnect writer
+        to the new inode. Never touch a shared source or signed journal.
+        """
+        if self.file is None or self.path is None or self.path.is_symlink():
+            return
+        self.file.flush()
+        if self.path.stat().st_size <= self.MAX_LOG_BYTES:
+            return
+        with self.path.open("rb") as src:
+            src.seek(-self.KEEP_LOG_BYTES, os.SEEK_END)
+            src.readline(16384)  # discard partial first record
+            tail = src.read(self.KEEP_LOG_BYTES)
+        part = self.path.with_name(self.path.name + "." + os.urandom(8).hex() + ".part")
+        try:
+            with part.open("xb") as output:
+                output.write(tail)
+                output.flush()
+                os.fsync(output.fileno())
+            os.replace(part, self.path)
+            self.file.close()
+            fd = os.open(self.path, os.O_WRONLY | os.O_APPEND | getattr(os, "O_NOFOLLOW", 0))
+            self.file = os.fdopen(fd, "a", encoding="utf8", buffering=1)
+        finally:
+            part.unlink(missing_ok=True)
+
     def __init__(self, path: Path | None, *, sample_seconds: float = 1.0,
                  append: bool = False):
         self.path = Path(path) if path is not None else None
@@ -67,6 +98,11 @@ class LocalTelemetry:
                local_apply_ms: float = 0., publish_steps: int = 4,
                aggregation_events: int = 0, aggregation_batches: int = 0,
                aggregation_saved_mib: float = 0., accuracy: float | None = None,
+               pt_accuracy: float | None = None, sft_accuracy: float | None = None,
+               sft_preference_accuracy: float | None = None,
+               ppo_reference_match: float | None = None,
+               ppo_reward: float | None = None, ppo_kl: float | None = None,
+               ppo_critic_loss: float | None = None,
                peer_id: str | None = None, connected_peers: list[str] | None = None,
                membership_count: int | None = None):
         if self.file is None:
@@ -79,7 +115,15 @@ class LocalTelemetry:
         self.last_step_time, self.last_step = now, steps
         self.last_written = now
         value = float(loss)
-        item = dict(accuracy=(float(accuracy) if accuracy is not None and math.isfinite(float(accuracy)) else None),
+        from .objective_metrics_v107 import finite_metric
+        item = dict(accuracy=finite_metric(accuracy,minimum=0.,maximum=1.),
+                    pt_accuracy=finite_metric(pt_accuracy,minimum=0.,maximum=1.),
+                    sft_accuracy=finite_metric(sft_accuracy,minimum=0.,maximum=1.),
+                    sft_preference_accuracy=finite_metric(sft_preference_accuracy,minimum=0.,maximum=1.),
+                    ppo_reference_match=finite_metric(ppo_reference_match,minimum=0.,maximum=1.),
+                    ppo_reward=finite_metric(ppo_reward),
+                    ppo_kl=finite_metric(ppo_kl,minimum=0.),
+                    ppo_critic_loss=finite_metric(ppo_critic_loss,minimum=0.),
                     peer_id=peer_id, connected_peers=(connected_peers or [])[:8],
                     membership_count=(int(membership_count) if membership_count is not None else None),
                     wall_time_epoch=round(time.time(),3),
@@ -110,6 +154,7 @@ class LocalTelemetry:
                     aggregation_saved_mib=round(float(aggregation_saved_mib),2))
         try:
             self.file.write(json.dumps(item, separators=(',', ':'), allow_nan=False) + '\n')
+            self._trim()
         except OSError:
             # The visual monitor is best-effort. Disk trouble must not abort
             # the trainer or corrupt the signed training event journal.

@@ -1,0 +1,6 @@
+# For Mac/Colab network smoke tests only; training needs requirements-patches.txt.
+torch>=2.3
+safetensors>=0.4
+websockets>=12
+aiortc>=1.9
+cryptography>=43

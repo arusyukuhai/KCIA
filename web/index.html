@@ -3,6 +3,9 @@
 <html lang="ja">
 <head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1" name="viewport"/>
 <title>Mummy WebRTC test</title>
+<style>
+  @import url("https://use.typekit.net/wzz8rse.css");
+</style>
 <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.1.10"></script></head><body class="min-h-screen bg-[#080e0b] text-[#e5f6ec] font-mono text-sm antialiased selection:bg-emerald-500 selection:text-[#080e0b] mx-auto max-w-[1100px] px-4 pb-16 pt-9 sm:px-7">
 <h1 class="mb-5 border-b-2 border-emerald-500 pb-3 text-3xl font-extrabold tracking-tight text-emerald-300 sm:text-4xl">Mummy WebRTC デモ</h1>
 <p class="hint my-3 leading-relaxed text-[#91a79b] my-3 text-xs leading-relaxed text-[#91a79b]">P2P: 同じルームを2つのタブで開きます。Native echo: -d:rtcNative でコンパイルしたサーバーにDataChannel接続します。</p>
@@ -135,4 +138,3 @@ $('send').onclick=()=>{if(channel?.readyState==='open'){
 }};
 $('chat').onkeydown=e=>{if(e.key==='Enter')$('send').click();};
 </script></body></html>
-

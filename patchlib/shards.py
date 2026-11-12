@@ -187,7 +187,7 @@ def export_state_sharded(model, store: Path, output: Path, *, model_id: str,
                          revision: str, peer_id: str, seq: int = 0,
                          adapter=None, shard_bytes: int = DEFAULT_SHARD_BYTES,
                          max_state_bytes: int = 32*1024**3,
-                         frozen_base_sources=None) -> dict:
+                         frozen_base_sources=None, committed_base_only: bool = False) -> dict:
     """Export live PyTorch state directly into shards, with no intermediate .fstate.
 
     Includes effective LoRA/LoHA-adapted weights, embeddings, and buffers.
@@ -245,7 +245,7 @@ def export_state_sharded(model, store: Path, output: Path, *, model_id: str,
             tensor_hash=hashlib.sha256()
             buffer=bytearray()
             written=0
-            for piece in effective_chunks(tensor,overlay,chunk_bytes=shard_bytes,
+            for piece in effective_chunks(tensor,None if committed_base_only else overlay,chunk_bytes=shard_bytes,
                                           base_source=sources_by_alias.get(name)):
                 tensor_hash.update(piece)
                 written += len(piece)

@@ -243,6 +243,29 @@ class OnlineAdoptionStore:
             dirfd=os.open(path.parent,os.O_DIRECTORY)
             try:os.fsync(dirfd)
             finally:os.close(dirfd)
+            # The old *private* materialized base is not a network history
+            # authority. After an authenticated, suffix-free generation GC,
+            # reclaim its shards and obsolete local optimizer snapshots too.
+            # The new generation's paths are entirely separate.
+            import shutil
+            cache = Path(str(path)+'.fast-resume')
+            if cache.is_symlink():
+                raise PatchError('unsafe retired fast-resume cache symlink')
+            if cache.is_dir():
+                shutil.rmtree(cache)
+            for suffix in ('.working.safetensors','.paired-v75.safetensors'):
+                target = Path(str(path)+suffix)
+                if target.is_symlink():
+                    raise PatchError('unsafe retired working snapshot symlink')
+                target.unlink(missing_ok=True)
+            for target in path.parent.glob(path.name+'.working.safetensors.moments-*'):
+                if target.is_symlink():
+                    raise PatchError('unsafe retired disk optimizer snapshot symlink')
+                if target.is_dir():
+                    shutil.rmtree(target)
+            dirfd=os.open(path.parent,os.O_DIRECTORY)
+            try:os.fsync(dirfd)
+            finally:os.close(dirfd)
             with self.db:
                 self.db.execute("UPDATE epochs SET state='collected' WHERE epoch=?",(epoch,))
             return True

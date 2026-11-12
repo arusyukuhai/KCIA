@@ -1,3 +1,4 @@
+# Legacy TURN-only example. For the COMPLETE VPS stack use deploy/vps/compose.yml.
 # Linux only: TURN uses host networking to avoid incorrect relay addresses.
 # Run with a real publicly reachable IPv4 address and a shared TURN_SECRET.
 services:
@@ -15,7 +16,7 @@ services:
         --use-auth-secret \
         --static-auth-secret="$${TURN_SECRET}" \
         --min-port=49160 --max-port=49200 \
-        --fingerprint --no-cli --no-tls --no-dtls \
+        --fingerprint --no-tls \
         --user-quota=20 --total-quota=200 \
         --no-multicast-peers --no-loopback-peers
     environment:

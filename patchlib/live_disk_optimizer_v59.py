@@ -13,6 +13,7 @@ import hashlib
 import os
 import shutil
 import uuid
+import sys
 from pathlib import Path
 
 from .core import PatchError
@@ -28,8 +29,42 @@ def _sync_dir(path):
     finally: os.close(fd)
 
 
+def _mac_clonefile(src: Path, dst: Path) -> bool:
+    """APFS CoW clone, including on macOS where Linux FICLONE is absent.
+
+    Never use hard links: original mmap moments remain writable. If the
+    filesystem does not support clones, return False for safe streamed copy.
+    """
+    if sys.platform != 'darwin':
+        return False
+    import ctypes
+    import errno as _errno
+    clone = getattr(os, 'clonefile', None)
+    try:
+        if callable(clone):
+            clone(src, dst)
+        else:
+            library = ctypes.CDLL('/usr/lib/libSystem.B.dylib', use_errno=True)
+            call = library.clonefile
+            call.argtypes = (ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int)
+            call.restype = ctypes.c_int
+            code = call(os.fsencode(src), os.fsencode(dst), 0)
+            if code != 0:
+                err = ctypes.get_errno()
+                raise OSError(err, os.strerror(err), str(dst))
+        return True
+    except OSError as exc:
+        if exc.errno in (_errno.EOPNOTSUPP, _errno.ENOTSUP, _errno.EXDEV,
+                         _errno.ENOSYS, _errno.EINVAL, _errno.ENOTTY):
+            return False
+        raise
+
+
 def _copy_immutable(src: Path, dst: Path):
     """Reflink, NOT hardlink; destination keeps original bytes after next step."""
+    if _mac_clonefile(src, dst):
+        with dst.open('rb') as cloned: os.fsync(cloned.fileno())
+        return
     with src.open('rb') as inp, dst.open('xb') as out:
         try:
             fcntl.ioctl(out.fileno(), FICLONE, inp.fileno())
@@ -43,6 +78,26 @@ def _copy_immutable(src: Path, dst: Path):
                 if not b: break
                 out.write(b)
         out.flush(); os.fsync(out.fileno())
+
+
+def _reflinks_supported(directory: Path) -> bool:
+    """Probe filesystem support without guessing from the OS or device name."""
+    source = directory / ('.clone-probe-' + uuid.uuid4().hex)
+    dest = source.with_name(source.name + '.clone')
+    try:
+        with source.open('xb') as writer:
+            writer.write(b'KAGAMI-COW')
+        if _mac_clonefile(source, dest):
+            return True
+        with source.open('rb') as inp, dest.open('xb') as out:
+            try:
+                fcntl.ioctl(out.fileno(), FICLONE, inp.fileno())
+                return True
+            except OSError:
+                return False
+    finally:
+        source.unlink(missing_ok=True)
+        dest.unlink(missing_ok=True)
 
 
 def _hash(path):
@@ -75,10 +130,13 @@ class LiveDiskAdamW(DiskAdamW):
             except (OSError, BlockingIOError):
                 pass
         self.max_bytes = int(max_bytes)
+        self._can_reflink = _reflinks_supported(self.root)
         params = adapter_named_parameters(adapter)
         required = sum(p.numel()*8 for _, p in params)
-        if required > self.max_bytes or required > shutil.disk_usage(self.root).free:
-            raise PatchError('disk AdamW moment storage exceeds configured limit or free disk')
+        if required > self.max_bytes:
+            raise PatchError('disk AdamW moment storage exceeds configured limit')
+        from .disk_health_v86 import require_space
+        require_space(self.root,additional=required,action='reserve live disk AdamW mmap moments')
         # A new run MUST NOT resume partially modified mmap files.
         scratch = self.root / ('scratch-' + uuid.uuid4().hex)
         scratch.mkdir(mode=0o700)
@@ -87,7 +145,8 @@ class LiveDiskAdamW(DiskAdamW):
         self._closed = False
         self._poisoned = False
         try:
-            super().__init__(params, scratch, lr=lr, weight_decay=weight_decay)
+            super().__init__(params, scratch, lr=lr, weight_decay=weight_decay,
+                             preallocate=True)
         except BaseException:
             self._lease.close()
             shutil.rmtree(scratch)
@@ -115,6 +174,17 @@ class LiveDiskAdamW(DiskAdamW):
             raise PatchError('cannot checkpoint closed or partially failed disk optimizer')
         target = Path(target)
         destination = target.parent / (target.name + '.moments-' + uuid.uuid4().hex)
+        from .disk_health_v86 import require_space, MIB
+        # On APFS/btrfs clones the physical cost is near metadata-only. On
+        # non-CoW filesystems a full moment backup is written. Reserve the
+        # conservative worst case (callers may reduce frequency if needed).
+        required = sum(p.numel()*8 for _, p, _ in self.entries)
+        # A tested APFS/btrfs clone consumes metadata up front, not a second
+        # full moment copy. On a copy-only filesystem reserve all bytes.
+        same_volume = os.stat(self.root).st_dev == os.stat(target.parent).st_dev
+        up_front = min(required, 64*MIB) if (self._can_reflink and same_volume) else required
+        require_space(target.parent, additional=up_front + 16*MIB,
+                      action='disk AdamW moment snapshot')
         destination.mkdir(mode=0o700)
         try:
             self.flush()

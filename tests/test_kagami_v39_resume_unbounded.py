@@ -96,7 +96,7 @@ def test_resume_pins_launch_and_retains_room_after_gui_restart(tmp_path,monkeypa
         assert '--streaming-base' in cmd
         assert cmd[cmd.index('--optimizer')+1]=='adamw'
         assert cmd[cmd.index('--reinit-every')+1]=='13'
-        assert cmd[cmd.index('--max-journal-gb')+1]=='0'
+        assert cmd[cmd.index('--max-journal-gb')+1]=='4'  # v86 defaults to a bounded signed archive
     finally:second.close()
 
 

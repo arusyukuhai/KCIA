@@ -8,6 +8,8 @@ trained scalar HF head is used; its frozen backbone never enters the optimizer.
 from __future__ import annotations
 import math
 import re
+import logging
+import json
 from pathlib import Path
 
 import torch
@@ -16,6 +18,17 @@ from torch import nn
 REPO = re.compile(r'^[A-Za-z0-9][A-Za-z0-9_.-]{0,95}/[A-Za-z0-9][A-Za-z0-9_.-]{0,95}$')
 SHA = re.compile(r'^[a-fA-F0-9]{40}$')
 MAX_REPLAY_FEATURE_BYTES = 32 * 1024**2
+_LOG = logging.getLogger(__name__)
+
+
+def _loading_key(entry):
+    """Transformers has returned both string and tuple mismatched-key records."""
+    if isinstance(entry, str):
+        return entry
+    if isinstance(entry, (list, tuple)) and entry and isinstance(entry[0], str):
+        return entry[0]
+    return None
+
 
 
 class HFValueError(ValueError):
@@ -30,6 +43,9 @@ def critic_spec(args):
     loader=str(getattr(args,'critic_hf_loader','sequence_classification'))
     device=str(getattr(args,'critic_hf_device','cpu'))
     limit=getattr(args,'critic_hf_max_length',512)
+    head_init=getattr(args,'critic_hf_head_init','pretrained')
+    if head_init not in ('pretrained','new'):
+        raise HFValueError('HF Critic head init must be pretrained or new')
     if not REPO.fullmatch(repo) or not SHA.fullmatch(rev):
         raise HFValueError('HF Critic requires organization/model and a pinned 40-character commit SHA')
     if loader not in ('sequence_classification','token_classification'):
@@ -38,8 +54,77 @@ def critic_spec(args):
         raise HFValueError('HF Critic device must be cpu/cuda/mps')
     if type(limit) is not int or not 16<=limit<=8192:
         raise HFValueError('HF Critic max input must be 16..8192 tokens')
-    return {'repo':repo,'revision':rev.lower(),'loader':loader,'max_length':limit,
-            'trainable':'scalar_head_only-v1','trust_remote_code':False}
+    spec={'repo':repo,'revision':rev.lower(),'loader':loader,'max_length':limit,
+          'trainable':'scalar_head_only-v1','trust_remote_code':False}
+    # Keep the legacy room identity byte-for-byte for existing pretrained-head rooms.
+    if head_init=='new':
+        spec['head_init']='new-scalar-zero-v102'
+    return spec
+
+
+def preflight_pretrained_scalar_head(args, *, download_config=None):
+    """Reject a provably incompatible pinned HF Critic *before* weight downloads.
+
+    Fetch only config.json (not shards). An absent/ambiguous metadata declaration
+    is not proof that a scalar head is absent, so the real weight-loading guard
+    stays authoritative. A transient metadata error likewise never converts a
+    valid cached model into a network-dependent failure.
+
+    The immutable pretrained-head room protocol is never altered here.
+    """
+    if (getattr(args, 'critic_kind', 'mlp') != 'hf' or
+            getattr(args, 'critic_hf_head_init', 'pretrained') != 'pretrained'):
+        return None
+    spec = critic_spec(args)
+    # Unit-test stubs do not provide Transformers AutoConfig; genuine supported
+    # Transformers installations do. Preserve the existing injected-model tests.
+    if download_config is None:
+        try:
+            from transformers import AutoConfig
+        except (ImportError, AttributeError):
+            return None
+        from huggingface_hub import hf_hub_download
+        download_config = hf_hub_download
+    try:
+        path = Path(download_config(repo_id=spec['repo'],
+                                    filename='config.json',
+                                    revision=spec['revision']))
+        if path.stat().st_size > 4 * 1024**2:
+            raise HFValueError('HF Critic config.json exceeds 4MiB; refusing unbounded metadata')
+        raw = json.loads(path.read_text(encoding='utf-8'))
+        if not isinstance(raw, dict):
+            raise HFValueError('HF Critic config.json must be an object')
+    except HFValueError:
+        raise
+    except Exception as exc:
+        from .hf_disk_preflight_v101 import is_no_space_error
+        if is_no_space_error(exc):
+            raise HFValueError('HF Critic config preflight failed due to insufficient physical disk space: '+str(exc)) from exc
+        _LOG.warning('KAGAMI HF CRITIC PREFLIGHT: config metadata unavailable for %s@%s (%s); model loader will verify head later',
+                     spec['repo'],spec['revision'][:12],str(exc)[:180])
+        return None
+    counts=[]
+    labels=raw.get('id2label')
+    if isinstance(labels,dict) and labels:
+        counts.append(('id2label',len(labels)))
+    num=raw.get('num_labels')
+    if type(num) is int:
+        counts.append(('num_labels',num))
+    # A declared multi-class output is definitive for this pinned configuration.
+    incompatible=[(origin,count) for origin,count in counts if count != 1]
+    if incompatible:
+        origin,count=incompatible[0]
+        raise HFValueError(
+            'HF Critic PRE-FLIGHT: pinned checkpoint config declares '
+            f'{origin}={count}, but this room requires a pretrained single-scalar '
+            'value head (num_labels=1). No HF weight shards were loaded. '
+            'In a NEW room select VALUE CRITIC = Local MLP (recommended), or '
+            'Hugging Face + Value head initialization = NEW; '
+            'do not change an existing signed room protocol. '
+            f'Checkpoint: {spec["repo"]}@{spec["revision"][:12]}')
+    _LOG.info('KAGAMI HF CRITIC PREFLIGHT: no declared multi-label mismatch for %s@%s; full pretrained-head verification still required',
+              spec['repo'],spec['revision'][:12])
+    return counts
 
 
 class HFValueCritic(nn.Module):
@@ -53,12 +138,20 @@ class HFValueCritic(nn.Module):
         if device=='mps' and not torch.backends.mps.is_available():
             raise HFValueError('Requested MPS for HF Critic is unavailable')
         self.device=torch.device(device)
+        head_init=getattr(args,'critic_hf_head_init','pretrained')
+        loading_info=None
         if model is None or tokenizer is None:
+            from .hf_disk_preflight_v101 import basic_space_check
+            basic_space_check('PPO Hugging Face Value Critic')
             try:
                 from transformers import AutoModelForSequenceClassification, AutoModelForTokenClassification
                 from .hf_load_v85 import load_hf_model, load_hf_tokenizer
                 kw={'revision':self.spec['revision'],'trust_remote_code':False,
                     'use_safetensors':True,'output_loading_info':True}
+                if head_init=='new':
+                    # Transformers constructs a single-output classifier head even
+                    # when the Hub checkpoint has two or more class logits.
+                    kw.update(num_labels=1,ignore_mismatched_sizes=True)
                 cls=AutoModelForSequenceClassification if self.spec['loader']=='sequence_classification' else AutoModelForTokenClassification
                 if model is None:
                     try:loaded=load_hf_model(cls,self.spec['repo'],dtype='auto',**kw)
@@ -67,16 +160,19 @@ class HFValueCritic(nn.Module):
                         loaded=load_hf_model(cls,self.spec['repo'],torch_dtype='auto',**kw)
                     if not isinstance(loaded,tuple) or len(loaded)!=2:
                         raise HFValueError('HF Critic loader did not return weight-loading diagnostics')
-                    model,info=loaded
-                    if info.get('missing_keys') or info.get('mismatched_keys'):
-                        raise HFValueError('HF Critic head/weights are missing or mismatched; refusing random initialization')
+                    model,loading_info=loaded
+                    if head_init=='pretrained' and (loading_info.get('missing_keys') or loading_info.get('mismatched_keys')):
+                        raise HFValueError('HF Critic has missing/mismatched pretrained weights; select a trained scalar Critic or enable NEW scalar value head on a new room')
                 if tokenizer is None:
                     tokenizer=load_hf_tokenizer(self.spec['repo'],revision=self.spec['revision'],trust_remote_code=False)
             except Exception as exc:
+                from .hf_disk_preflight_v101 import is_no_space_error, no_space_message, HFCacheSpaceError
+                if is_no_space_error(exc) or isinstance(exc, HFCacheSpaceError):
+                    raise HFValueError(no_space_message('PPO Value Critic', exc)) from exc
                 if isinstance(exc,HFValueError):raise
                 raise HFValueError(f'Cannot load pinned HF Critic safely: {exc}') from exc
         if getattr(getattr(model,'config',None),'num_labels',None)!=1:
-            raise HFValueError('HF Critic must expose a PRETRAINED single scalar value head (num_labels=1)')
+            raise HFValueError('HF Critic must have a single scalar value head (num_labels=1). For an ordinary classification checkpoint, select NEW scalar head (new room) or Local MLP Critic; this setting never changes the Reward Model.')
         candidates=[]
         for name,layer in model.named_modules():
             if (isinstance(layer,nn.Linear) and layer.out_features==1 and
@@ -86,6 +182,26 @@ class HFValueCritic(nn.Module):
         if len(candidates)!=1:
             raise HFValueError('Need exactly one trained scalar value head (Linear out_features=1); found '+str(len(candidates)))
         self.head_name,self.head=candidates[0]
+        if head_init=='new':
+            # Refuse incomplete backbones: reinitializing a missing transformer
+            # layer is not a valid fallback for an unsuitable checkpoint.
+            if loading_info is not None:
+                allowed={name for name,_ in self.head.named_parameters()}
+                allowed={self.head_name+'.'+name for name in allowed}
+                missing=[]
+                for category in ('missing_keys','mismatched_keys'):
+                    for entry in loading_info.get(category,[]) or []:
+                        key=_loading_key(entry)
+                        if key not in allowed:
+                            missing.append((category,key))
+                if missing:
+                    raise HFValueError('HF Critic backbone has missing/mismatched pretrained weights; cannot safely bootstrap head: '+str(missing[:6]))
+            # The head is intentionally NOT pretrained. All-zero predictions
+            # give stable initial value estimates and are deterministic.
+            with torch.no_grad():
+                nn.init.zeros_(self.head.weight)
+                if self.head.bias is not None:nn.init.zeros_(self.head.bias)
+            _LOG.warning('KAGAMI HF CRITIC: NEW untrained scalar value head initialized to zero; PPO will train it, resume restores saved head. This is NOT a pretrained value function.')
         self.model=model.to(self.device)
         for p in self.model.parameters():p.requires_grad_(False)
         for p in self.head.parameters():p.requires_grad_(True)

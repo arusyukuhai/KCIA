@@ -265,7 +265,21 @@ class GenerationWebRTCBridge:
         if compact_epoch != self._last_compact_certificate:
             self._last_compact_certificate=compact_epoch
             for state in self.neighbors.values():state.forwarded.clear()
-        compact_manifest=(compact['proposal']['manifest'] if compact else None)
+        # A 2/2 committee deadlocks if peers may fetch shards only AFTER a
+        # certificate: both must verify bytes BEFORE voting. Advertise one
+        # owner/committee-endorsed fenced candidate for staging, but NEVER
+        # interpret the availability hint as permission to adopt weights.
+        transfer=compact['proposal'] if compact else None
+        if transfer is None and self.compact_control is not None:
+            row=self.compact_control.db.execute(
+                'SELECT wire FROM proposals WHERE epoch=? LIMIT 1',(compact_epoch+1,)).fetchone()
+            if row is not None:
+                from .pending_snapshot_v90 import verified_pending_candidate
+                candidate=json.loads(row[0])
+                transfer=verified_pending_candidate(self.compact_control,self.compact_ledger,
+                    compact_epoch+1,candidate.get('manifest'))
+        transfer_epoch=transfer['epoch'] if transfer else 0
+        compact_manifest=transfer['manifest'] if transfer else None
         compact_available=bool(compact_manifest and self.snapshot_available(compact_manifest))
         compact_digest = (_digest(compact['proposal']) if compact else
                           self.compact_ledger.genesis if self.compact_ledger else None)
@@ -339,17 +353,21 @@ class GenerationWebRTCBridge:
                         state.last_compact_head=now
                         state.sent_compact_head=compact_digest
                         count+=1
-                if compact is not None and compact_available and (
+                if transfer is not None and compact_available and (
                         state.sent_compact_have!=compact_manifest or
                         now-state.last_compact_have>=IDLE_HAVE_SECONDS):
-                    if node.control('generation-compact-have',epoch=compact_epoch,
+                    if node.control('generation-compact-have',epoch=transfer_epoch,
                                     manifest=compact_manifest):
                         state.sent_compact_have=compact_manifest
                         state.last_compact_have=now
                         count+=1
-                if compact is not None and not compact_available and (
-                        peer in compact['proposal']['replicas'] or
-                        (state.compact_available_epoch==compact_epoch and
+                if transfer is not None and not compact_available and (
+                        # A non-certified candidate may be fetched only from
+                        # a peer that explicitly advertised the same signed
+                        # candidate's manifest. For certified checkpoints the
+                        # normal known-replica fallback remains supported.
+                        (compact is not None and peer in transfer['replicas']) or
+                        (state.compact_available_epoch==transfer_epoch and
                          state.compact_available_manifest==compact_manifest)):
                     if state.compact_missing_key!=compact_manifest:
                         state.compact_missing_key=compact_manifest
@@ -357,7 +375,7 @@ class GenerationWebRTCBridge:
                         state.last_compact_snapshot_request=float('-inf')
                     if now-state.last_compact_snapshot_request>=state.compact_snapshot_backoff:
                         if node.control('generation-compact-snapshot-request',
-                                        epoch=compact_epoch,manifest=compact_manifest):
+                                        epoch=transfer_epoch,manifest=compact_manifest):
                             state.last_compact_snapshot_request=now
                             state.compact_snapshot_backoff=min(MAX_SNAPSHOT_BACKOFF_SECONDS,
                                                                state.compact_snapshot_backoff*2)

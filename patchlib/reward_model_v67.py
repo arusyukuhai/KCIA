@@ -86,6 +86,8 @@ class HFRewardScorer:
         self.device=torch.device(device)
         self.idle_offload=bool(getattr(args,'reward_model_idle_offload',False)) and device!='cpu'
         if model is None or tokenizer is None:
+            from .hf_disk_preflight_v101 import basic_space_check
+            basic_space_check('PPO Hugging Face Reward Model')
             try:
                 from transformers import AutoModelForSequenceClassification, AutoModel
                 from .hf_load_v85 import load_hf_model, load_hf_tokenizer
@@ -110,6 +112,9 @@ class HFRewardScorer:
                     tokenizer=load_hf_tokenizer(self.config['repo'],revision=self.config['revision'],
                                                           trust_remote_code=False)
             except Exception as exc:
+                from .hf_disk_preflight_v101 import is_no_space_error, no_space_message, HFCacheSpaceError
+                if is_no_space_error(exc) or isinstance(exc, HFCacheSpaceError):
+                    raise RewardModelError(no_space_message('PPO Reward Model', exc)) from exc
                 raise RewardModelError('Cannot load Hugging Face reward checkpoint/tokenizer (must have supported scalar sequence classification head and trusted built-in architecture): '+str(exc)) from exc
         self.model=model.to('cpu' if self.idle_offload else self.device).eval()
         self.tok=tokenizer

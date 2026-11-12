@@ -1,0 +1,74 @@
+# Kagami v112.2: Cloudflare Tunnel for HTTPS/WSS, direct coturn for WebRTC UDP.
+# From repository root: ./deploy/vps/start.sh
+name: kagami-vps
+services:
+  signal:
+    build:
+      context: ../..
+      dockerfile: deploy/vps/Dockerfile
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    volumes:
+      - rooms:/var/lib/kagami/rooms
+    # NO PUBLIC PORT: signal is reachable only by cloudflared on Docker's bridge.
+    expose:
+      - "8080"
+    environment:
+      BIND_ADDR: 0.0.0.0
+      PORT: "8080"
+      ROOM_DATA_DIR: /var/lib/kagami/rooms
+      APP_TOKEN: ${APP_TOKEN:?Set APP_TOKEN in .env}
+      ROOM_PUBLISH_TOKEN: ${ROOM_PUBLISH_TOKEN:?Set ROOM_PUBLISH_TOKEN in .env}
+      TURN_SECRET: ${TURN_SECRET:?Set TURN_SECRET in .env}
+      TURN_HOST: ${TURN_HOST:?Set TURN_HOST in .env}
+      TURN_PORT: "3478"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/healthz"]
+      interval: 20s
+      timeout: 4s
+      retries: 5
+      start_period: 20s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    command: ["tunnel", "--no-autoupdate", "run"]
+    restart: unless-stopped
+    depends_on:
+      signal:
+        condition: service_healthy
+    environment:
+      # Remotely managed Cloudflare Tunnel: configure Public hostname
+      #   SIGNAL_HOST -> http://signal:8080  in Cloudflare dashboard.
+      TUNNEL_TOKEN: ${CF_TUNNEL_TOKEN:?Set CF_TUNNEL_TOKEN in .env}
+    security_opt:
+      - no-new-privileges:true
+
+  coturn:
+    image: coturn/coturn:4.18.0
+    # Docker on Linux VPS: host networking is needed for advertised relay addresses.
+    network_mode: host
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "-ec"]
+    command: >
+      exec turnserver -n
+      --listening-ip=0.0.0.0 --listening-port=3478
+      --realm="$${TURN_REALM}" --external-ip="$${PUBLIC_IP}"
+      --use-auth-secret --static-auth-secret="$${TURN_SECRET}"
+      --min-port=49160 --max-port=49200
+      --fingerprint --no-tls
+      --user-quota=20 --total-quota=200
+      --no-multicast-peers --no-loopback-peers
+    environment:
+      TURN_REALM: ${TURN_REALM:?Set TURN_REALM in .env}
+      PUBLIC_IP: ${PUBLIC_IP:?Set PUBLIC_IP in .env}
+      TURN_SECRET: ${TURN_SECRET:?Set TURN_SECRET in .env}
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  rooms:

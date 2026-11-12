@@ -77,8 +77,11 @@ def detect_device_budget(device='auto',directory='.',memory_fraction=.5):
     if not 0 < memory_fraction <= .85:
         raise ValueError('memory_fraction must be in (0,.85]')
     if device=='auto':
-        device=('cuda' if torch.cuda.is_available() else
-                'mps' if getattr(torch.backends,'mps',None) and torch.backends.mps.is_available() else 'cpu')
+        from .mps_policy_v92 import safe_auto_device
+        device=safe_auto_device(cuda=torch.cuda.is_available(),
+                mps=bool(getattr(torch.backends,'mps',None) and torch.backends.mps.is_available()))
+    from .mps_policy_v92 import check_device
+    check_device(device)
     d=torch.device(device)
     ram,source=_ram_available()
     vram=0

@@ -82,8 +82,8 @@ def make_proposal(*, room: str, epoch: int, parent: str, manifest: str,
            type(v) is not int or v < 0 or v >= 2**63
            for k,v in cutoffs.items()):
         raise PatchError('invalid frontier entry')
-    if not isinstance(replicas,list) or len(replicas)!=len(set(replicas)) or not 2 <= len(replicas) <= MAX_VOTERS:
-        raise PatchError('checkpoint needs at least two independent replicas')
+    if not isinstance(replicas,list) or len(replicas)!=len(set(replicas)) or not 1 <= len(replicas) <= MAX_VOTERS:
+        raise PatchError('checkpoint needs at least one pinned replica')
     if any(not isinstance(x,str) or not 1 <= len(x) <= 128 for x in replicas):
         raise PatchError('invalid replica identity')
     return {'protocol':PROTOCOL,'room':room,'epoch':epoch,'parent':parent,
@@ -100,12 +100,16 @@ class GenerationLedger:
     Persist votes before answering, including on rejected conflicting proposals.
     """
     def __init__(self, path: Path, *, room: str, peer: str, committee: list[str],
-                 signer: Callable, trusted: dict, genesis: str, min_replicas: int = 2):
+                 signer: Callable, trusted: dict, genesis: str, min_replicas: int | None = None):
+        # For a pinned singleton allow 1/1; for two peers require 2/2.
+        # Three or more retain the existing two-holder minimum and majority.
+        if min_replicas is None:
+            min_replicas = min(2, len(committee)) if isinstance(committee,list) else 2
         if (not isinstance(committee,list) or len(committee)!=len(set(committee))
-                or not 3 <= len(committee) <= MAX_VOTERS or not isinstance(peer,str)
+                or not 1 <= len(committee) <= MAX_VOTERS or not isinstance(peer,str)
                 or not 1 <= len(peer) <= 128 or not set(committee).issubset(trusted)
                 or (peer in committee and not callable(signer))
-                or not _sha(genesis) or not 2 <= min_replicas <= len(committee)):
+                or not _sha(genesis) or not 1 <= min_replicas <= len(committee)):
             raise PatchError('requires pinned odd/even crash-fault voting committee')
         self.path = Path(path)
         self.path.parent.mkdir(parents=True,exist_ok=True)

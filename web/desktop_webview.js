@@ -14,7 +14,7 @@ const translations = {
     trainingIntro:'LoHa / LoRA · 継続FedSum · ローカル学習メトリクス',start:'▶ 開始 / 再開',
     pause:'Ⅱ 学習停止（中継継続）',disconnect:'ネットワークから切断',saveLog:'ログを保存',localLoss:'ローカルミニバッチ',
     accuracy:'トークン正解率',localAccuracy:'学習中のTop-1（検証ではない）',throughput:'学習速度',
-    historyWindow:'表示期間',chartBoth:'両方',chartLossOnly:'Lossを拡大',chartAccuracyOnly:'Top-1を拡大',entireRun:'実行全期間',lossChart:'Lossの推移',accuracyChart:'Top-1正解率の推移',activity:'直近ログ',copy:'コピー',
+    historyWindow:'表示期間',chartBoth:'全指標',ptAccuracyChart:'PT · 次トークンTop-1',sftAccuracyChart:'SFT · 応答Top-1',sftPreferenceChart:'SFT · 選好ペア勝率',ppoReferenceChart:'PPO · 正解文との位置一致率',ppoRewardChart:'PPO · 平均報酬（精度ではない）',ppoKlChart:'PPO · 近似KL',ppoCriticLossChart:'PPO · Critic Loss',chartLossOnly:'Lossを拡大',chartAccuracyOnly:'Top-1を拡大',entireRun:'実行全期間',lossChart:'Lossの推移',accuracyChart:'Top-1正解率の推移',activity:'直近ログ',copy:'コピー',
     trainingSettings:'学習設定',adapter:'アダプター',optimizer:'最適化手法',learningRate:'学習率',
     localSteps:'公開ごとのステップ',contextLength:'文脈長',peers:'参加者（観測値）',cacheFraction:'VRAMキャッシュ率',
     streaming:'重み読込',normal:'通常',streamMode:'ストリーミング',reinitEvery:'再初期化間隔',
@@ -67,7 +67,7 @@ const translations = {
     trainingIntro:'LoHa / LoRA · continual FedSum · local training metrics',start:'▶ Start / resume',
     pause:'Ⅱ Pause · keep relaying',disconnect:'Disconnect',saveLog:'Save log',localLoss:'Local minibatch',
     accuracy:'TOKEN ACCURACY',localAccuracy:'Local top-1, not validation',throughput:'Throughput',
-    historyWindow:'DISPLAY RANGE',chartBoth:'Both',chartLossOnly:'Enlarge loss',chartAccuracyOnly:'Enlarge Top-1',entireRun:'実行全期間',lossChart:'Loss history',accuracyChart:'Top-1 accuracy',activity:'RECENT ACTIVITY',copy:'Copy',
+    historyWindow:'DISPLAY RANGE',chartBoth:'All metrics',ptAccuracyChart:'PT · token Top-1',sftAccuracyChart:'SFT · response Top-1',sftPreferenceChart:'SFT · preference-pair win',ppoReferenceChart:'PPO · reference token match',ppoRewardChart:'PPO · reward (not accuracy)',ppoKlChart:'PPO · approximate KL',ppoCriticLossChart:'PPO · Critic loss',chartLossOnly:'Enlarge loss',chartAccuracyOnly:'Enlarge Top-1',entireRun:'実行全期間',lossChart:'Loss history',accuracyChart:'Top-1 accuracy',activity:'RECENT ACTIVITY',copy:'Copy',
     trainingSettings:'TRAINING SETTINGS',adapter:'Adapter',optimizer:'Optimizer',learningRate:'Learning rate',
     localSteps:'Steps / publication',contextLength:'Context length',peers:'Online peers (observed)',cacheFraction:'VRAM cache fraction',
     streaming:'Weight loading',normal:'Normal',streamMode:'Streamed',reinitEvery:'Reinitialization interval',
@@ -136,14 +136,14 @@ function get(id){return String($(id).value||'').trim();}
 const routes=Object.freeze({defaults:'defaults',newRoom:'new_room',save:'save_room',join:'join_room',register:'register_room',
   publicModels:'list_rooms',localModels:'local_models',select:'select_model',compat:'model_compatibility',
   mixedSettings:'mixed_settings',pickMixFile:'pick_training_file',
-  mixPinDataset:'pin_mixed_dataset',hubDiscover:'discover_hub_assets',rewardSearch:'search_reward_models',rewardInspect:'inspect_reward_model',device:'device_capabilities',datasets:'search_datasets',inspect:'inspect_dataset',plan:'recommend_training',code:'register_code',start:'start_training',
+  mixPinDataset:'pin_mixed_dataset',mixProbeDataset:'probe_mixed_dataset',hubDiscover:'discover_hub_assets',rewardSearch:'search_reward_models',rewardInspect:'inspect_reward_model',device:'device_capabilities',datasets:'search_datasets',inspect:'inspect_dataset',plan:'recommend_training',code:'register_code',start:'start_training',
   status:'training_status',history:'training_history',pause:'stop_training',resume:'resume_training',disconnect:'disconnect_training',
   open:'open_storage',paths:'storage_paths',copy:'copy_logs',saveLog:'save_logs',eval:'evaluate',evalStatus:'eval_status',cancelEval:'cancel_eval',evalCheckpoints:'available_checkpoints',captureSnapshot:'request_eval_snapshot',snapshotStatus:'eval_snapshot_status'});
 let bridgeWait;
 function ready(){return !!window.pywebview?.api&&typeof window.pywebview.api.defaults==='function';}
 async function waitBridge(){if(ready())return window.pywebview.api;if(bridgeWait)return bridgeWait;bridgeWait=new Promise((resolve,reject)=>{const started=Date.now();let timer=null;function check(){if(ready()){clearTimeout(timer);resolve(window.pywebview.api);return;}if(Date.now()-started>9000){reject(new Error(t('noBrowser')));return;}timer=setTimeout(check,110);}check();}).finally(()=>{bridgeWait=null;});return bridgeWait;}
 async function api(action,payload={}){const name=routes[action];if(!name)throw Error('Unknown RPC route');const bridge=await waitBridge();if(typeof bridge[name]!=='function')throw Error('Missing Python RPC: '+name);
-  const ms=(action==='hubDiscover'||action==='datasets'||action==='inspect'||action==='plan'||action==='publicModels'||action==='join'||action==='select'||action==='rewardSearch'||action==='rewardInspect'||action==='mixPinDataset')?16500:(action==='eval'||action==='captureSnapshot')?45000:action==='status'?4500:10000;
+  const ms=(action==='hubDiscover'||action==='datasets'||action==='inspect'||action==='plan'||action==='publicModels'||action==='join'||action==='select'||action==='rewardSearch'||action==='rewardInspect'||action==='mixPinDataset')?16500:(action==='eval'||action==='captureSnapshot'||action==='mixProbeDataset')?45000:action==='status'?4500:10000;
   let timer;try{return await Promise.race([Promise.resolve().then(()=>bridge[name](payload)),new Promise((_,reject)=>timer=setTimeout(()=>reject(Error('RPC timeout: '+action)),ms))]);}finally{clearTimeout(timer);}}
 const safe=(title,call)=>async (...args)=>{try{return await call(...args);}catch(e){notify(title+': '+String(e.message||e),true);return null;}};
 function create(tag,cls,text){const el=document.createElement(tag);if(cls)el.className=cls;if(text!==undefined)el.textContent=String(text);return el;}
@@ -355,20 +355,20 @@ $('ptHubBrowse').addEventListener('click',safe('PT Hugging Face',()=>openHubPick
 
 // Local paths are per-peer and must never appear in a public room manifest.
 let mixedPinnedPolicy=null;
-const mixedIds={sft_hf_repo:'mixSftHfRepo',sft_hf_revision:'mixSftHfRevision',sft_hf_config:'mixSftHfConfig',sft_hf_split:'mixSftHfSplit',sft_hf_prompt_column:'mixSftHfPrompt',sft_hf_response_column:'mixSftHfOther',ppo_hf_repo:'mixPpoHfRepo',ppo_hf_revision:'mixPpoHfRevision',ppo_hf_config:'mixPpoHfConfig',ppo_hf_split:'mixPpoHfSplit',ppo_hf_prompt_column:'mixPpoHfPrompt',ppo_hf_reference_column:'mixPpoHfOther',sft_jsonl:'mixSftPath',ppo_jsonl:'mixPpoPath',critic_init:'mixCriticInit',critic_hf_repo:'mixCriticHfRepo',critic_hf_revision:'mixCriticHfRevision',critic_hf_loader:'mixCriticHfLoader',critic_hf_device:'mixCriticHfDevice',critic_hf_max_length:'mixCriticHfMaxLength',
-  pt_weight:'mixPtWeight',sft_weight:'mixSftWeight',ppo_weight:'mixPpoWeight',
+const mixedIds={sft_hf_repo:'mixSftHfRepo',sft_hf_revision:'mixSftHfRevision',sft_hf_config:'mixSftHfConfig',sft_hf_split:'mixSftHfSplit',sft_hf_prompt_column:'mixSftHfPrompt',sft_hf_response_column:'mixSftHfOther',ppo_hf_repo:'mixPpoHfRepo',ppo_hf_revision:'mixPpoHfRevision',ppo_hf_config:'mixPpoHfConfig',ppo_hf_split:'mixPpoHfSplit',ppo_hf_prompt_column:'mixPpoHfPrompt',ppo_hf_reference_column:'mixPpoHfOther',sft_jsonl:'mixSftPath',ppo_jsonl:'mixPpoPath',critic_init:'mixCriticInit',critic_hf_repo:'mixCriticHfRepo',critic_hf_revision:'mixCriticHfRevision',critic_hf_loader:'mixCriticHfLoader',critic_hf_device:'mixCriticHfDevice',critic_hf_max_length:'mixCriticHfMaxLength',critic_hf_head_init:'mixCriticHfHeadInit',
+  mixed_actor_grad_norm:'mixActorGradNorm',pt_weight:'mixPtWeight',sft_weight:'mixSftWeight',ppo_weight:'mixPpoWeight',
   ppo_clip:'mixPpoClip',ppo_kl_coef:'mixPpoKl',ppo_value_coef:'mixValueCoef',
   ppo_gamma:'mixGamma',ppo_gae_lambda:'mixGaeLambda',ppo_max_tokens:'mixPpoTokens',
-  ppo_reuse:'mixPpoReuse',ppo_reward:'mixPpoReward',critic_offpolicy:'mixCriticOffpolicy',
+  ppo_reuse:'mixPpoReuse',ppo_adv_norm:'mixPpoAdvNorm',ppo_target_kl:'mixPpoTargetKl',ppo_kl_horizon:'mixPpoKlHorizon',ppo_entropy_coef:'mixPpoEntropyCoef',ppo_critic_grad_norm:'mixPpoCriticGradNorm',ppo_reference_aux_coef:'mixPpoReferenceAux',sft_label_smoothing:'mixSftLabelSmoothing',sft_pref_coef:'mixSftPrefCoef',sft_pref_beta:'mixSftPrefBeta',sft_pref_margin:'mixSftPrefMargin',ppo_reward:'mixPpoReward',critic_offpolicy:'mixCriticOffpolicy',
   reward_model_id:'mixRewardModelId',reward_model_revision:'mixRewardRevision',
   reward_model_device:'mixRewardDevice',reward_model_loader:'mixRewardLoader',reward_model_output:'mixRewardOutput',reward_model_format:'mixRewardFormat',
   reward_model_index:'mixRewardIndex',reward_model_scale:'mixRewardScale',
   reward_model_max_length:'mixRewardMaxLength',critic_kind:'mixCriticKind',
   critic_hidden:'mixCriticHidden',critic_lr:'mixCriticLr'};
-const mixedNumeric=new Set(['pt_weight','sft_weight','ppo_weight','ppo_clip','ppo_kl_coef',
+const mixedNumeric=new Set(['mixed_actor_grad_norm','ppo_target_kl','ppo_kl_horizon','ppo_entropy_coef','ppo_critic_grad_norm','ppo_reference_aux_coef','sft_label_smoothing','sft_pref_coef','sft_pref_beta','sft_pref_margin','pt_weight','sft_weight','ppo_weight','ppo_clip','ppo_kl_coef',
   'ppo_value_coef','ppo_gamma','ppo_gae_lambda','ppo_max_tokens','ppo_reuse',
   'critic_hidden','critic_lr','critic_hf_max_length','reward_model_index','reward_model_scale','reward_model_max_length']);
-const mixedInt=new Set(['ppo_max_tokens','ppo_reuse','critic_hidden','critic_hf_max_length','reward_model_index','reward_model_max_length']);
+const mixedInt=new Set(['ppo_kl_horizon','ppo_max_tokens','ppo_reuse','critic_hidden','critic_hf_max_length','reward_model_index','reward_model_max_length']);
 function syncMixed(){for(const x of ['Sft','Ppo']){const hf=get('mix'+x+'Source')==='hf';$('mix'+x+'Hub').hidden=!hf;$('mix'+x+'Local').hidden=hf;}const on=get('mixEnabled')==='on';$('mixFields').hidden=!on;const k=get('mixCriticKind');$('mixCriticHidden').disabled=k!=='mlp';$('mixCriticHub').hidden=k!=='hf';$('mixCriticLocalInit').hidden=k==='hf';
   $('mixRewardFields').hidden=get('mixPpoReward')!=='hf_model';setText('mixPtDataset',sources.map(x=>x.repo+' ['+x.split+']').join(', ')||'No PT dataset');
  const summary=[['PT',sources.length?sources.length+' dataset(s)':'not selected'],['SFT',get('mixSftSource')==='hf'?get('mixSftHfRepo')||'not selected':'local JSONL'],['PPO',get('mixPpoSource')==='hf'?get('mixPpoHfRepo')||'not selected':'local JSONL'],['Reward',get('mixPpoReward')==='hf_model'?get('mixRewardModelId')||'not selected':get('mixPpoReward')],['Critic',k==='hf'?get('mixCriticHfRepo')||'not selected':k.toUpperCase()]];
@@ -380,6 +380,7 @@ function mixedPayload(){
    const raw=get(id);data[field]=mixedNumeric.has(field)?Number(raw):raw;
    if(mixedNumeric.has(field)&&(!raw||!Number.isFinite(data[field])||(mixedInt.has(field)&&!Number.isInteger(data[field]))))throw Error('Invalid '+field);
  }
+ data.ppo_adaptive_kl=get('mixPpoAdaptiveKl')==='on';
  data.distributed_critic=get('mixDistributedCritic')!=='off';
  data.critic_rollout_gossip=get('mixDistributedCritic')==='rollout';
  data.reward_model_idle_offload=get('mixRewardIdleOffload')==='on';
@@ -394,13 +395,13 @@ function mixedPayload(){
 }
 function applyMixed(data){$('mixEnabled').value=data?.enabled?'on':'off';for(const [field,id] of Object.entries(mixedIds)){
   const value=data?.[field];const defaults={pt_weight:1,sft_weight:1,ppo_weight:.2,ppo_clip:.2,
-    ppo_kl_coef:.02,ppo_value_coef:.5,ppo_gamma:.99,ppo_gae_lambda:.95,
+    mixed_actor_grad_norm:0,ppo_kl_coef:.02,ppo_value_coef:.5,ppo_gamma:.99,ppo_gae_lambda:.95,ppo_adv_norm:'legacy',ppo_target_kl:0,ppo_kl_horizon:128,ppo_entropy_coef:0,ppo_critic_grad_norm:0,ppo_reference_aux_coef:0,sft_label_smoothing:0,sft_pref_coef:0,sft_pref_beta:2,sft_pref_margin:0,
     ppo_max_tokens:8,ppo_reuse:2,ppo_reward:'token_match',critic_offpolicy:'auto',
     reward_model_id:'',reward_model_revision:'',reward_model_device:'cpu',reward_model_loader:'sequence_classification',
-    reward_model_output:'logits',reward_model_format:'plain',reward_model_index:0,reward_model_scale:1,reward_model_max_length:512,critic_kind:'mlp',critic_hidden:32,critic_lr:.001,critic_hf_repo:'',critic_hf_revision:'',critic_hf_loader:'sequence_classification',critic_hf_device:'cpu',critic_hf_max_length:512};
+    reward_model_output:'logits',reward_model_format:'plain',reward_model_index:0,reward_model_scale:1,reward_model_max_length:512,critic_kind:'mlp',critic_hidden:32,critic_lr:.001,critic_hf_repo:'',critic_hf_revision:'',critic_hf_loader:'sequence_classification',critic_hf_device:'cpu',critic_hf_max_length:512,critic_hf_head_init:'new'};
   const hfDefaults={sft_hf_split:'train',sft_hf_prompt_column:'prompt',sft_hf_response_column:'response',ppo_hf_split:'train',ppo_hf_prompt_column:'prompt',ppo_hf_reference_column:'reference'};
   $(id).value=value??defaults[field]??hfDefaults[field]??'';
- }$('mixDistributedCritic').value=data?.critic_rollout_gossip?'rollout':data?.distributed_critic?'on':'off';$('mixRewardIdleOffload').value=data?.reward_model_idle_offload?'on':'off';for(const [role,tag] of [['sft','Sft'],['ppo','Ppo']]){$('mix'+tag+'Source').value=data?.[role+'_hf_repo']?'hf':data?.[role+'_jsonl']?'local':'hf';}syncMixed();}
+ }$('mixPpoAdaptiveKl').value=data?.ppo_adaptive_kl?'on':'off';$('mixDistributedCritic').value=data?.critic_rollout_gossip?'rollout':data?.distributed_critic?'on':'off';$('mixRewardIdleOffload').value=data?.reward_model_idle_offload?'on':'off';for(const [role,tag] of [['sft','Sft'],['ppo','Ppo']]){$('mix'+tag+'Source').value=data?.[role+'_hf_repo']?'hf':data?.[role+'_jsonl']?'local':'hf';}syncMixed();}
 async function reloadMixed(room){
  const data=await api('mixedSettings',{room});mixedPinnedPolicy=data.pinned_policy||null;
  if(mixedPinnedPolicy&&!data.enabled){
@@ -413,6 +414,9 @@ async function reloadMixed(room){
                      'ppo_gae_lambda','ppo_max_tokens','ppo_reuse','ppo_reward']){
      if(p[key]!==undefined)data[key]=p[key];
    }
+   if(p.ppo_stability_v99)Object.assign(data,p.ppo_stability_v99);
+   if(p.sft_ref_free_preference_v99)Object.assign(data,p.sft_ref_free_preference_v99);
+   if(p.mixed_actor_grad_norm_v99!==undefined)data.mixed_actor_grad_norm=p.mixed_actor_grad_norm_v99;
    if(p.reward_model){data.reward_model_id=p.reward_model.repo;data.reward_model_revision=p.reward_model.revision;
      data.reward_model_output=p.reward_model.output;data.reward_model_loader=p.reward_model.loader;data.reward_model_format=p.reward_model.format;data.reward_model_index=p.reward_model.index;
      data.reward_model_scale=p.reward_model.scale;data.reward_model_max_length=p.reward_model.max_length;
@@ -420,13 +424,29 @@ async function reloadMixed(room){
    data.distributed_critic=['signed-root-critic-gossip-v78','checkpoint-verified-trajectory-is-v81'].includes(p.critic_distribution);
    data.critic_rollout_gossip=p.critic_distribution==='checkpoint-verified-trajectory-is-v81';
    data.critic_offpolicy=p.critic_offpolicy==='unclipped-trajectory-is-mc-v79'?'trajectory_is':'gae';
-   if(p.critic){data.critic_kind=p.critic.kind;data.critic_hidden=p.critic.hidden;data.critic_lr=p.critic.lr; if(p.critic.hf){data.critic_hf_repo=p.critic.hf.repo;data.critic_hf_revision=p.critic.hf.revision;data.critic_hf_loader=p.critic.hf.loader;data.critic_hf_max_length=p.critic.hf.max_length;data.critic_hf_device='cpu';}}
+   if(p.critic){data.critic_kind=p.critic.kind;data.critic_hidden=p.critic.hidden;data.critic_lr=p.critic.lr; if(p.critic.hf){data.critic_hf_repo=p.critic.hf.repo;data.critic_hf_revision=p.critic.hf.revision;data.critic_hf_loader=p.critic.hf.loader;data.critic_hf_max_length=p.critic.hf.max_length;data.critic_hf_head_init=p.critic.hf.head_init?'new':'pretrained';data.critic_hf_device='cpu';}}
  }
  applyMixed(data);
 }
 for(const [role,tag] of [['sft','Sft'],['ppo','Ppo']]){
  $('mix'+tag+'Source').addEventListener('change',syncMixed);
  $('mix'+tag+'HfSearch').addEventListener('click',safe(role.toUpperCase()+' Hub',()=>openHubPicker(role,$('mix'+tag+'HfSearch'))));
+ $('mix'+tag+'HfProbe').addEventListener('click',safe('Validate '+role.toUpperCase()+' schema',async()=>{
+   const params={role,repo:get('mix'+tag+'HfRepo'),revision:get('mix'+tag+'HfRevision'),
+     config:get('mix'+tag+'HfConfig'),split:get('mix'+tag+'HfSplit')||'train',
+     prompt_column:get('mix'+tag+'HfPrompt'),reward:get('mixPpoReward')};
+   params[role==='sft'?'response_column':'reference_column']=get('mix'+tag+'HfOther');
+   setText('mix'+tag+'HfStatus','Validating first streamed row…');
+   const result=await api('mixProbeDataset',params);
+   if(result.mode==='columns'){
+     $('mix'+tag+'HfPrompt').value=result.prompt_column;
+     $('mix'+tag+'HfOther').value=result[role==='sft'?'response_column':'reference_column'];
+   }
+   setText('mix'+tag+'HfStatus','Verified: '+result.columns.join(', ')+'. Mapping: '+
+     (result.mode==='messages'?'messages -> chat prompt + assistant answer':
+       result.prompt_column+' / '+result[role==='sft'?'response_column':'reference_column']));
+   notify(role.toUpperCase()+' dataset mapping verified');
+ }));
  $('mix'+tag+'HfResults').addEventListener('change',()=>{
    const select=$('mix'+tag+'HfResults'),opt=select.selectedOptions[0];if(!select.value)return;
    $('mix'+tag+'HfRepo').value=select.value;
@@ -472,7 +492,7 @@ $('mixRewardPin').addEventListener('click',safe('Reward Model revision',async()=
 for(const [button,target,kind] of [['pickMixSft','mixSftPath','sft'],['pickMixPpo','mixPpoPath','ppo'],['pickMixCritic','mixCriticInit','critic']]){
  $(button).addEventListener('click',safe('Browse',async()=>{const r=await api('pickMixFile',{kind});if(r.path)$(target).value=r.path;}));
 }
-function trainingOptions(plan){if(!plan||!plan.can_train)throw Error('This device cannot train the pinned shared rank; relay-only participation is supported when a suitable peer worker is online.');if(!Number.isInteger(plan.max_length)||!Number.isInteger(plan.local_steps))throw Error('Automatic training policy not available');return {room:get('room'),base:get('base'),ws:get('ws'),kind:plan.kind,rank:plan.rank,reinit_every:Number(get('trainReinitEvery')),room_public:get('visibility')==='public',optimizer:get('trainOptimizer'),initialization:(get('creationMode')==='weights'?get('modelInitialization'):'config'),lr:Number(get('trainLr')),local_steps:plan.local_steps,max_length:plan.max_length,streaming_base:get('trainStreamingBase')==='on',disk_cache_fraction:Number(get('trainDiskCacheFraction')),wide_lora_rank:plan.wide_lora_rank,rounds:0,push_fanout:Number(get('trainPushFanout')),journal_sync:get('trainJournalSync'),max_journal_gb:0,mixed_training:mixedPayload()};}
+function trainingOptions(plan){if(!plan||!plan.can_train)throw Error('This device cannot train the pinned shared rank; relay-only participation is supported when a suitable peer worker is online.');if(!Number.isInteger(plan.max_length)||!Number.isInteger(plan.local_steps))throw Error('Automatic training policy not available');return {room:get('room'),base:get('base'),ws:get('ws'),kind:plan.kind,rank:plan.rank,reinit_every:Number(get('trainReinitEvery')),room_public:get('visibility')==='public',optimizer:get('trainOptimizer'),initialization:(get('creationMode')==='weights'?get('modelInitialization'):'config'),lr:Number(get('trainLr')),local_steps:plan.local_steps,max_length:plan.max_length,streaming_base:get('trainStreamingBase')==='on',disk_cache_fraction:Number(get('trainDiskCacheFraction')),wide_lora_rank:plan.wide_lora_rank,rounds:0,push_fanout:Number(get('trainPushFanout')),journal_sync:get('trainJournalSync'),max_journal_gb:Number(get('trainJournalMaxGb')),compute_device:get('trainComputeDevice'),mixed_training:mixedPayload()};}
 async function refreshAutoPlan(requireFresh=false){
   const sequence=++autoPlanRequest;
   const payload={room:get('room'),model:get('model'),revision:get('revision'),kind:get('kind')};
@@ -550,7 +570,7 @@ const NS='http://www.w3.org/2000/svg';
 function svgEl(name,attrs={},txt){const n=document.createElementNS(NS,name);for(const [key,value] of Object.entries(attrs))n.setAttribute(key,String(value));if(txt!==undefined)n.textContent=String(txt);return n;}
 function chartBounds(values,field){
   let lo=Math.min(...values),hi=Math.max(...values);
-  const isAccuracy=field==='accuracy';
+  const isAccuracy=['accuracy','pt_accuracy','sft_accuracy','sft_preference_accuracy','ppo_reference_match'].includes(field);
   // Top-1 now has an ADAPTIVE axis, still bounded by the mathematical range.
   // Avoid a zero-height range when all samples are identical.
   const minSpan=isAccuracy?0.08:Math.max(0.05,Math.abs(lo)*0.04,Math.abs(hi)*0.04);
@@ -573,7 +593,7 @@ function chartBounds(values,field){
   return {min,max};
 }
 function chartAxisNumber(value,field){
-  return field==='accuracy'?(value*100).toFixed(1)+'%':
+  return ['accuracy','pt_accuracy','sft_accuracy','sft_preference_accuracy','ppo_reference_match'].includes(field)?(value*100).toFixed(1)+'%':
       (Math.abs(value)>=100?value.toFixed(1):value.toFixed(Math.abs(value)<1?3:2));
 }
 function chartPoints(field){
@@ -596,7 +616,7 @@ function chartPoints(field){
 function plot(id,field){
  const svg=$(id);svg.replaceChildren();
  const pts=chartPoints(field);
- if(!pts.length){svg.append(svgEl('text',{x:320,y:82,fill:'#91bfa5','text-anchor':'middle','font-size':13},'NO MEASUREMENTS YET'));return;}
+ if(!pts.length){svg.append(svgEl('text',{x:320,y:82,fill:'#91bfa5','text-anchor':'middle','font-size':13},field==='ppo_reference_match'?'NO LABELED REFERENCE (HF REWARD ≠ ACCURACY)':'NO MEASUREMENTS YET'));return;}
  const x0=pts[0].x,rawX1=pts[pts.length-1].x,x1=rawX1===x0?x0+1:rawX1;
  const {min:y0,max:y1}=chartBounds(pts.map(p=>p.y),field);
  const top=19,bottom=132,left=74,right=622;
@@ -647,6 +667,24 @@ function plot(id,field){
  svg.append(overlay);
 }
 
+const objectivePlots=[
+ ['monitorLossPlot','loss','lossLatest'],
+ ['monitorAccuracyPlot','accuracy','accuracyLatest'],
+ ['monitorPtAccuracyPlot','pt_accuracy','ptAccuracyLatest'],
+ ['monitorSftAccuracyPlot','sft_accuracy','sftAccuracyLatest'],
+ ['monitorSftPreferencePlot','sft_preference_accuracy','sftPreferenceLatest'],
+ ['monitorPpoReferencePlot','ppo_reference_match','ppoReferenceLatest'],
+ ['monitorPpoRewardPlot','ppo_reward','ppoRewardLatest'],
+ ['monitorPpoKlPlot','ppo_kl','ppoKlLatest'],
+ ['monitorPpoCriticLossPlot','ppo_critic_loss','ppoCriticLossLatest']
+];
+function renderObjectivePlots(){
+ for(const [id,field,latestId] of objectivePlots){
+   plot(id,field);
+   const points=chartPoints(field),last=points.at(-1);
+   setText(latestId,last?chartAxisNumber(last.y,field):'—');
+ }
+}
 async function refreshChartHistory(force=false){
   if(historyPending||(!force&&Date.now()-lastHistoryFetch<4200))return;
   if(!run.model_id){chartTelemetry=[];return;}
@@ -657,17 +695,21 @@ async function refreshChartHistory(force=false){
     if(version===historyVersion&&modelId===run.model_id){
       chartTelemetry=Array.isArray(result.telemetry)?result.telemetry:[];
       lastHistoryFetch=Date.now();
-      plot('monitorLossPlot','loss');plot('monitorAccuracyPlot','accuracy');
+      renderObjectivePlots();
     }
   }finally{historyPending=false;}
 }
-$('chartFocus').addEventListener('change',()=>{const choice=get('chartFocus');$('chartsPanel').classList.toggle('focus-loss',choice==='loss');$('chartsPanel').classList.toggle('focus-accuracy',choice==='accuracy');plot('monitorLossPlot','loss');plot('monitorAccuracyPlot','accuracy');});
+$('chartFocus').addEventListener('change',()=>{
+ const choice=get('chartFocus');
+ for(const group of ['loss','accuracy','pt','sft','ppo'])$('chartsPanel').classList.toggle('focus-'+group,choice===group);
+ renderObjectivePlots();
+});
 $('chartWindow').addEventListener('change',()=>{historyVersion++;lastHistoryFetch=0;chartTelemetry=[];void safe('History',()=>refreshChartHistory(true))();drawRun();});
 function drawRun(){const latest=latestTelemetry.at(-1);const active=run.running;const relay=active&&run.relay_only;const label=relay?t('relay'):active?(run.stopping?t('stopping'):t('training')):t('idle');
  setText('runStatus',label+(active&&run.pid?' · PID '+run.pid:''));const loss=latest?.loss;const acc=latest?.accuracy;setText('monitorLoss',loss!=null?Number(loss).toFixed(3):'—');setText('monitorAccuracy',acc!=null?(100*Number(acc)).toFixed(1)+'%':'—');setText('monitorSpeed',latest?.steps_per_s!=null?Number(latest.steps_per_s).toFixed(2):'—');setText('monitorSteps',latest?.steps??0);if(latest?.publish_steps!=null)setText('trainAutoPublish',latest.publish_steps+' / publish');if(latest?.membership_count!=null)setText('trainAutoPeers',String(latest.membership_count)+' online');else if(latest?.channels!=null)setText('trainAutoPeers',String((latest.channels||0)+1)+'+ observed');setText('monitorUpdates',(latest?.emitted??0)+' / '+(latest?.inbound_applied??0)+' updates');setText('monitorQueue',latest?.inbox??'0');setText('monitorChannels',latest?.channels??'0');setText('lossLatest',loss!=null?Number(loss).toFixed(4):'—');setText('accuracyLatest',acc!=null?(Number(acc)*100).toFixed(2)+'%':'—');
  setText('dockModel',active?(selected?.model||get('model')||'KAGAMI'):'NO ACTIVE TRAINING');setText('dockState',label+(latest?.steps!=null?' · '+latest.steps+' steps':''));setText('dockLoss',loss!=null?'LOSS '+Number(loss).toFixed(4):'LOSS —');$('dockProgress').className='progress-fill'+(relay?' relay':active?' running':'');$('dockToggle').textContent=active&&!relay?t('pause'):t('start');
  setText('networkBadge',active?label.toUpperCase():'OFFLINE');setText('networkChannels',latest?.channels??0);setText('networkPush',latest?.push_mib!=null?latest.push_mib+' MiB':'—');setText('networkRepair',latest?.repair_mib!=null?latest.repair_mib+' MiB':'—');setText('networkDuplicates',latest?.inbound_duplicates??'—');setText('networkApplied',latest?.inbound_applied??'—');setText('networkInbox',latest?.inbox??'—');setText('networkLocalName',latest?.peer_id?short(latest.peer_id,25):'—');
- if(currentTab==='training'){plot('monitorLossPlot','loss');plot('monitorAccuracyPlot','accuracy');}drawSelection();}
+ if(currentTab==='training'){renderObjectivePlots();}drawSelection();}
 function drawGraph(){const svg=$('networkGraph');svg.replaceChildren();const last=latestTelemetry.at(-1);const peers=(run.running&&Array.isArray(last?.connected_peers))?last.connected_peers.slice(0,24):[];const actualPeerCount=run.running&&Array.isArray(last?.connected_peers)?last.connected_peers.length:0;const cx=380,cy=210;
  for(let i=0;i<peers.length;i++){const a=(i/peers.length)*2*Math.PI-Math.PI/2;const x=cx+Math.cos(a)*245,y=cy+Math.sin(a)*143;svg.append(svgEl('line',{x1:cx,y1:cy,x2:x,y2:y,stroke:'#376c50','stroke-width':2}));svg.append(svgEl('circle',{cx:x,cy:y,r:26,fill:'#193d2b',stroke:'#379966','stroke-width':2}));svg.append(svgEl('text',{x,y:y+5,'text-anchor':'middle',fill:'#b4f2ce','font-size':14},String(i+1).padStart(2,'0')));svg.append(svgEl('text',{x,y:y+43,'text-anchor':'middle',fill:'#749f85','font-size':10},short(peers[i],12)));}
  svg.append(svgEl('circle',{cx,cy,r:37,fill:'#10b981',stroke:'#b5ffdb','stroke-width':2}));svg.append(svgEl('text',{x:cx,y:cy+5,'text-anchor':'middle',fill:'#082014','font-size':14,'font-weight':'bold'},'LOCAL'));
@@ -678,7 +720,7 @@ async function poll(){if(pollPending)return;pollPending=true;try{const result=aw
  }catch(e){setText('bridgeState','Bridge offline · '+e.message);$('bridgeState').classList.remove('online');}finally{pollPending=false;}}
 async function loopEval(){if(evalPending)return;evalPending=true;try{await pollEval();}catch(e){setText('evalStatus','ERROR');setText('evalResult','Inference status error: '+String(e?.message||e));}finally{evalPending=false;}}
 async function boot(){if(startup)return;startup=true;try{const settings=await api('defaults');for(const id of ['room','model','revision','task','ws','seed','kind'])$(id).value=settings[id];$('modelInitialization').value=settings.initialization;updateWsNotice();for(const [key,id] of Object.entries({reinit_every:'trainReinitEvery',lr:'trainLr',disk_cache_fraction:'trainDiskCacheFraction',wide_lora_rank:'trainWideRank',push_fanout:'trainPushFanout',max_journal_gb:'trainJournalMaxGb'}))$(id).value=settings[key];$('trainStreamingBase').value=settings.streaming_base?'on':'off';sources=settings.sources||[];syncCreationMode(false);drawSources();void refreshAutoPlan().catch(()=>{});
- const dev=await api('device').catch(()=>null);if(dev){setText('deviceLabel',String(dev.device).toUpperCase());setText('hardwareSummary', 'RAM '+(dev.ram_bytes/1073741824).toFixed(1)+' GiB · VRAM '+(dev.vram_bytes/1073741824).toFixed(1)+' GiB');capabilities=dev;}
+ const dev=await api('device').catch(()=>null);if(dev){setText('deviceLabel',String(dev.device).toUpperCase());setText('hardwareSummary', 'RAM '+(dev.ram_bytes/1073741824).toFixed(1)+' GiB · VRAM '+(dev.vram_bytes/1073741824).toFixed(1)+' GiB');capabilities=dev;const gpuOption=$('trainComputeDevice').querySelector('option[value="mps"]');if(gpuOption)gpuOption.disabled=!dev.mps_available;const cudaOption=$('trainComputeDevice').querySelector('option[value="cuda"]');if(cudaOption)cudaOption.disabled=!dev.cuda_available;}
  $('bridgeState').textContent='● LOCAL BRIDGE';$('bridgeState').classList.add('online');await poll();await refreshModels().catch(()=>{});
  if(settings.last_room){
    try{

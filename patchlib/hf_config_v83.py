@@ -124,47 +124,87 @@ def _read_checkpoint_config(model_id: str, revision: str, *, local_files_only: b
     return data
 
 
+def _source_hint(model_id: str, revision: str, data: dict | None = None) -> str:
+    """Human-actionable model identity error; never invent a model architecture."""
+    local = Path(str(model_id)).expanduser()
+    context = f"model={str(model_id)!r} revision={str(revision)!r}"
+    if local.is_dir():
+        context += f" config={str((local / 'config.json').resolve())!r}"
+        if (local / 'adapter_config.json').is_file():
+            context += ("; this looks like a PEFT/LoRA adapter directory, not a full "
+                        "Transformers base-model checkpoint. Load the actual base model ID")
+        elif (local / 'dataset_info.json').is_file() or (local / 'dataset_infos.json').is_file():
+            context += "; this looks like a dataset directory, not a Transformers model"
+        elif not (local / 'config.json').is_file():
+            context += "; there is no config.json at the specified directory root"
+    if isinstance(data,dict):
+        architectures=data.get('architectures')
+        context += f"; declared model_type={data.get('model_type')!r}; architectures={architectures!r}"
+        if data.get('auto_map'):
+            context += "; auto_map present (custom code requires explicit audited, offline loading)"
+    return context
+
+
+def _raise_missing_identity(model_id, revision, data, exc):
+    raise MissingModelTypeError(
+        "Kagami cannot identify the Hugging Face model: " +
+        _source_hint(model_id, revision, data) + ". " + str(exc) +
+        ". Run `python -m patchlib.cli hf-diagnose --model <MODEL_ID> "
+        "--revision <REVISION>`. If model_type is truly absent, select a "
+        "verified built-in architecture for a local copy using "
+        "`scripts/fix_hf_model_type_v83.py`; do not guess from model name."
+    ) from exc
+
+
 def load_hf_config(model_id, *, revision='main', trust_remote_code=False,
                    local_files_only=False):
-    """Load model config; recover only missing model_type from built-in metadata.
+    """Identify the *exact* source config and raise model-specific errors.
 
-    Custom remote code is never executed in this compatibility path. For normal
-    configs the original AutoConfig behavior (incl. remote exceptions) remains.
+    Does not silently paper over missing config.json with HF's path-name heuristic.
+    Existing valid configs keep HF's own semantics; only uniquely known built-in
+    architectures can recover a legacy missing model_type. No weights are read.
     """
     from transformers import AutoConfig
     if trust_remote_code:
-        # Custom remote code remains opt-in and must run only in the isolated,
-        # offline environment validated by cli._untrusted_guard.
         return AutoConfig.from_pretrained(model_id, revision=revision,
             trust_remote_code=True, local_files_only=local_files_only)
 
-    # v85: check the real config.json FIRST. Transformers may otherwise
-    # silently guess a different model type from the repository's NAME, or
-    # error before Kagami's later loaders (e.g. AutoTokenizer) are reached.
-    # Never infer architecture identity from a repository name or weights.
+    local = Path(str(model_id)).expanduser()
+    if local.is_dir() and not (local / 'config.json').is_file():
+        _raise_missing_identity(model_id,revision,None,
+            FileNotFoundError('config.json not found at the model directory root'))
     try:
         data = _read_checkpoint_config(str(model_id), str(revision),
                                        local_files_only=local_files_only)
-    except (OSError, ValueError, ImportError):
-        # Preserve the original HF diagnostics for missing, gated or invalid
-        # configs; do not invent a config when config.json is absent.
-        return AutoConfig.from_pretrained(model_id, revision=revision,
-            trust_remote_code=False, local_files_only=local_files_only)
+    except (OSError, ValueError, ImportError) as exc:
+        # Unlike earlier Kagami versions, never suppress a malformed local
+        # config or silently fall through to a potentially incorrect HF name
+        # heuristic. Remote hub errors retain their proper HF diagnostics.
+        if local.is_dir() or local.is_file():
+            _raise_missing_identity(model_id,revision,None,exc)
+        try:
+            return AutoConfig.from_pretrained(model_id, revision=revision,
+                trust_remote_code=False, local_files_only=local_files_only)
+        except ValueError as hf_exc:
+            if 'model_type' in str(hf_exc).lower() and 'config.json' in str(hf_exc).lower():
+                _raise_missing_identity(model_id,revision,None,hf_exc)
+            raise
     if data.get('model_type') is not None:
-        # An explicit type has precedence; unknown custom types are NOT
-        # silently replaced by a similarly named built-in architecture.
+        if not isinstance(data['model_type'],str) or not data['model_type'].strip():
+            _raise_missing_identity(model_id,revision,data,
+                MissingModelTypeError('model_type must be a nonempty string'))
         return AutoConfig.from_pretrained(model_id, revision=revision,
             trust_remote_code=False, local_files_only=local_files_only)
 
-    model_type=checked_model_type(data,source=str(model_id))
+    try:
+        model_type = checked_model_type(data,source=str(model_id))
+    except MissingModelTypeError as exc:
+        _raise_missing_identity(model_id,revision,data,exc)
     try:
         return AutoConfig.for_model(model_type, **{k: v for k,v in data.items()
                                                   if k not in ('model_type', 'auto_map')})
     except (ValueError, TypeError, KeyError) as exc:
-        raise MissingModelTypeError(
-            f'{model_id}: inferred built-in model_type={model_type!r} from '
-            'architectures, but installed Transformers cannot construct it') from exc
-
+        _raise_missing_identity(model_id,revision,data,exc)
 
 def save_hf_config_with_model_type(config, destination: str | Path) -> str:
     """Save HF config with an explicit model_type key (atomic JSON correction).

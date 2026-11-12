@@ -3,7 +3,7 @@
 This is NOT PyTorch training, aiortc, Nim signaling, or a measured physical
 network. It models bytes, serialization, bounded direct neighbors, drop/churn,
 per-(origin,seq) deduplication, signed-aggregate-sized packets, periodic repair
-and adaptive local publication. See README_NETWORK_SIM_V20.md for assumptions.
+and adaptive local publication. This is a simulation, not a throughput benchmark.
 """
 from __future__ import annotations
 

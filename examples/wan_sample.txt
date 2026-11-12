@@ -1,0 +1,10 @@
+Kagami is a peer to peer research system for training neural networks.
+Distributed learning requires signed updates and reproducible initialization.
+The model should learn from data while the communication network changes.
+Each peer keeps a local journal and records signed updates in order.
+A gossip overlay can synchronize updates between independently connected peers.
+When network connectivity fails, clients should retry without losing history.
+Some peers use CPUs while others use GPUs and different network connections.
+Cloudflare handles encrypted signaling while TURN relays WebRTC traffic when necessary.
+Scientific experiments should track loss, accuracy and communication overhead.
+The next step is to compare the learning trajectories of two peers.

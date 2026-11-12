@@ -34,7 +34,7 @@ def read_generation_committee(path:Path):
         members=obj
     else:
         raise PatchError('expected legacy member array or pinned key map')
-    if (len(members)!=len(set(members)) or not 3<=len(members)<=31
+    if (len(members)!=len(set(members)) or not 1<=len(members)<=31
         or any(not isinstance(k,str) or not PEER_ID.fullmatch(k) for k in members)):
-        raise PatchError('generation committee must contain 3..31 unique identities')
+        raise PatchError('generation committee must contain 1..31 unique identities')
     return sorted(members),pins

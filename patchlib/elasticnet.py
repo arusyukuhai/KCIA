@@ -10,8 +10,8 @@ import logging
 import os
 import re
 import secrets
+import shlex
 import signal
-import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -20,7 +20,7 @@ from typing import Callable
 import torch
 
 from .core import PEER_ID, PatchError, _canonical_json
-from .elastic import ElasticEngine, EventJournal
+from .elastic import EventJournal
 from .aggregate_wire import adaptive_publish_steps, pack_aggregate
 from .snapshot_boundary import (SnapshotBoundaryAssembler, boundary_pages,
                                 validate_cutoffs)
@@ -29,281 +29,26 @@ from .livefed import parse_links, parse_peer_keys
 from .p2p import FrameReceiver, PatchNode, WINDOW, transmit
 
 log = logging.getLogger('fedpara.elastic')
-CTRL_VERSION = 3
-CTRL_MAX = 16*1024
-INVENTORY_PAGE = 64
+from .elastic_control_v110 import (
+    CTRL_VERSION, CTRL_MAX, INVENTORY_PAGE, HandshakeError,
+    REQUEST_PAGE, REQUEST_BACKLOG_LIMIT, FRONTIER_WINDOW,
+    FRONTIER_ORIGIN_LIMIT, FRONTIER_PAGE_SIZE, FRONTIER_KNOWN_ORIGINS_LIMIT,
+    FRONTIER_PENDING_LIMIT, PUSH_FANOUT_DEFAULT, NEED_IN_FLIGHT_RETRY_SECONDS,
+    frontier_advertisement_delay, inventory_cycle_delay,
+    frontier_advertisement_page, selective_push_targets,
+    validated_need, validated_frontiers, inventory_missing_bounded,
+    eligible_snapshot_sources, SnapshotProviderPool,
+    snapshot_history_still_unchanged, can_supply_snapshot,
+    encode_control, decode_control, pump_heartbeats,
+)
 
-
-class HandshakeError(PatchError):
-    """Unrecoverable peer identity or model-generation mismatch."""
-    pass
-REQUEST_PAGE = 32
-REQUEST_BACKLOG_LIMIT = 4096  # identities, not patch bodies; bounded at each neighbor
-FRONTIER_WINDOW = 256
-# Signed control messages are capped at 16 KiB. Large rooms MUST page the
-# origin frontier; never try to transmit thousands of origins in one frame.
-FRONTIER_ORIGIN_LIMIT = 96  # accept v17-sized signed pages for compatibility
-FRONTIER_PAGE_SIZE = 48  # v18 sends small rotating pages
-FRONTIER_KNOWN_ORIGINS_LIMIT = 16384
-FRONTIER_PENDING_LIMIT = 4096
-PUSH_FANOUT_DEFAULT = 2
-NEED_IN_FLIGHT_RETRY_SECONDS = 6.0  # avoid repeatedly requesting large events still in flight
-
-
-def frontier_advertisement_delay(room_members: int, *, catchup: bool = False) -> float:
-    """Pace redundant frontier pages without delaying initial hole discovery.
-
-    A peer with missing events receives the fast control plane until its
-    inventory/frontier repair has caught up. Large stable rooms amortize the
-    per-neighbor vector clock cycle; full-event NEED stays demand-driven.
-    """
-    if catchup or room_members <= 64:
-        return .3
-    if room_members <= 512:
-        return .75
-    return 1.5
-
-
-def inventory_cycle_delay(configured: float, room_members: int, *,
-                          peer_synced: bool, has_frontier: bool) -> float:
-    """A safety audit of event identities remains, but not every tick.
-
-    The authenticated frontier/NEED path remains active between audits.
-    Without v1 signed frontiers, keep the original interval unchanged.
-    """
-    if not peer_synced or not has_frontier:
-        return configured
-    return max(configured, 120.0 if room_members > 512 else 30.0)
-
-
-def frontier_advertisement_page(heads, cursor: int, *, limit=FRONTIER_PAGE_SIZE):
-    """A bounded, rotating page of the per-origin vector clock.
-
-    The cursor advances only after a successful signed send. A new origin
-    arriving or disappearing from the ordered list cannot cause starvation:
-    every finite, stable list is fully advertised within ceil(N/limit) sends.
-    """
-    if not 1 <= limit <= FRONTIER_PAGE_SIZE:
-        raise ValueError('invalid frontier page size')
-    if not heads:
-        return [], 0
-    start = cursor % len(heads)
-    # For a huge list use a fixed slice and wrap on the next send. Avoid
-    # an oversized control by never carrying more than `limit` heads.
-    page = heads[start:start + limit]
-    return page, 0 if start + len(page) >= len(heads) else start + len(page)
-
-
-def selective_push_targets(local_peer: str, candidate_peers, *,
-                           exclude_peer=None, origin_peer=None,
-                           event_seed: bytes = b'', fanout=PUSH_FANOUT_DEFAULT):
-    """Bound unsolicited large-event pushes per hop, not per room size.
-
-    Prefer the next clockwise connected ring neighbor (a deterministic
-    connected backbone in bounded-v2). Choose any remaining shortcuts using
-    a stable event-keyed rendezvous score; NEED/frontier repair remains the
-    durable fallback under churn, network partitions and queue overflow.
-    """
-    if not 1 <= fanout <= 8:
-        raise ValueError('invalid gossip push fanout')
-    candidates = sorted({p for p in candidate_peers
-                         if p not in (local_peer, exclude_peer, origin_peer)})
-    if len(candidates) <= fanout:
-        return candidates
-    clockwise = next((p for p in candidates if p > local_peer), candidates[0])
-    remaining = [p for p in candidates if p != clockwise]
-    scored = sorted(remaining, key=lambda p: hashlib.blake2b(
-        event_seed + p.encode('ascii'), digest_size=8).digest(), reverse=True)
-    return [clockwise, *scored[:fanout-1]]
-
-
-
-def validated_need(entries):
-    """Validate an entire signed NEED before servicing any of its IDs."""
-    if not isinstance(entries, list) or not 1 <= len(entries) <= REQUEST_PAGE:
-        raise PatchError('bad need request')
-    result=[]
-    for ident in entries:
-        if not (isinstance(ident,list) and len(ident)==2 and
-                isinstance(ident[0],str) and PEER_ID.fullmatch(ident[0]) and
-                type(ident[1]) is int and 1<=ident[1]<2**63):
-            raise PatchError('bad requested event ID')
-        result.append((ident[0],ident[1]))
-    return result
-
-
-def validated_frontiers(entries):
-    """Only authenticated peers may advertise bounded per-origin maxima."""
-    if not isinstance(entries,list) or len(entries)>FRONTIER_ORIGIN_LIMIT:
-        raise PatchError('bad frontier advertisement')
-    maxima={}
-    for entry in entries:
-        if not (isinstance(entry,list) and len(entry)==2 and
-                isinstance(entry[0],str) and PEER_ID.fullmatch(entry[0]) and
-                type(entry[1]) is int and 1<=entry[1]<2**63):
-            raise PatchError('bad frontier entry')
-        if entry[0] in maxima:
-            raise PatchError('duplicate frontier origin')
-        maxima[entry[0]]=entry[1]
-    return maxima
-
-
-
-def inventory_missing_bounded(node, journal, entries):
-    """Index untrusted-but-signed inventory without unbounded pending growth.
-
-    The sender will advertise the same identities again in periodic inventory
-    and frontier messages, so it is safe to stop admitting IDs at the bound.
-    Never mark an incomplete peer 'ready' while the page overflowed.
-    """
-    if not isinstance(entries, list) or len(entries) > INVENTORY_PAGE:
-        raise PatchError('malformed inventory')
-    missing=[]
-    for item in entries:
-        if not (isinstance(item,list) and len(item)==3 and
-                isinstance(item[0],str) and PEER_ID.fullmatch(item[0]) and
-                type(item[1]) is int and 1 <= item[1] < 2**63 and
-                isinstance(item[2],str) and len(item[2])==64):
-            raise PatchError('malformed event identity in inventory')
-        key=(item[0],item[1])
-        original=journal.has(*key)
-        if original and original[0] != item[2]:
-            raise PatchError('conflicting event in inventory')
-        if original is None and key not in node.pending:
-            if len(node.pending) >= FRONTIER_PENDING_LIMIT:
-                node.ready=False
-                node.control_overflow_drops+=1
-                continue
-            missing.append([*key])
-            node.pending.add(key)
-    if missing:
-        node.ready=False
-    return missing
-
-
-
-def eligible_snapshot_sources(slots, local_peer: str):
-    """Prefer verified, available remote sources; never fan out full states.
-
-    A per-source retry counter provides automatic failover to less-failed
-    sources. A stable hash spreads first-time requests across room holders.
-    """
-    candidates=[slot for slot in slots.values()
-                if not slot.disabled and slot.node is not None and
-                slot.node.connected.is_set() and slot.node.verified_at > 0 and
-                slot.node.remote_can_serve_snapshot]
-    return sorted(candidates, key=lambda s:(s.retries,hashlib.sha256(
-        (local_peer+'/'+s.peer).encode('ascii')).digest()))
-
-
-@dataclass
-class SnapshotProviderPool:
-    """Leaderless full-state bootstrap: prefer the active verified provider.
-
-    No peer owns an administrator role. Once any peer has installed a verified
-    snapshot and its durable journal, it can provide a snapshot to a newcomer.
-    The receiver switches providers if the chosen peer leaves or stalls, while
-    never requesting multi-GB exports from multiple providers at once.
-    """
-    current: str | None = None
-    cooldown_until: dict[str, float] = field(default_factory=dict)
-
-    def select(self, slots, local_peer: str, now: float):
-        candidates = eligible_snapshot_sources(slots, local_peer)
-        # Keep memory bounded as peers churn in long-lived rooms.
-        present = {s.peer for s in candidates}
-        self.cooldown_until = {k: v for k, v in self.cooldown_until.items()
-                               if k in present and v > now}
-        available = [s for s in candidates if s.peer not in self.cooldown_until]
-        # A cooldown must not force an unsafe unverified peer into service.
-        if not available:
-            self.current = None
-            return None
-        for slot in available:
-            if slot.peer == self.current:
-                return slot
-        self.current = available[0].peer
-        return available[0]
-
-    def failed(self, peer: str, now: float, delay: float = 30.0):
-        self.cooldown_until[peer] = now + delay
-        if self.current == peer:
-            self.current = None
-
-
-def snapshot_history_still_unchanged(last_mismatch, *, manifest_sha: str,
-                                    inventory_sha: str, event_count: int,
-                                    journal_count: int) -> bool:
-    """Skip repeated O(history) inventory scans until durable history changes.
-
-    The signed boundary and the local append-only journal count together
-    identify a previously failed catch-up attempt. Missing events can only
-    become available when a new durable event is appended.
-    """
-    return last_mismatch == (manifest_sha, inventory_sha, event_count, journal_count)
-
-
-def can_supply_snapshot(*, room_only: bool, bootstrap) -> bool:
-    """Verified state, never creator identity, confers snapshot-serving rights."""
-    return not room_only or (bootstrap.snapshot_installed and not bootstrap.fresh_join)
-
-
-def encode_control(msg: dict, signer=None) -> str:
-    body = {'v':CTRL_VERSION, **msg}
-    raw = _canonical_json(body)
-    digest = hashlib.sha256(raw).hexdigest()
-    header = {'size':len(raw),'sha256':digest,
-              'sig':signer(len(raw),digest) if signer else None}
-    wire = json.dumps({**body, '_auth':header},separators=(',',':'))
-    if len(wire) > CTRL_MAX:
-        raise PatchError('oversized elastic control')
-    return wire
-
-
-def decode_control(wire: str, verifier=None, unsafe=False) -> dict:
-    if not isinstance(wire,str) or len(wire)>CTRL_MAX:
-        raise PatchError('invalid elastic control size')
-    try: msg=json.loads(wire)
-    except ValueError as e: raise PatchError('bad elastic control JSON') from e
-    if not isinstance(msg,dict) or msg.get('v')!=CTRL_VERSION or '_auth' not in msg:
-        raise PatchError('not an elastic control frame')
-    auth=msg.pop('_auth')
-    if not isinstance(auth,dict) or set(auth)!={'size','sha256','sig'}:
-        raise PatchError('invalid control auth')
-    payload = _canonical_json(msg)
-    if type(auth['size']) is not int or auth['size']!=len(payload) or hashlib.sha256(payload).hexdigest()!=auth['sha256']:
-        raise PatchError('corrupt elastic control frame')
-    if not unsafe:
-        if verifier is None: raise PatchError('peer public key missing')
-        verifier(auth)
-    return msg
-
-
-async def pump_heartbeats(slots, stop: asyncio.Event, *, interval: float, peer_timeout: float):
-    """Transport keepalive must progress during async disk/GPU checkpoint work.
-
-    This coroutine owns no model weights, and never awaits remote peers.
-    """
-    period=max(0.2, min(float(interval), float(peer_timeout)/3))
-    while not stop.is_set():
-        for slot in tuple(slots.values()):
-            node=slot.node
-            if node and not slot.disabled and node.connected.is_set():
-                if hasattr(node, 'can_serve_snapshot'):
-                    node.control('heartbeat',serves_snapshot=node.can_serve_snapshot)
-                else:
-                    node.control('heartbeat')
-        try:
-            await asyncio.wait_for(stop.wait(), timeout=period)
-        except asyncio.TimeoutError:
-            pass
 
 
 class ElasticNode(PatchNode):
     def __init__(self, *args, origin: str, remote: str, genesis: str, unsafe=False,
                  public_key: str | None = None, on_authenticated=None, snapshot_store=None,
                  enable_generation=False, generation_root=None,
-                 snapshot_recv=None, snapshot_limit=32*1024**3, **kwargs):
+                 snapshot_recv=None, snapshot_limit=32*1024**3, snapshot_offer_store=None, **kwargs):
         super().__init__(*args,**kwargs)
         self.origin,self.remote,self.genesis,self.unsafe=origin,remote,genesis,unsafe
         self.expert_bridge=None
@@ -402,7 +147,8 @@ class ElasticNode(PatchNode):
         if snapshot_store is not None:
             from .snapshot_live import LiveSnapshotLink
             self.snapshot_link=LiveSnapshotLink(Path(snapshot_store),Path(snapshot_recv),
-                snapshot_limit,lambda: self.verifier if self.verified_at else None)
+                snapshot_limit,lambda: self.verifier if self.verified_at else None,
+                outgoing_store=snapshot_offer_store)
 
     def _attach_extra_channel(self,ch):
         if self.snapshot_link is None:
@@ -416,7 +162,7 @@ class ElasticNode(PatchNode):
             return False
         # SCTP delivery is ordered, but a failed first send must never be
         # followed by a heartbeat or inventory before the signed hello.
-        if self.bridge_only and kind not in ('hello','heartbeat',
+        if self.bridge_only and kind not in ('hello','heartbeat','generation-auto-roster',
                 'generation-head','generation-need','generation-wire',
                 'generation-have','generation-snapshot-request',
                 'generation-compact-have','generation-compact-snapshot-request',
@@ -801,7 +547,7 @@ class ElasticNode(PatchNode):
                     elif decoded.get('genesis') != self.remote_genesis:
                         raise HandshakeError('peer changed genesis inside an authenticated connection')
                     if self.bridge_only and decoded.get('type') not in (
-                            'hello','heartbeat','generation-head','generation-need',
+                            'hello','heartbeat','generation-auto-roster','generation-head','generation-need',
                             'generation-wire','generation-have','generation-snapshot-request',
                             'generation-compact-head','generation-compact-need',
                             'generation-compact-have','generation-compact-snapshot-request',
@@ -1089,20 +835,27 @@ async def run_step_offloop(run_step, model, adapter, optimizer, batch_iter, args
     """
     stage={'name':'data-fetch', 'since':time.monotonic()}
     started=stage['since']
-    def worker():
+    def fetch_batch():
         try:
-            batch=next(batch_iter) if supplied_batch is None else supplied_batch
+            return next(batch_iter) if supplied_batch is None else supplied_batch
         except StopIteration as exc:
             raise RuntimeError('training dataset exhausted; configure repetition or finite rounds') from exc
+
+    async def worker():
+        # Remote HF dataset I/O is independent of Metal. Never hold the single
+        # GPU worker hostage while a streaming HTTP request blocks.
+        batch=await asyncio.to_thread(fetch_batch)
         fetched=time.monotonic()
         if fetched-started >= 5:
             print(f'DATA BATCH READY fetch_s={fetched-started:.1f}',flush=True)
         stage.update(name='model-step',since=fetched)
-        return run_step(model,adapter,optimizer,batch,args)
+        return await model_task(run_step,model,adapter,optimizer,batch,args,
+                                device=execution_device(args),model=model)
 
     # One in-flight iterator operation, even while the application reports
     # slow network requests. wait() does not cancel the underlying task.
-    task=asyncio.create_task(asyncio.to_thread(worker),name='fedpara-data-and-model-step')
+    from .mps_runtime_v91 import model_task, execution_device
+    task=asyncio.create_task(worker(),name='fedpara-data-and-model-step')
     report_seconds=float(getattr(args,'data_wait_report_seconds',15.0))
     if report_seconds <= 0:
         return await task
@@ -1122,6 +875,21 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
     This is asynchronous additive model-delta SUM, not synchronized FedSum.
     No consensus under network partition: peers can temporarily diverge.
     """
+    from .mps_runtime_v91 import model_task, execution_device
+    from .mps_policy_v92 import guard_training_devices
+    guard_training_devices(args)
+    # Device placement is a LOCAL runtime preference, not an immutable room
+    # objective. Report effective Actor placement before any HF downloads.
+    from .cli import resolve_device
+    actor_device = resolve_device(getattr(args, 'device', 'auto'))
+    reward_device = (getattr(args,'reward_model_device','cpu')
+                     if getattr(args,'ppo_reward',None)=='hf_model' else 'not-used')
+    critic_device = (getattr(args,'critic_hf_device','cpu')
+                     if getattr(args,'critic_kind',None)=='hf' else 'actor-local')
+    print('KAGAMI COMPUTE DEVICE actor=%s reward=%s critic=%s mps_sampler=%s' % (
+        actor_device,reward_device,critic_device,
+        'gpu-native-with-fallback' if str(actor_device).startswith('mps') else 'non-mps'),
+        flush=True)
     if args.trust_remote_code or args.factory_file or args.allow_legacy_bin:
         raise PermissionError('Network-enabled training forbids untrusted Python/pickle. Train in offline sandbox.')
     if args.resume: raise ValueError('resume local .fpatch not compatible with elastic updates')
@@ -1133,12 +901,17 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
         args.sync_timeout < 0 or args.inventory_interval <= 0 or
         args.inventory_cycle <= 0 or args.checkpoint_every < 0):
         raise ValueError('invalid elastic liveness, journal or checkpoint settings')
-    if not 2 <= getattr(args,'expected_peers',2) <= 4096:
-        raise ValueError('--expected-peers must be 2..4096')
+    if not 1 <= getattr(args,'expected_peers',2) <= 4096:
+        raise ValueError('--expected-peers must be 1..4096')
     if getattr(args,'max_sync_steps',64) < 1:
         raise ValueError('--max-sync-steps must be positive')
     if not 1 <= getattr(args,'push_fanout',PUSH_FANOUT_DEFAULT) <= 8:
         raise ValueError('--push-fanout must be 1..8')
+    if (type(getattr(args,'fast_resume_every',32)) is not int or
+            getattr(args,'fast_resume_every',32) < 0):
+        raise ValueError('--fast-resume-every must be non-negative')
+    if not 0 <= getattr(args,'min_free_disk_mib',1024) <= 1024*1024:
+        raise ValueError('--min-free-disk-mib must be between 0 and 1048576')
     if args.peers is not None:
         raise ValueError('--peers is only supported with --mode synchronous; elastic FedSum uses each signed delta once, with no peer divisor')
     room_only=bool(getattr(args,'room_id',None))
@@ -1289,7 +1062,9 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
             raise PermissionError('required --self-public-key for relay/replay verification')
         path=Path(args.self_public_key)
         store_pin(args.peer_id,path.read_bytes(),verifier_from_pem(path))
-    model,adapter=load_model(args)
+    # v92: build on the *same* GPU worker as training, never create Metal
+    # tensors on the asyncio thread then move execution to another thread.
+    model,adapter=await model_task(load_model,args,device=execution_device(args))
     genesis_input={'model_id':adapter.model_id,'revision':adapter.revision,
                    'layout':adapter.layout,'kind':adapter.kind,'rank':adapter.rank,
                    'alpha':adapter.alpha}
@@ -1334,10 +1109,35 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
     # The active event genesis, by contrast, changes with each certificate.
     # NEVER open the genesis journal after a durable successor pointer exists.
     root_genesis=genesis
+    # V88: normal GUI rooms have an immutable owner public key in their
+    # genesis manifest. A signed durable roster of 1, 2 or 3 independently
+    # authenticated peers is pinned ONCE, after a discovery settling window.
+    # Existing signed committees are never silently shrunk after disconnect.
+    auto_committee=None
+    if getattr(args,'generation_auto_v88',False):
+        if not room_only or getattr(args,'generation_v1_committee',None):
+            raise PatchError('automatic committee requires a signed room and no manual committee override')
+        if not getattr(args,'room_manifest',None) or 'generation' not in room_manifest:
+            raise PatchError('automatic epoch migration requires a NEW room with an immutable owner public key')
+        from .auto_committee_v88 import AutoCommittee
+        from .room_manifest import manifest_digest
+        auto_committee=AutoCommittee(room=args.room_id,genesis=root_genesis,
+            manifest_sha=manifest_digest(room_manifest),manifest=room_manifest,
+            journal=args.journal,manifest_path=args.room_manifest)
+        args.generation_v2_trainer=True
+        if getattr(args,'generation_v2_propose_every',None) is None:
+            args.generation_v2_propose_every=128
+        if auto_committee.wire is not None:
+            args.generation_v1_committee=auto_committee.committee_path
     epoch_dir=Path(str(args.journal)+'.live-epoch')
     epoch_boot=None
+    # Automatic certified epoch proposals apply only when the operator has
+    # explicitly configured a pinned committee and the v2 trainer. A solo
+    # peer must never silently rewrite the genesis for the whole P2P room.
+    if getattr(args,'generation_v2_propose_every',None) is None:
+        args.generation_v2_propose_every=(256 if getattr(args,'generation_v2_trainer',False) else 0)
     if (getattr(args,'generation_v2_trainer',False) or
-            getattr(args,'generation_v2_propose_every',0)) and not getattr(args,'generation_v1_committee',None):
+            getattr(args,'generation_v2_propose_every',0)) and not (getattr(args,'generation_v1_committee',None) or auto_committee is not None):
         raise PatchError('compact trainer requires a pinned generation committee')
     if getattr(args,'generation_v2_propose_every',0)<0:
         raise PatchError('invalid automatic epoch export cadence')
@@ -1385,10 +1185,10 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
         if epoch_boot is None:
             raise PatchError('committed epoch pointer disappeared during safe recovery')
         from .shards import apply_sharded_effective_state
-        await asyncio.to_thread(apply_sharded_effective_state,
+        await model_task(apply_sharded_effective_state,
             model,adapter,epoch_boot.manifest,epoch_boot.store,
             model_id=adapter.model_id,revision=adapter.revision,
-            max_state_bytes=args.max_state_gb*1024**3)
+            max_state_bytes=args.max_state_gb*1024**3,device=execution_device(args))
         genesis=epoch_boot.current_genesis
         print(f'CERTIFIED EPOCH RECOVERY epoch={epoch_boot.epoch} '
               f'manifest={epoch_boot.manifest_hash[:16]} ',flush=True)
@@ -1396,17 +1196,51 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
     from .snapshot_live import journal_tip, snapshot_inventory
     snapshot_root=Path(str(args.journal)+'.snapshots')
     snapshot_store=snapshot_root/'objects'
+    # V86: outgoing exports are disposable, never mixed with verified incoming
+    # or certified epoch objects. Legacy offers remain untouched for migration.
+    outgoing_root=snapshot_root/'offers'
+    outgoing_store=outgoing_root/'store'
+    outgoing_manifests=outgoing_root/'manifests'
+    # Before any network session opens, all previous outgoing snapshot offers
+    # are inactive. Preserve newest ready offer for possible immediate reuse.
+    from .snapshot_offer_gc_v86 import collect as gc_snapshot_offers
+    try:
+        gc_snapshot_offers(outgoing_root)
+    except (PatchError,OSError,ValueError) as exc:
+        log.warning('outgoing snapshot startup GC deferred: %s',exc)
     snapshot_recv=snapshot_root/'incoming'
     if epoch_boot is not None:
         # The new-genesis writer must have been fsynced BEFORE the pointer.
         # Inventing an empty journal here could lose locally signed steps.
         if journal_path.is_symlink() or not journal_path.is_file():
             raise PatchError('certified epoch journal is missing after pointer publication')
-        if epoch_boot.source_path.is_symlink() or not epoch_boot.source_path.is_file():
-            raise PatchError('old certified source journal is missing; no local handoff proof')
+        if epoch_boot.source_path.is_symlink():
+            raise PatchError('unsafe old certified source journal symlink')
+        if (not epoch_boot.source_path.is_file() and
+                not Path(str(epoch_boot.source_path)+'.retired.json').is_file()):
+            raise PatchError('old certified source journal missing without verified retirement')
     journal=EventJournal(journal_path,genesis,max_bytes=args.max_journal_gb*1024**3,
-                         sync=getattr(args,'journal_sync','full').upper())
+                         sync=getattr(args,'journal_sync','full').upper(),
+                         min_free_mib=getattr(args,'min_free_disk_mib',1024))
     print(f'journal durability={journal.sync}; FULL=power-loss-safe, NORMAL=process-crash-safe only', flush=True)
+    from .disk_health_v86 import cleanup_working_orphans, require_space, DiskPressureError
+    try:
+        stale_count=cleanup_working_orphans(journal_path)
+        if stale_count:
+            print(f'KAGAMI V86 reclaimed {stale_count} orphan disk optimizer backup folders',flush=True)
+        # Crash recovery can always use signed history; a stale optional cache
+        # is swept only through its existing validated local pointer.
+        from .fast_resume_v85 import _pointer, root_for, _manifest_path, _factor_path, _clean_unreferenced
+        cache_root=root_for(journal)
+        current=_pointer(cache_root)
+        if current and not cache_root.is_symlink():
+            m=_manifest_path(cache_root,current['manifest'])
+            f=_factor_path(cache_root,current['factors'])
+            if m.is_file() and f.is_file():
+                _clean_unreferenced(cache_root,m,f)
+    except (OSError,ValueError,PatchError) as exc:
+        print(f'KAGAMI V86 optional startup cache cleanup deferred: {exc}',flush=True)
+
     from .continual import ContinualElasticEngine
     # factor roundoff would leave nonzero residual between anchor and local.
     args.wire_dtype='float32'
@@ -1415,15 +1249,23 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
                                   unsafe=args.unsafe_unsigned,max_delta_rms=args.max_delta_rms,
                                   event_public=room_pub if room_only else None)
     print(f'elastic optimization=FedSum+ReLoRA-mixed-async-v6 reinit_every={engine.reinit_every} local events',flush=True)
+    # Journal replay uses the SQLite owner thread; this still touches the model
+    # before networking starts. Experimental MPS remains explicitly unsupported
+    # as a stability guarantee until model and journal affinity are unified.
+    # Verify carry/signed old-journal handoff BEFORE trusting local snapshots.
+    # A retired old journal is permitted ONLY with an authenticated local GC
+    # tombstone and an empty carry suffix; never recreate its empty DB.
     carry_archive=None
     if epoch_boot is not None:
-        # Recovery order is strict: immutable certified base, durable old signed
-        # suffix, THEN events from the new-generation journal. All old bodies
-        # remain signed with their ORIGINAL genesis, never forged/relabelled.
         from .epoch_carry_v46 import CrossEpochCarryArchive
         from .epoch_trainer_boot_v52 import verify_boot_carry
-        old_source=EventJournal(epoch_boot.source_path,epoch_boot.previous_genesis,
+        # A power loss may interrupt compact GC after the durable v88
+        # retirement marker but before unlinking the source SQLite bytes.
+        # Never accidentally re-open that retired journal as a trainer.
+        retired_marker=Path(str(epoch_boot.source_path)+'.retired.json')
+        old_source=(EventJournal(epoch_boot.source_path,epoch_boot.previous_genesis,
             max_bytes=0,sync=getattr(args,'journal_sync','full').upper())
+            if epoch_boot.source_path.is_file() and not retired_marker.exists() else None)
         try:
             carry_archive=CrossEpochCarryArchive(epoch_boot.carry_path,
                 source_genesis=epoch_boot.previous_genesis,
@@ -1431,14 +1273,46 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
                 certified_manifest=epoch_boot.manifest_hash,
                 epoch=epoch_boot.epoch,cutoffs=epoch_boot.proposal['cutoffs'])
             verify_boot_carry(epoch_boot,carry_archive,old_journal=old_source)
-            print(f'CERTIFIED CARRY RECOVERY count={carry_archive.replay(engine)}',flush=True)
         finally:
-            old_source.close()
-    engine.replay()
+            if old_source is not None: old_source.close()
+    from .fast_resume_v85 import restore as restore_committed_base
+    # v96: A single materialized base must cover BOTH the current-generation
+    # journal and the old-generation carry lane. A nonempty carry is no longer
+    # a reason to replay the entire historical event stream.
+    cached = restore_committed_base(journal, engine,
+        max_state_bytes=args.max_state_gb*1024**3, carry_archive=carry_archive)
+    if cached is None:
+        if carry_archive is not None:
+            print(f'CERTIFIED CARRY RECOVERY full authenticated replay count={carry_archive.replay(engine)}',flush=True)
+        engine.replay()
+    elif carry_archive is not None:
+        cached_rowid, carry_rowid = cached
+        # Cache selection prechecked both suffix lengths: at most one lane
+        # advanced. Carry first preserves the existing cold-replay order.
+        carry_archive.resume_suffix(engine, carry_rowid)
+        engine.replay_suffix(cached_rowid)
+    else:
+        engine.replay_suffix(cached)
     if epoch_boot is not None:
         with journal.db:
             journal.db.execute("INSERT OR REPLACE INTO meta(name,value) VALUES('initial_ready','1')")
     print(f'elastic peer={args.peer_id} genesis={genesis} recovered={journal.count()} events; log={journal.path}',flush=True)
+    # Retry interrupted retirement after crashes/restarts. This is deliberately
+    # scheduled ONLY after the full locally certified snapshot, carry receipt,
+    # signed carry replay and current journal replay all succeeded.
+    if auto_committee is not None and epoch_boot is not None:
+        from .compact_journal_gc_v88 import collect_certified_compact_source
+        async def recover_compact_gc():
+            try:
+                done=await asyncio.to_thread(
+                    collect_certified_compact_source,epoch_boot,
+                    active_pointer=epoch_dir/'active-epoch.json')
+                if done:
+                    print(f'V88 RECOVERY GC retired old journal '
+                          f'{epoch_boot.source_path}',flush=True)
+            except (PatchError,OSError,ValueError,sqlite3.Error) as exc:
+                log.warning('v88 restarted certified GC deferred: %s',exc)
+        asyncio.create_task(recover_compact_gc(),name='kagami-v88-recover-certified-gc')
     # Epoch-v2 signed crash-fault agreement PROBE. This is deliberately
     # isolated from v1 optimization: no v1 delta may be reinterpreted as an
     # epoch-anchored v2 proposal. A genuine v2 trainer requires pinned local
@@ -1480,6 +1354,9 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
     generation_gc_task=None
     generation_compact_vote_task=None
     generation_compact_vote_next=0.0
+    compact_vote_started_at=0.0
+    compact_vote_last_error=''
+    compact_vote_failures=0
     if getattr(args,'generation_v1_committee',None):
         if not room_only or args.unsafe_unsigned or signer is None:
             raise PermissionError('generation control requires authenticated room mode')
@@ -1492,6 +1369,20 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
         for committee_peer,pem in committee_keys.items():
             pub=load_pem_public_key(pem)
             store_pin(committee_peer,pem,make_verifier(pub))
+    def install_auto_committee():
+        nonlocal generation_committee
+        if auto_committee is None or auto_committee.wire is None or generation_committee is not None:
+            return False
+        from .generation_committee_v43 import read_generation_committee
+        members,pins=read_generation_committee(auto_committee.committee_path)
+        for member,pem in pins.items():
+            store_pin(member,pem,make_verifier(load_pem_public_key(pem)))
+        generation_committee=members
+        args.generation_v1_committee=auto_committee.committee_path
+        print(f'V88 AUTO GENERATION COMMITTEE owner-signed peers={len(members)} '
+              f'quorum={len(members)//2+1} local_member={args.peer_id in members}',flush=True)
+        return True
+
     def maybe_start_generation_bridge():
         nonlocal generation_bridge,generation_ledger,generation_gc_runtime
         nonlocal generation_compact_ledger,generation_compact_control,generation_trainer_ledger
@@ -1780,7 +1671,24 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
             aggregation_batches=inbound_pipeline.aggregate_batches,
             aggregation_saved_mib=sum(s.node.aggregate_bytes_avoided for s in slots.values()
                                       if s.node)/(1024*1024),
-            accuracy=getattr(args,'_latest_accuracy',None), peer_id=args.peer_id,
+            accuracy=(getattr(args,'_latest_accuracy',None) if
+                      float(getattr(args,'pt_weight',1.))>0 else
+                      getattr(getattr(args,'_v65_mixer',None),'last_sft_accuracy',None)),
+            pt_accuracy=(getattr(args,'_v107_pt_accuracy',getattr(args,'_latest_accuracy',None))
+                         if float(getattr(args,'pt_weight',1.))>0 else None),
+            sft_accuracy=(getattr(getattr(args,'_v65_mixer',None),'last_sft_accuracy',None)
+                          if float(getattr(args,'sft_weight',0.))>0 else None),
+            sft_preference_accuracy=(getattr(getattr(args,'_v65_mixer',None),'last_sft_preference_accuracy',None)
+                                     if float(getattr(args,'sft_pref_coef',0.))>0 else None),
+            ppo_reward=((getattr(args,'_v65_ppo_metrics',None) or {}).get('reward')
+                        if float(getattr(args,'ppo_weight',0.))>0 else None),
+            ppo_kl=((getattr(args,'_v65_ppo_metrics',None) or {}).get('kl')
+                    if float(getattr(args,'ppo_weight',0.))>0 else None),
+            ppo_reference_match=((getattr(args,'_v65_ppo_metrics',None) or {}).get('reference_match')
+                                 if float(getattr(args,'ppo_weight',0.))>0 else None),
+            ppo_critic_loss=((getattr(args,'_v65_ppo_metrics',None) or {}).get('critic_loss')
+                             if float(getattr(args,'ppo_weight',0.))>0 else None),
+            peer_id=args.peer_id,
             membership_count=living_count(),
             connected_peers=[slot.peer for slot in slots.values()
                              if slot.node and slot.node.connected.is_set()][:8])
@@ -1918,8 +1826,10 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
         if pending[0]:
             def finish_optimizer_step():
                 with adapter.lock:
+                    from .mixed_learning_v65 import clip_actor_grads
+                    clip_actor_grads(adapter,args)
                     optimizer.step();optimizer.zero_grad(set_to_none=True)
-            await asyncio.to_thread(finish_optimizer_step)
+            await model_task(finish_optimizer_step,device=execution_device(args),model=model)
             pending[0]=0
         seal_started=time.monotonic()
         async with inbound_commit_lock:
@@ -1957,10 +1867,78 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
                     await working_saver.checkpoint(journal,adapter,optimizer,0,journal_tip=tip)
                     last_working_save_ms=working_saver.disk_ms
         await fanout(wire)
+        # A local materialization does NOT prune active signed gossip history.
+        # It removes the O(all events) replay bottleneck on subsequent boots.
+        if (getattr(args,'fast_resume_every',32) > 0 and
+                emitted % getattr(args,'fast_resume_every',32) == 0):
+            await save_fast_resume_cache()
         record_telemetry(force=True)
         print(f'elastic local event={emitted}, living={living_count()}, active={active_count()}, bytes={len(wire)}',flush=True)
 
+    async def save_fast_resume_cache():
+        from .fast_resume_v85 import save as save_committed_base
+        try:
+            # Ingress/model changes are fenced for the ENTIRE export. The
+            # BOTH SQLite cursors are captured and rechecked on the owning
+            # event-loop thread. The model worker only serializes tensors and
+            # must never call journal/carry SQLite methods (v98 fix).
+            async with inbound_commit_lock:
+                point=journal.fast_resume_cursor()
+                carry_point=(carry_archive.journal.fast_resume_cursor()
+                             if carry_archive is not None else None)
+                await model_task(
+                    save_committed_base,journal,engine,device=execution_device(args),model=model,
+                    max_state_bytes=args.max_state_gb*1024**3,
+                    shard_bytes=args.shard_mb*1024**2,cursor=point,
+                    carry_archive=carry_archive,carry_cursor=carry_point)
+                if (journal.fast_resume_cursor()!=point or
+                        (carry_archive is not None and
+                         carry_archive.journal.fast_resume_cursor()!=carry_point)):
+                    raise PatchError('journal/carry cursor changed under snapshot ingress fence')
+        except (PatchError,OSError,ValueError,RuntimeError,sqlite3.ProgrammingError) as exc:
+            # Optional local performance cache must never turn a healthy
+            # signed training journal into an unavailable model.
+            log.warning('materialized fast resume deferred: %s',exc)
+
     pending=[0]
+    last_autosave_resume_attempt = [float('-inf')]
+
+    async def maybe_materialize_resume_periodically(*, pressure_hold=False):
+        """Persist remote/carry-only progress, even with ZERO local seals.
+
+        v85 saved only after N locally emitted updates and on clean exit.
+        A receiver or a pressure-paused solo peer can therefore go through
+        millions of signed receipts without ever writing a reusable snapshot.
+        The user must have opted into fast resume (default N=32); keep
+        repeated failed full-model exports bounded by a five-minute interval.
+        """
+        if getattr(args, 'fast_resume_every', 32) <= 0 or local_steps:
+            return
+        if not initial_complete and room_only:
+            return
+        if bootstrap.fresh_join and not bootstrap.snapshot_installed:
+            return
+        stamp = loop.time()
+        min_interval = 120.0 if pressure_hold else 300.0
+        if stamp - last_autosave_resume_attempt[0] < min_interval:
+            return
+        from .fast_resume_v85 import _pointer, root_for
+        p = _pointer(root_for(journal))
+        current = journal.fast_resume_cursor()
+        carried = (carry_archive.journal.fast_resume_cursor()
+                   if carry_archive is not None else None)
+        covered = (p is not None and p.get('genesis') == journal.genesis and
+                   p.get('cursor') == current and
+                   ((p.get('carry') is None and carried is None) or
+                    (isinstance(p.get('carry'), dict) and carried is not None and
+                     p['carry'].get('genesis') == carry_archive.genesis and
+                     p['carry'].get('cursor') == carried)))
+        if covered:
+            return
+        # 5-min backoff is for unsuccessful export attempts, too.  The caller
+        # is on the trainer loop and has no outstanding unsealed local step.
+        last_autosave_resume_attempt[0] = stamp
+        await save_fast_resume_cache()
 
     async def loop_stall_watchdog(stop, *, period=1.0, warn_after=4.0):
         """Expose real asyncio starvation instead of blaming peer churn."""
@@ -2128,8 +2106,9 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
                     public_key=room_pub if room_only else None,
                     on_authenticated=accept_authenticated_peer if room_only else None,
                     snapshot_store=snapshot_store if room_only else None,
-                    enable_generation=generation_committee is not None,
-                    generation_root=root_genesis if generation_committee is not None else None,
+                    snapshot_offer_store=outgoing_store if room_only else None,
+                    enable_generation=(generation_committee is not None or auto_committee is not None),
+                    generation_root=root_genesis if (generation_committee is not None or auto_committee is not None) else None,
                     snapshot_recv=snapshot_recv if room_only else None,
                     snapshot_limit=args.max_state_gb*1024**3)
                 node.lookup_requested_event=journal.get
@@ -2168,15 +2147,30 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
             tip,count,cutoffs=snapshot_inventory(journal)
             from .shards import export_state_sharded
             from .shards import manifest_bytes
-            path=snapshot_root/f'offer-{args.peer_id}-{count}-{tip[:16]}.fmanifest'
+            path=outgoing_manifests/f'offer-{args.peer_id}-{count}-{tip[:16]}.fmanifest'
             path.parent.mkdir(parents=True,exist_ok=True)
             if not path.exists():
+                # Exporting a full model needs a new disk-resident copy, even
+                # with deduplicated sharding. Never consume journal reserve.
+                from .shard_runtime import effective_state_sources
+                estimated=sum(t.numel()*t.element_size() for t,_ in
+                    effective_state_sources(model,adapter).values())
+                try:
+                    require_space(outgoing_store,additional=estimated,
+                                  reserve_mib=getattr(args,'min_free_disk_mib',1024),
+                                  action='P2P snapshot export')
+                except DiskPressureError as exc:
+                    log.warning('P2P snapshot skipped without filling disk: %s',exc)
+                    node.snapshot_tx_stage='disk-pressure'
+                    node.control('snapshot-status',request_id=node.snapshot_pending_id,
+                                 stage='disk-pressure')
+                    return False
                 # Keep the event loop responsive to SCTP heartbeats while streaming
                 # tensors to disk. The training coroutine is paused at this await.
-                await asyncio.to_thread(export_state_sharded,model,snapshot_store,path,
+                await model_task(export_state_sharded,model,outgoing_store,path,
                      model_id=adapter.model_id,revision=adapter.revision,
                      peer_id=args.peer_id,seq=count,adapter=adapter,
-                     shard_bytes=args.shard_mb*1024**2,max_state_bytes=args.max_state_gb*1024**3)
+                     shard_bytes=args.shard_mb*1024**2,max_state_bytes=args.max_state_gb*1024**3,device=execution_device(args))
             # Do not allocate a potentially 96 MiB manifest merely to hash it.
             with path.open('rb') as manifest_stream:
                 digest=hashlib.file_digest(manifest_stream,'sha256').hexdigest()
@@ -2192,7 +2186,69 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
         print(f'SNAPSHOT OFFER peer={slot.peer} events={count} manifest={digest[:16]}',flush=True)
         return True
 
+    auto_roster_sent_at={}
+    # Prevent pinning a new two-peer room as permanently solo in the first
+    # milliseconds before its second peer finishes authenticating. The roster
+    # is nevertheless allowed to bootstrap solo after a stable discovery wait.
+    auto_roster_discovery_started=loop.time()
+    auto_roster_last_change=auto_roster_discovery_started
+    auto_roster_last_members=None
     async def read_peer_events():
+        nonlocal carry_relay,auto_roster_last_change,auto_roster_last_members
+        if auto_committee is not None:
+            if auto_committee.wire is None and auto_committee.private is not None:
+                from cryptography.hazmat.primitives.serialization import Encoding,PublicFormat
+                from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+                own_raw=base64.b64decode(room_pub,validate=True)
+                local_pem=Ed25519PublicKey.from_public_bytes(own_raw).public_bytes(
+                    Encoding.PEM,PublicFormat.SubjectPublicKeyInfo)
+                active_pems={args.peer_id:local_pem}
+                for ps in slots.values():
+                    nd=ps.node
+                    if (not ps.disabled and nd is not None and nd.verified_at and
+                        nd.remote_genesis==genesis and ps.peer in key_bytes):
+                        active_pems[ps.peer]=key_bytes[ps.peer]
+                observed=frozenset(active_pems)
+                now=loop.time()
+                if observed != auto_roster_last_members:
+                    auto_roster_last_members=observed
+                    auto_roster_last_change=now
+                # Three independently signed peers pin immediately. With one
+                # or two, wait for stable authenticated discovery before an
+                # immutable roster. Never downgrade during a disconnect.
+                from .auto_committee_v88 import bootstrap_ready
+                if bootstrap_ready(online_count=len(observed),
+                                   elapsed=now-auto_roster_discovery_started,
+                                   stable=now-auto_roster_last_change):
+                    if auto_committee.try_create(myself=args.peer_id,peer_pems=active_pems):
+                        print(f'V90 AUTO COMMITTEE pinned peers={len(auto_committee.wire["payload"]["keys"])} '
+                              f'quorum={len(auto_committee.wire["payload"]["keys"])//2+1}',flush=True)
+            if install_auto_committee() and carry_relay is None:
+                # The newly pinned peers immediately have the previous-genesis
+                # control lane needed for a later certified transition.
+                from .epoch_carry_gossip_v53 import AdjacentEpochCarryGossip
+                if carry_archive is not None:
+                    class _AutoOldCarryView:
+                        genesis=carry_archive.source_genesis
+                        db=carry_archive.journal.db
+                        get=carry_archive.journal.get
+                        get_async=carry_archive.journal.get_async
+                        has=carry_archive.journal.has
+                    source=_AutoOldCarryView()
+                else:
+                    source=journal
+                carry_relay=AdjacentEpochCarryGossip(
+                    source_genesis=source.genesis,source_journal=source,
+                    spool=epoch_dir/'carry-spool',carry_archive=carry_archive,
+                    max_event=min(args.max_patch_mb*1024**2,16*1024**2))
+            if auto_committee.wire is not None:
+                now=loop.time()
+                for ps in slots.values():
+                    nd=ps.node
+                    if (nd is not None and not ps.disabled and nd.verified_at and
+                        now-auto_roster_sent_at.get(ps.peer,-100)>5 and
+                        nd.control('generation-auto-roster',wire=auto_committee.wire)):
+                        auto_roster_sent_at[ps.peer]=now
         maybe_start_generation_bridge()
         if critic_gossip is not None:
             now=loop.time()
@@ -2236,11 +2292,18 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
                     kind, fields=node.generation_controls.get_nowait()
                     try:
                         if kind=='generation-compact-snapshot-request':
-                            # The cert is a pinned CFT quorum. A bare hash or
-                            # peer hint NEVER authorizes a large file transfer.
+                            # BEFORE a quorum cert exists, an authenticated
+                            # signed candidate + fenced exporter receipt may
+                            # authorize only a bounded data-only STAGING fetch.
+                            # Active weights/GC still require a real quorum.
                             cert=(generation_compact_ledger.certified_epoch(fields['epoch'])
                                   if generation_compact_ledger is not None else None)
                             p=cert['proposal'] if cert else None
+                            if p is None:
+                                from .pending_snapshot_v90 import verified_pending_candidate
+                                p=verified_pending_candidate(
+                                    generation_compact_control,generation_compact_ledger,
+                                    fields['epoch'],fields['manifest'])
                             if (p is not None and p['manifest']==fields['manifest']
                                     and node.snapshot_link is not None):
                                 path=snapshot_recv/(p['manifest']+'.fmanifest')
@@ -2301,7 +2364,17 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
                 else:
                     break
                 typ=msg.get('type')
-                if typ == 'hello':
+                if typ == 'generation-auto-roster':
+                    if auto_committee is None:
+                        continue
+                    try:
+                        newly=auto_committee.accept(msg.get('wire'))
+                        if newly:
+                            install_auto_committee()
+                            print('V88 AUTO GENERATION learned immutable owner-signed committee',flush=True)
+                    except (PatchError,ValueError,OSError,TypeError) as exc:
+                        log.warning('reject automatic committee from %s: %s',slot.peer,exc)
+                elif typ == 'hello':
                     node.control('hello-ack')
                     node.inventory_cursor=0
                 elif typ == 'inventory':
@@ -2536,11 +2609,11 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
         candidate=await asyncio.to_thread(stage_verified_local_view,proposal,
             root=epoch_dir,incoming=snapshot_recv,objects=snapshot_store,
             max_state_bytes=args.max_state_gb*1024**3)
-        fresh_model,fresh_adapter=await asyncio.to_thread(load_model,args)
-        await asyncio.to_thread(__import__('patchlib.shards',fromlist=['apply_sharded_effective_state']).apply_sharded_effective_state,
+        fresh_model,fresh_adapter=await model_task(load_model,args,device=execution_device(args))
+        await model_task(__import__('patchlib.shards',fromlist=['apply_sharded_effective_state']).apply_sharded_effective_state,
             fresh_model,fresh_adapter,candidate.manifest,candidate.store,
             model_id=fresh_adapter.model_id,revision=fresh_adapter.revision,
-            max_state_bytes=args.max_state_gb*1024**3)
+            max_state_bytes=args.max_state_gb*1024**3,device=execution_device(args))
         next_genesis=certified_genesis(proposal)
         next_journal_path=epoch_dir/'journals'/f'epoch-{proposal["epoch"]:08d}.sqlite3'
         if next_journal_path.is_symlink():raise PatchError('unsafe successor journal')
@@ -2702,6 +2775,33 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
             name='fedpara-network-receiver')
         epoch_writer_frozen=False
         old.journal.close()
+        # V88: the durable new epoch pointer has already been published by
+        # TrainerStepRouter. Resolve the locally verified QUORUM chain before
+        # scheduling any destructive source-log retirement. A failure or
+        # missing certificate leaves the full signed old history intact.
+        if auto_committee is not None and generation_trainer_ledger is not None:
+            try:
+                from .epoch_trainer_boot_v52 import resolve_certified_boot
+                from .compact_journal_gc_v88 import collect_certified_compact_source
+                verified_gc_boot=resolve_certified_boot(
+                    root=epoch_dir,journal_base=Path(args.journal),
+                    ledger=generation_trainer_ledger,root_genesis=root_genesis,
+                    max_state_bytes=args.max_state_gb*1024**3)
+                if verified_gc_boot is None or verified_gc_boot.epoch!=new.epoch:
+                    raise PatchError('certified GC target does not match active generation')
+                async def gc_old_after_swap():
+                    try:
+                        done=await asyncio.to_thread(
+                            collect_certified_compact_source,verified_gc_boot,
+                            active_pointer=epoch_dir/'active-epoch.json')
+                        if done:
+                            print(f'V88 COMPACT GC retired old signed writer '
+                                  f'{verified_gc_boot.source_path}',flush=True)
+                    except (PatchError,OSError,ValueError,sqlite3.Error) as exc:
+                        log.warning('v88 certified old journal GC safely deferred: %s',exc)
+                asyncio.create_task(gc_old_after_swap(),name='kagami-v88-certified-gc')
+            except (PatchError,OSError,ValueError,sqlite3.Error) as exc:
+                log.warning('v88 certified source retirement skipped: %s',exc)
         print(f'LIVE EPOCH ACTIVATED epoch={new.epoch} genesis={genesis[:16]} '
               f'carried={archive.journal.count()} (new optimizer, journal, WebRTC)',flush=True)
         return True
@@ -2787,10 +2887,10 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
             # and no second whole-model allocation. This runs off the event
             # loop, at the quiescent training boundary established above.
             from .shards import apply_sharded_effective_state
-            await asyncio.to_thread(apply_sharded_effective_state,
+            await model_task(apply_sharded_effective_state,
                 model,adapter,manifest,snapshot_store,
                 model_id=adapter.model_id,revision=adapter.revision,
-                max_state_bytes=args.max_state_gb*1024**3)
+                max_state_bytes=args.max_state_gb*1024**3,device=execution_device(args))
             # Later updates absent from the source's snapshot must be applied
             # AFTER the snapshot. Covered events must not be double-applied.
             from .elastic import unpack_event
@@ -2817,8 +2917,8 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
             from .localprogress import _tip
             await working_saver.drain()
             await paired_saver.drain()
-            await asyncio.to_thread(save_working,journal,adapter,
-                optimizer,0,journal_tip=_tip(journal))
+            await model_task(save_working,journal,adapter,
+                optimizer,0,journal_tip=_tip(journal),device=execution_device(args))
             # The verified model already covers the signed journal cut-off.
             # Inventory-page readiness is *not* a second mandatory initial
             # barrier: the neighbor may be concurrently announcing newer
@@ -2851,9 +2951,16 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
         return await asyncio.to_thread(worker)
 
     compact_last_export=0
+    compact_last_export_bytes=0
     compact_export_task=None
+    compact_export_started=0.0
+    # V95: the local writer is intentionally paused at 80% pressure. A failed
+    # export MUST retry on a monotonic timer, even if no further events or
+    # bytes are added to the signed journal.
+    from .epoch_export_retry_v95 import EpochExportRetry
+    compact_retry=EpochExportRetry()
     async def maybe_propose_compact_epoch():
-        nonlocal compact_last_export,compact_export_task
+        nonlocal compact_last_export,compact_last_export_bytes,compact_export_task,compact_export_started
         import sqlite3
         frequency=getattr(args,'generation_v2_propose_every',0)
         if not frequency or not initial_complete:
@@ -2866,38 +2973,84 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
                 return
             completed=compact_export_task
             compact_export_task=None
+            compact_export_started=0.0
             try:
                 epoch_at_capture,parent_at_capture,p,pages,receipt=completed.result()
                 if (trainer_router.current.epoch!=epoch_at_capture-1 or
                         generation_compact_ledger.head()!=parent_at_capture):
                     log.warning('obsolete compact snapshot ignored after epoch switch')
                 else:
+                    # Crash during offer() can leave a durable partial candidate.
+                    # Only repair it with the EXACT same cut/checkpoint. A new
+                    # distinct proposal for the same epoch is forbidden.
+                    existing=generation_compact_control.db.execute(
+                        'SELECT wire FROM proposals WHERE epoch=?',
+                        (p['epoch'],)).fetchone()
+                    if existing is not None and json.loads(existing[0]) != p:
+                        raise PatchError('V95 checkpoint re-export disagrees with the durable '
+                            'candidate for this epoch; refusing to fork a pinned 1/1 certificate')
                     generation_compact_control.receive_export_receipt(receipt,p)
                     generation_compact_control.offer(p,pages)
+                    compact_retry.succeeded()
                     print(f'COMPACT EPOCH CANDIDATE epoch={p["epoch"]} '
                           f'origins={p["frontier_header"]["total"]} '
                           f'pages={len(pages)} manifest={p["manifest"][:16]}',flush=True)
-            except (PatchError,OSError,sqlite3.Error,ValueError) as exc:
-                log.warning('background compact checkpoint export failed: %s',exc)
+            except (PatchError,OSError,sqlite3.Error,ValueError,RuntimeError) as exc:
+                delay=compact_retry.failed(loop.time(),exc)
+                log.warning('V95 compact checkpoint export failed (retry in %.0fs): %s',delay,exc)
             return
+        from .journal_pressure_v87 import should_propose_for_pressure
+        log_bytes=journal.total_bytes()
+        pressure_due=should_propose_for_pressure(
+            log_bytes, journal.max_bytes, compact_last_export_bytes)
         if (generation_compact_control is None or generation_trainer_ledger is None or
-                args.peer_id!=min(generation_committee) or
-                emitted-compact_last_export<frequency):
+                not generation_committee or args.peer_id!=min(generation_committee)):
+            return
+        # Never retry a failed export in a tight loop, and never require fresh
+        # log growth during V89 HOLD (which expressly stops local training).
+        if compact_retry.failures and not compact_retry.can_retry(loop.time()):
+            return
+        if (emitted-compact_last_export<frequency and not pressure_due and
+                not compact_retry.can_retry(loop.time())):
             return
         latest=generation_compact_ledger.latest()
         if latest is not None and latest['proposal']['epoch']>trainer_router.current.epoch:
             return
         target_epoch=trainer_router.current.epoch+1
         parent=generation_compact_ledger.head()
-        if generation_compact_control.db.execute(
-                'SELECT 1 FROM proposals WHERE epoch=? LIMIT 1',
-                (target_epoch,)).fetchone():
-            return
+        existing_row=generation_compact_control.db.execute(
+            'SELECT digest,wire FROM proposals WHERE epoch=? LIMIT 1',
+            (target_epoch,)).fetchone()
+        if existing_row is not None:
+            # For complete candidates, a separate worker validates the full
+            # checkpoint and commits the locally signed vote (1/1 in solo
+            # rooms). An incomplete candidate may result from a crash halfway
+            # through offer(); try to reconstruct *the same exact proposal*.
+            existing_digest,raw=existing_row
+            candidate=json.loads(raw)
+            pages_present=generation_compact_control.db.execute(
+                'SELECT COUNT(*) FROM pages WHERE digest=?',
+                (existing_digest,)).fetchone()[0]
+            has_receipt=generation_compact_control.db.execute(
+                'SELECT 1 FROM exporter_receipts WHERE digest=?',
+                (existing_digest,)).fetchone() is not None
+            has_manifest=(snapshot_recv/(candidate['manifest']+'.fmanifest')).is_file()
+            if has_receipt and pages_present==candidate['frontier_header']['pages'] and has_manifest:
+                compact_retry.stage='candidate-awaiting-votes-or-activation'
+                return
+            compact_retry.stage='repairing-incomplete-durable-candidate'
+            if compact_retry.failures and not compact_retry.can_retry(loop.time()):
+                return
         from types import SimpleNamespace
         from .epoch_export_v57 import export_at_step_boundary
         from .epoch_frozen_export_v58 import (capture as freeze_export,
                                                      finish_deferred_frontier)
         compact_last_export=emitted
+        compact_last_export_bytes=log_bytes
+        compact_retry.started()
+        if pressure_due:
+            log.warning('signed journal at %.1f%% of its cap: requesting early certified epoch export',
+                        100.0*log_bytes/max(1,journal.max_bytes))
         try:
             await seal_if_needed()
             async with inbound_commit_lock:
@@ -2919,7 +3072,7 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
                     except BaseException:
                         db.close()
                         raise
-                frozen,snapshot_db=await asyncio.to_thread(capture_worker)
+                frozen,snapshot_db=await model_task(capture_worker,device=execution_device(args),model=model)
             captured_model=model
             captured_adapter=adapter
             captured_journal_path=journal.path
@@ -2943,10 +3096,15 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
                         max_state_bytes=args.max_state_gb*1024**3,
                         shard_bytes=args.shard_mb*1024**2,frozen=completed)
                     return target_epoch,parent,p,pages,receipt
+            compact_export_started=loop.time()
             compact_export_task=asyncio.create_task(
-                asyncio.to_thread(export_worker),name='kagami-v58-cow-shard-export')
-        except (PatchError,OSError,sqlite3.Error,ValueError) as exc:
-            log.warning('frozen compact checkpoint capture deferred: %s',exc)
+                model_task(export_worker,device=execution_device(args),model=model),name='kagami-v58-cow-shard-export')
+        except (PatchError,OSError,sqlite3.Error,ValueError,RuntimeError) as exc:
+            # If a capture fails, pressure HOLD will not advance emitted or
+            # signed bytes. Retrying solely on the next growth threshold
+            # deadlocks a 1/1 room indefinitely.
+            delay=compact_retry.failed(loop.time(),exc)
+            log.warning('V95 compact checkpoint capture failed (retry in %.0fs): %s',delay,exc)
 
     async def maybe_checkpoint():
         nonlocal next_checkpoint,optimizer
@@ -2958,10 +3116,10 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
         root.mkdir(parents=True,exist_ok=True)
         count=journal.count()
         manifest=root/f'elastic-{count:09d}.fmanifest'
-        await asyncio.to_thread(export_state_sharded,model,root/'objects-store',manifest,
+        await model_task(export_state_sharded,model,root/'objects-store',manifest,
             model_id=adapter.model_id,revision=adapter.revision,
             peer_id=args.peer_id,seq=count,adapter=adapter,
-            shard_bytes=args.shard_mb*1024**2,max_state_bytes=args.max_state_gb*1024**3)
+            shard_bytes=args.shard_mb*1024**2,max_state_bytes=args.max_state_gb*1024**3,device=execution_device(args))
         # Signed checkpoint descriptor binds manifest+genesis to a complete
         # log inventory. It does not automatically authorize an epoch reset.
         history_hash=hashlib.sha256();offset=0
@@ -2996,8 +3154,11 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
             except asyncio.TimeoutError:
                 pass
             try:
-                if Path(str(journal.path)+'-wal').stat().st_size >= 32*1024*1024:
+                wal_bytes = Path(str(journal.path)+'-wal').stat().st_size
+                if wal_bytes >= 32*1024*1024:
                     await asyncio.to_thread(journal.passive_checkpoint)
+                if wal_bytes >= 128*1024*1024:
+                    await asyncio.to_thread(journal.truncate_wal_if_idle)
             except FileNotFoundError:
                 pass
 
@@ -3008,6 +3169,9 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
     network_receiver_task=None
     wal_maintenance_task=None
     last_swarm_report=0.0
+    next_outgoing_gc=0.0
+    last_free_disk_check=0.0
+    last_epoch_pressure_report=0.0
     try:
         update_roster()
         heartbeat_task=asyncio.create_task(heartbeat_daemon(),name='fedpara-heartbeat')
@@ -3016,14 +3180,31 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
         network_receiver_task=asyncio.create_task(network_receiver_loop(),name='fedpara-network-receiver')
         wal_maintenance_task=asyncio.create_task(wal_maintenance(),name='fedpara-wal-checkpoint')
         while not shutdown.is_set() and (args.rounds == 0 or emitted < args.rounds):
+            if generation_compact_control is not None:
+                # Crash-safe reconciliation of a quorum that was durably
+                # signed before certificate persistence.  This performs no
+                # new vote, no weight mutation and no unsigned state advance.
+                if generation_compact_control.reconcile_quorum():
+                    print('V97 COMPACT EPOCH recovered verified certificate from '
+                          'previously signed quorum votes', flush=True)
             if generation_compact_vote_task is not None and generation_compact_vote_task.done():
                 try:
                     vote= generation_compact_vote_task.result()
                     if generation_compact_control is not None:
                         generation_compact_control.receive('local',{'kind':'compact-vote','data':vote})
+                        compact_vote_last_error=''
+                        compact_vote_failures=0
                 except (PatchError,OSError,ValueError,sqlite3.Error) as exc:
-                    log.warning('compact committee verification deferred: %s',exc)
+                    compact_vote_last_error=str(exc)[:500]
+                    compact_vote_failures+=1
+                    # An invalid or unavailable multi-GB checkpoint must not
+                    # be rehashed twice a second during journal pressure HOLD.
+                    delay=min(120.0, 5.0*(2**min(compact_vote_failures-1,5)))
+                    generation_compact_vote_next=loop.time()+delay
+                    log.warning('V97 compact committee validation deferred '
+                                '(retry in %.0fs): %s',delay,exc)
                 generation_compact_vote_task=None
+                compact_vote_started_at=0.0
             if (generation_compact_vote_task is None and generation_compact_control is not None
                     and getattr(args,'generation_v2_trainer',False)
                     and loop.time()>=generation_compact_vote_next):
@@ -3032,6 +3213,28 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
                 if ready is not None:
                     generation_compact_vote_task=asyncio.create_task(
                         compact_vote_worker(*ready),name='kagami-compact-vote')
+                    compact_vote_started_at=loop.time()
+                    print(f'V97 COMPACT EPOCH local vote validation started '
+                          f'epoch={ready[0]["epoch"]} (full shard and signed cut verification)',
+                          flush=True)
+            # Drain disposable snapshot objects only when no outbound manifest
+            # is still being streamed. Owned outgoing store excludes all
+            # certified state and received shards by construction.
+            now_disk=loop.time()
+            if now_disk >= next_outgoing_gc:
+                next_outgoing_gc=now_disk+120.0
+                busy=any(s.node and s.node.snapshot_link and
+                    s.node.snapshot_link.session.local_data is not None and
+                    not s.node.snapshot_link.session.acked_local
+                    for s in slots.values())
+                if not busy:
+                    try:
+                        deleted=await asyncio.to_thread(gc_snapshot_offers,outgoing_root)
+                        if any(deleted):
+                            print(f'KAGAMI V86 outgoing snapshot GC manifests={deleted[0]} '
+                                  f'shards={deleted[1]}',flush=True)
+                    except (PatchError,OSError,ValueError) as exc:
+                        log.warning('outgoing snapshot GC deferred: %s',exc)
             working_saver.check()
             paired_saver.check()
             inbound_pipeline.check()
@@ -3341,6 +3544,9 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
                 # Only mutate safe runtime pacing. Patch rank/layout never change.
                 args.local_steps=min(getattr(args,'max_sync_steps',64),controller.tune(timeout=args.peer_timeout).local_steps)
             await maybe_checkpoint()
+            # Remote-only / carry-only rooms would not hit the local-seal
+            # snapshot counter. Persist a dual-lane checkpoint periodically.
+            await maybe_materialize_resume_periodically()
             # Explicit EVAL request: snapshot the CURRENT effective, converged-local
             # weights at a safe step boundary. A snapshot is data-only; external
             # Python source is never imported from another peer. Keep WebRTC up.
@@ -3367,12 +3573,12 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
                     nonlocal_optimizer[0]=optimizer
                     from .shards import export_state_sharded
                     print('EVAL SNAPSHOT START:',args.shard_state_manifest,flush=True)
-                    saved=await asyncio.to_thread(export_state_sharded,model,args.shard_store,
+                    saved=await model_task(export_state_sharded,model,args.shard_store,
                         args.shard_state_manifest,model_id=adapter.model_id,
                         revision=adapter.revision,peer_id=args.peer_id,
                         seq=journal.count(),adapter=adapter,
                         shard_bytes=args.shard_mb*1024**2,
-                        max_state_bytes=args.max_state_gb*1024**3)
+                        max_state_bytes=args.max_state_gb*1024**3,device=execution_device(args))
                     write_snapshot_status('complete',bytes=saved['total_tensor_bytes'],
                                           seq=saved['seq'])
                     print('EVAL SNAPSHOT COMPLETE:',args.shard_state_manifest,flush=True)
@@ -3553,6 +3759,63 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
             # iteration. Never run another step after reaching the event cap.
             if args.rounds and emitted >= args.rounds:
                 break
+            # V89: on automatic certified rooms, reserve 20% of the journal
+            # quota for incoming signed updates and the real quorum rollover.
+            # Continue network/certificate progress but stop creating local
+            # deltas. Never delete or silently re-anchor an uncertified room.
+            if auto_committee is not None and journal.max_bytes:
+                from .journal_pressure_v87 import should_pause_local_training_for_epoch
+                if should_pause_local_training_for_epoch(journal.total_bytes(), journal.max_bytes):
+                    if local_steps:
+                        await seal_if_needed()
+                        nonlocal_optimizer[0]=optimizer
+                    await maybe_propose_compact_epoch()
+                    await maybe_materialize_resume_periodically(pressure_hold=True)
+                    if loop.time()-last_epoch_pressure_report>=10.0:
+                        last_epoch_pressure_report=loop.time()
+                        if generation_committee is not None:
+                            required=len(generation_committee)//2+1
+                            state=(f'waiting for verified epoch export and '
+                                   f'{required}/{len(generation_committee)} pinned signatures')
+                        else:
+                            state='discovering authenticated peers before immutable 1..3 member bootstrap' 
+                        stage = compact_retry.status(loop.time())
+                        if compact_export_task is not None and not compact_export_task.done():
+                            stage = 'checkpoint-export-task-running'
+                        elif generation_compact_control is None:
+                            stage = 'committee-bridge-not-initialized'
+                        else:
+                            progress = generation_compact_control.vote_progress(
+                                trainer_router.current.epoch+1)
+                            stage = progress['stage']
+                            counts = (f' votes={progress.get("votes",0)}/'
+                                      f'{progress.get("required",0)} '
+                                      f'pages={progress.get("pages",0)}/'
+                                      f'{progress.get("required_pages",0)} '
+                                      f'export_receipt={progress.get("receipt",False)}')
+                            stage += counts
+                            if generation_compact_vote_task is not None and not generation_compact_vote_task.done():
+                                elapsed=max(0,loop.time()-compact_vote_started_at)
+                                stage += f'; local-vote-worker-running={elapsed:.0f}s'
+                            if compact_vote_last_error:
+                                stage += (f'; local-vote-retry-in='
+                                          f'{max(0.,generation_compact_vote_next-loop.time()):.0f}s'
+                                          f'; last_vote_error={compact_vote_last_error}')
+                            if progress['stage']=='certified-awaiting-activation':
+                                stage += (f'; shadow_ready={bool(auto_epoch_service and auto_epoch_service.shadow_ready)}'
+                                          f'; prepare_running={bool(auto_epoch_prepare and not auto_epoch_prepare.done())}')
+                        print(f'V97 EPOCH PRESSURE HOLD: signed log '
+                              f'{journal.total_bytes()/max(1,journal.max_bytes):.1%} full; '
+                              f'{state}; stage={stage}; no signed history was dropped. '
+                              f'Run python kagami.py journal-status --journal {shlex.quote(str(args.journal))}',
+                              flush=True)
+                    record_telemetry('paused')
+                    await asyncio.sleep(.1)
+                    continue
+            if loop.time()-last_free_disk_check>=3.0:
+                last_free_disk_check=loop.time()
+                require_space(journal.path, reserve_mib=getattr(args,'min_free_disk_mib',1024),
+                              action='next optimizer training step')
             if trajectory_gossip is not None:
                 # Each receiver chooses its own CURRENT target Actor and
                 # independently evaluates the signed sample. No sender Critic
@@ -3623,8 +3886,10 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
             if pending[0]>=args.grad_accum:
                 def advance_optimizer():
                     with adapter.lock:
+                        from .mixed_learning_v65 import clip_actor_grads
+                        clip_actor_grads(adapter,args)
                         optimizer.step();optimizer.zero_grad(set_to_none=True)
-                await asyncio.to_thread(advance_optimizer)
+                await model_task(advance_optimizer,device=execution_device(args),model=model)
                 pending[0]=0
             # Durable local-only adapter+AdamW state: an abrupt process death
             # must not reset every unsealed optimizer step to genesis.
@@ -3663,6 +3928,22 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
                       f'async_inbound={inbound_pipeline.queue.qsize()} applied={inbound_pipeline.applied} '
                       f'channels={channels} authed={authed} synced={synced_count()} '
                       f'peer={args.peer_id}',flush=True)
+                ppo_metrics=getattr(args,'_v65_ppo_metrics',None)
+                if isinstance(ppo_metrics,dict):
+                    # The Actor norm includes PT/SFT accumulation in mixed
+                    # runs, so label it accurately and never claim it is an
+                    # isolated PPO gradient or a confirmed optimizer update.
+                    def number(key):
+                        try:return f'{float(ppo_metrics[key]):.5g}'
+                        except (KeyError,ValueError,TypeError):return 'n/a'
+                    print('KAGAMI PPO DIAG '
+                          f'reward={number("reward")} '
+                          f'actor_loss={number("actor_loss")} critic_loss={number("critic_loss")} '
+                          f'kl={number("kl")} clipfrac={number("clipfrac")} '
+                          f'actor_accum_grad_norm={number("actor_grad_norm")} '
+                          f'zero_reward_streak={int(ppo_metrics.get("zero_reward_streak",0))} '
+                          f'rollouts={int(ppo_metrics.get("rollouts",0))} '
+                          f'optimizer_pending={pending[0]}',flush=True)
             await asyncio.sleep(0)
         if local_steps:
             await seal_if_needed()
@@ -3684,14 +3965,19 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
                                               journal_tip=final_tip,force=True)
                 await paired_saver.drain()
             else:
-                await asyncio.to_thread(save_working,journal,adapter,optimizer,0,
-                                        journal_tip=final_tip)
+                try:
+                    await model_task(save_working,journal,adapter,optimizer,0,device=execution_device(args),
+                                            journal_tip=final_tip)
+                except DiskPressureError as exc:
+                    log.warning('optional final optimizer snapshot deferred: %s',exc)
+        if getattr(args,'fast_resume_every',32)>0:
+            await save_fast_resume_cache()
         if args.shard_state_manifest and args.shard_store:
             from .shards import export_state_sharded
             print(f'CHECKPOINT SAVE START: manifest={args.shard_state_manifest} '
                   f'objects={args.shard_store}',flush=True)
-            saved=await asyncio.to_thread(
-                export_state_sharded,model,args.shard_store,args.shard_state_manifest,
+            saved=await model_task(
+                export_state_sharded,model,args.shard_store,args.shard_state_manifest,device=execution_device(args),
                 model_id=adapter.model_id,revision=adapter.revision,peer_id=args.peer_id,
                 seq=journal.count(),adapter=adapter,shard_bytes=args.shard_mb*1024**2,
                 max_state_bytes=args.max_state_gb*1024**3)

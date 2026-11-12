@@ -8,6 +8,8 @@ from __future__ import annotations
 import queue
 import threading
 
+_EMPTY = object()
+
 
 class PrefetchedRows:
     """Single daemon producer, max two validated rows, ordered error delivery.
@@ -28,6 +30,7 @@ class PrefetchedRows:
         self.queue=queue.Queue(maxsize=capacity)
         self.stop=threading.Event()
         self.closed=False
+        self._peeked=_EMPTY
         self.worker=threading.Thread(target=self._produce,name='kagami-hub-prefetch',daemon=True)
         self.worker.start()
 
@@ -51,9 +54,19 @@ class PrefetchedRows:
             try:self.source.close()
             except Exception:pass
 
+    def peek(self):
+        """Validate one row early without losing it from the training stream."""
+        if self._peeked is _EMPTY:
+            self._peeked=self.next()
+        return self._peeked
+
     def next(self):
         if self.closed:
             raise RuntimeError('Dataset prefetcher was closed')
+        if self._peeked is not _EMPTY:
+            result=self._peeked
+            self._peeked=_EMPTY
+            return result
         try:
             valid,result=self.queue.get(timeout=self.read_timeout)
         except queue.Empty as exc:

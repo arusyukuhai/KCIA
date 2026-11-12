@@ -1,0 +1,120 @@
+{
+  "baseline": "kagami_v110_clean_architecture.zip",
+  "original_files": 443,
+  "new_files": 444,
+  "removed": [
+    {
+      "path": "CLEANUP_MANIFEST.tsv",
+      "reason": "v85 cleanup audit manifest (stale); superseded by v111 release audit"
+    },
+    {
+      "path": "CLEANUP_SUMMARY.json",
+      "reason": "stale v85 cleanup metrics; superseded by v111 report"
+    },
+    {
+      "path": "README_CUSTOM_STATE.txt",
+      "reason": "redundant one-line pointer to README_CUSTOM_STATE.md"
+    },
+    {
+      "path": "V94_SOURCE_CHANGES.diff",
+      "reason": "historical change already integrated into source"
+    },
+    {
+      "path": "V98_PATCH.diff",
+      "reason": "historical change already integrated into source"
+    },
+    {
+      "path": "_patch_v100.py",
+      "reason": "one-shot release construction script; not a runtime or migration tool"
+    },
+    {
+      "path": "fedpara-rooms/crq4fckJEgAGtZwoxPDgJ6Gfkuod7gBC.json",
+      "reason": "user/runtime room state, never part of source releases"
+    },
+    {
+      "path": "web/dashboard.html",
+      "reason": "unserved legacy Fedpara dashboard; only a historical styling test referenced it; test updated to verify absence"
+    }
+  ],
+  "docs_moved": {
+    "CHANGES_V85_FAST_RESUME_JA.md": "docs/releases/CHANGES_V85_FAST_RESUME_JA.md",
+    "README_CUSTOM_STATE.md": "docs/guides/README_CUSTOM_STATE.md",
+    "README_DISK_GUARD_JA.md": "docs/guides/README_DISK_GUARD_JA.md",
+    "README_ELASTIC.md": "docs/guides/README_ELASTIC.md",
+    "README_GUI_TROUBLESHOOTING.md": "docs/guides/README_GUI_TROUBLESHOOTING.md",
+    "README_HF_DATASETS_DESKTOP.md": "docs/guides/README_HF_DATASETS_DESKTOP.md",
+    "README_LIVE_FULL_SNAPSHOT.md": "docs/guides/README_LIVE_FULL_SNAPSHOT.md",
+    "README_ROOM_ID.md": "docs/guides/README_ROOM_ID.md",
+    "README_SHARDS.md": "docs/guides/README_SHARDS.md",
+    "README_STREAMING_MASSIVE_MODELS_V30.md": "docs/guides/README_STREAMING_MASSIVE_MODELS_V30.md",
+    "README_UNLIMITED_PERSISTENCE_SCALE_V29.md": "docs/guides/README_UNLIMITED_PERSISTENCE_SCALE_V29.md",
+    "README_V100_PPO_RUNTIME_FIX_JA.md": "docs/releases/README_V100_PPO_RUNTIME_FIX_JA.md",
+    "README_V101_HF_DISK_PREFLIGHT_JA.md": "docs/releases/README_V101_HF_DISK_PREFLIGHT_JA.md",
+    "README_V102_HF_CRITIC_BOOTSTRAP_JA.md": "docs/releases/README_V102_HF_CRITIC_BOOTSTRAP_JA.md",
+    "README_V103_PPO_DIAGNOSTICS_JA.md": "docs/releases/README_V103_PPO_DIAGNOSTICS_JA.md",
+    "README_V104_HF_CRITIC_EARLY_GUARD_JA.md": "docs/releases/README_V104_HF_CRITIC_EARLY_GUARD_JA.md",
+    "README_V105_PPO_CRITIC_GUI_GUARD_JA.md": "docs/releases/README_V105_PPO_CRITIC_GUI_GUARD_JA.md",
+    "README_V106_HF_DATASET_SCHEMA_JA.md": "docs/releases/README_V106_HF_DATASET_SCHEMA_JA.md",
+    "README_V107_OBJECTIVE_ACCURACY_PLOTS_JA.md": "docs/releases/README_V107_OBJECTIVE_ACCURACY_PLOTS_JA.md",
+    "README_V108_MPS_ACCELERATION_JA.md": "docs/releases/README_V108_MPS_ACCELERATION_JA.md",
+    "README_V109_LONG_SFT_CONTEXT_JA.md": "docs/releases/README_V109_LONG_SFT_CONTEXT_JA.md",
+    "README_V110_REFACTOR_JA.md": "docs/releases/README_V110_REFACTOR_JA.md",
+    "README_V82_LOHA.md": "docs/releases/README_V82_LOHA.md",
+    "README_V83_MODEL_TYPE.md": "docs/releases/README_V83_MODEL_TYPE.md",
+    "README_V84_MODEL_TRAINABILITY.md": "docs/releases/README_V84_MODEL_TRAINABILITY.md",
+    "README_V85_HF_MODEL_TYPE_SECONDARY_LOADS.md": "docs/releases/README_V85_HF_MODEL_TYPE_SECONDARY_LOADS.md",
+    "README_V86_MODEL_IDENTITY.md": "docs/releases/README_V86_MODEL_IDENTITY.md",
+    "README_V87_JOURNAL_PRESSURE_JA.md": "docs/releases/README_V87_JOURNAL_PRESSURE_JA.md",
+    "README_V88_AUTO_GUI_GENERATION_JA.md": "docs/releases/README_V88_AUTO_GUI_GENERATION_JA.md",
+    "README_V89_EPOCH_PRESSURE_JA.md": "docs/releases/README_V89_EPOCH_PRESSURE_JA.md",
+    "README_V90_SMALL_COMMITTEE_JA.md": "docs/releases/README_V90_SMALL_COMMITTEE_JA.md",
+    "README_V91_MPS_JA.md": "docs/releases/README_V91_MPS_JA.md",
+    "README_V92_MPS_CRASH_CONTAINMENT_JA.md": "docs/releases/README_V92_MPS_CRASH_CONTAINMENT_JA.md",
+    "README_V93_EVENT_ID_COLLISION_JA.md": "docs/releases/README_V93_EVENT_ID_COLLISION_JA.md",
+    "README_V94_EPOCH_SCOPED_EVENT_IDS_JA.md": "docs/releases/README_V94_EPOCH_SCOPED_EVENT_IDS_JA.md",
+    "README_V95_SOLO_EPOCH_PRESSURE_JA.md": "docs/releases/README_V95_SOLO_EPOCH_PRESSURE_JA.md",
+    "README_V96_DUAL_LANE_FAST_RESUME_JA.md": "docs/releases/README_V96_DUAL_LANE_FAST_RESUME_JA.md",
+    "README_V97_SOLO_CERT_RECOVERY_JA.md": "docs/releases/README_V97_SOLO_CERT_RECOVERY_JA.md",
+    "README_V98_SQLITE_THREAD_FIX_JA.md": "docs/releases/README_V98_SQLITE_THREAD_FIX_JA.md",
+    "README_V99_TRAINING_STABILITY_JA.md": "docs/releases/README_V99_TRAINING_STABILITY_JA.md",
+    "README_WEBVIEW.md": "docs/guides/README_WEBVIEW.md",
+    "REFACTOR_AUDIT_V110.json": "docs/validation/REFACTOR_AUDIT_V110.json",
+    "RELEASE_VALIDATION_JA.md": "docs/validation/RELEASE_VALIDATION_JA.md",
+    "RESET_LOCAL_DATA_JA.md": "docs/guides/RESET_LOCAL_DATA_JA.md",
+    "VALIDATION_V100.md": "docs/validation/VALIDATION_V100.md",
+    "VALIDATION_V101.md": "docs/validation/VALIDATION_V101.md",
+    "VALIDATION_V102.md": "docs/validation/VALIDATION_V102.md",
+    "VALIDATION_V103.md": "docs/validation/VALIDATION_V103.md",
+    "VALIDATION_V104.md": "docs/validation/VALIDATION_V104.md",
+    "VALIDATION_V105.md": "docs/validation/VALIDATION_V105.md",
+    "VALIDATION_V106.md": "docs/validation/VALIDATION_V106.md",
+    "VALIDATION_V107.md": "docs/validation/VALIDATION_V107.md",
+    "VALIDATION_V108.md": "docs/validation/VALIDATION_V108.md",
+    "VALIDATION_V109.md": "docs/validation/VALIDATION_V109.md",
+    "VALIDATION_V110.md": "docs/validation/VALIDATION_V110.md",
+    "VALIDATION_V93.md": "docs/validation/VALIDATION_V93.md",
+    "VALIDATION_V94.md": "docs/validation/VALIDATION_V94.md",
+    "VALIDATION_V96.md": "docs/validation/VALIDATION_V96.md",
+    "VALIDATION_V97.md": "docs/validation/VALIDATION_V97.md",
+    "VALIDATION_V98.md": "docs/validation/VALIDATION_V98.md",
+    "VALIDATION_V99.md": "docs/validation/VALIDATION_V99.md"
+  },
+  "production_python_modules_preserved": 147,
+  "api_or_runtime_source_deleted": false,
+  "live_user_state_modified": false,
+  "note": "Do not delete user live fedpara-rooms contents from installations. The sample room file is omitted only from this SOURCE ZIP.",
+  "top_level_files": 9,
+  "runtime_modified_without_executable_AST_changes": [
+    "patchlib/cli.py",
+    "patchlib/mixed_learning_v65.py",
+    "patchlib/scale_sim.py",
+    "patchlib/webview_controller.py"
+  ],
+  "runtime_source_files_byte_identical": 143,
+  "retired_html_asset": "web/dashboard.html",
+  "tests": {
+    "passed": 1107,
+    "skipped": 5,
+    "deselected_known_preexisting_failures": 20
+  }
+}

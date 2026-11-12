@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 from collections import OrderedDict
 import asyncio
+from .mps_runtime_v91 import model_task
 import json
 import math
 import os
@@ -87,6 +88,10 @@ class EventInfo:
     seq: int
     digest: str
     denominator: int
+    # Signed source epoch. The same peer may legitimately reuse seq=1,2,...
+    # after a certified generation transition. The carry lane must never
+    # populate the CURRENT epoch's applied cache (origin, seq).
+    genesis: str | None = None
 
 
 class EventJournal:
@@ -102,7 +107,7 @@ class EventJournal:
     data needed by returning peers. ``max_bytes=0`` disables the artificial
     ceiling; physical free disk space remains the true finite constraint.
     """
-    def __init__(self, path: Path, genesis: str, *, max_bytes: int = 20*1024**3, sync: str = "FULL"):
+    def __init__(self, path: Path, genesis: str, *, max_bytes: int = 20*1024**3, sync: str = "FULL", min_free_mib: int = 1024):
         if not HEX64.fullmatch(genesis) or type(max_bytes) is not int or max_bytes < 0:
             raise ValueError('invalid genesis / log cap')
         if sync not in ('FULL', 'NORMAL'):
@@ -175,6 +180,14 @@ class EventJournal:
             self.db.execute("INSERT OR IGNORE INTO meta(name,value) VALUES('genesis',?)", (genesis,))
         self.genesis = genesis
         self.max_bytes = max_bytes
+        # Diagnostic only: report the most recently configured local cap.
+        # Never change journal genesis, history, or signed event identity.
+        with self.db:
+            self.db.execute("INSERT OR REPLACE INTO meta(name,value) "
+                            "VALUES('last_local_journal_cap_bytes',?)", (str(max_bytes),))
+        if type(min_free_mib) is not int or min_free_mib < 0:
+            raise ValueError("invalid minimum free disk limit")
+        self.min_free_mib = min_free_mib
         # The trainer holds the exclusive .train.lock for the whole lifetime.
         # Recovery is therefore safe even after a power loss mid-append.
         self.log_path = payload_path(self.path)
@@ -278,7 +291,11 @@ class EventJournal:
                 return False
             used = int(db.execute("SELECT value FROM meta WHERE name='archive_used_bytes'").fetchone()[0])
             if self.max_bytes and used + len(wire) > self.max_bytes:
-                raise PatchError('durable update log is full; create & distribute a trusted new checkpoint/epoch')
+                from .journal_pressure_v87 import cap_message
+                raise PatchError(cap_message(used, len(wire), self.max_bytes))
+            from .disk_health_v86 import require_space
+            require_space(self.path, additional=len(wire) + 8*1024*1024,
+                          reserve_mib=self.min_free_mib, action="signed event append")
             # A failed insertion in this process may have left an orphan tail.
             # Trim it only after querying durable metadata under writer lock.
             if os.fstat(self._log_fd).st_size != self._committed_end:
@@ -339,7 +356,11 @@ class EventJournal:
                 "SELECT value FROM meta WHERE name='archive_used_bytes'").fetchone()[0])
             extra = sum(len(wire) for _, _, wire, _ in new)
             if self.max_bytes and used + extra > self.max_bytes:
-                raise PatchError('durable update log is full; create a trusted new epoch')
+                from .journal_pressure_v87 import cap_message
+                raise PatchError(cap_message(used, extra, self.max_bytes))
+            from .disk_health_v86 import require_space
+            require_space(self.path, additional=extra + 8*1024*1024,
+                          reserve_mib=self.min_free_mib, action="signed event batch append")
             if os.fstat(self._log_fd).st_size != self._committed_end:
                 self._committed_end = recover_tail(db, self._log_fd)
             rows = []
@@ -448,6 +469,16 @@ class EventJournal:
             db.execute('PRAGMA synchronous='+self.sync)
             return tuple(db.execute('PRAGMA wal_checkpoint(PASSIVE)').fetchone())
 
+    def truncate_wal_if_idle(self):
+        """Best-effort bounded writer pause to reclaim PASSIVE-checkpointed WAL.
+
+        Busy readers or competing writers keep the WAL intact. NEVER remove
+        *-wal by unlinking; only SQLite may checkpoint/truncate it.
+        """
+        with sqlite3.connect(self.path, timeout=0.2) as db:
+            db.execute('PRAGMA busy_timeout=200')
+            return tuple(db.execute('PRAGMA wal_checkpoint(TRUNCATE)').fetchone())
+
     def inventory(self, offset=0, limit=64):
         if not 0 <= offset or not 1 <= limit <= 96:
             raise ValueError('invalid inventory page')
@@ -491,6 +522,62 @@ class EventJournal:
     def events(self):
         cursor = self.db.execute('SELECT wire,log_offset,log_size,wire_len,digest FROM events ORDER BY rowid')
         for row in cursor:
+            yield self._wire_from_row(row)
+
+    def fast_resume_cursor(self):
+        """Bound local cached base to an append-only SQLite prefix.
+
+        A cache can only be reused while the event-index DDL/audit witness
+        is unchanged. The cache is NOT a remote-supplied consensus proof.
+        """
+        guard = self.epoch_cut_guard()
+        if guard is None:
+            raise PatchError('no trustworthy event-index mutation witness')
+        count, last_id = self.db.execute(
+            'SELECT COUNT(*), COALESCE(MAX(rowid),0) FROM events').fetchone()
+        last = self.db.execute(
+            'SELECT origin,seq,digest FROM events WHERE rowid=?',
+            (last_id,)).fetchone() if last_id else None
+        return {'count': int(count), 'rowid': int(last_id),
+                'last': list(last) if last else None,
+                'guard': list(guard), 'used': self.total_bytes()}
+
+    def fast_resume_suffix(self, cursor):
+        """Return first uncovered rowid or None if a cached prefix changed.
+
+        Trigger-monitored UPDATE/DELETE and DDL edits invalidate the cache.
+        All cached rows stay in the journal for deduplication and P2P repair.
+        """
+        if not isinstance(cursor, dict):
+            return None
+        cur = self.fast_resume_cursor()
+        if (cursor.get('guard') != cur['guard'] or
+                type(cursor.get('count')) is not int or
+                type(cursor.get('rowid')) is not int or
+                type(cursor.get('used')) is not int or
+                cursor['count'] < 0 or cursor['rowid'] < 0 or
+                cursor['count'] > cur['count'] or
+                cursor['rowid'] > cur['rowid'] or cursor['used'] > cur['used']):
+            return None
+        anchor = self.db.execute(
+            'SELECT origin,seq,digest FROM events WHERE rowid=?',
+            (cursor['rowid'],)).fetchone() if cursor['rowid'] else None
+        if (list(anchor) if anchor else None) != cursor.get('last'):
+            return None
+        # An append-only index cannot fill a hole inside the prefix because
+        # its mutation counter changes on any removed/replaced indexed row.
+        if cur['count'] - cursor['count'] != self.db.execute(
+            'SELECT COUNT(*) FROM events WHERE rowid>?', (cursor['rowid'],)
+        ).fetchone()[0]:
+            return None
+        return cursor['rowid']
+
+    def events_after_rowid(self, rowid):
+        if type(rowid) is not int or rowid < 0:
+            raise ValueError('invalid replay cursor')
+        for row in self.db.execute(
+            'SELECT wire,log_offset,log_size,wire_len,digest '
+            'FROM events WHERE rowid>? ORDER BY rowid', (rowid,)):
             yield self._wire_from_row(row)
 
     def get(self, origin, seq):
@@ -567,6 +654,10 @@ class ElasticEngine:
         if not math.isfinite(max_delta_rms) or max_delta_rms <= 0 or max_denominator < 1:
             raise ValueError('invalid delta or denominator limits')
         self.applied = AppliedJournalIndex(journal)
+        # Only one local signed sequence may be minted at a time. A second
+        # async seal must not read the same MAX(seq) while the first export
+        # yields to the GPU/CPU worker before its journal append.
+        self._local_seal_lock = asyncio.Lock()
 
     def _check(self, wire):
         origin, meta, weights, patch = unpack_event(wire, self.trusted,unsafe=self.unsafe)
@@ -593,7 +684,12 @@ class ElasticEngine:
                 rms = math.sqrt(power/math.prod(g.shape))
                 if not math.isfinite(rms) or rms > self.max_delta_rms:
                     raise PatchError('excessive elastic update RMS')
-        return EventInfo(origin,meta['seq'],hashlib.sha256(wire).hexdigest(),meta['denominator']),parts
+        return EventInfo(origin,meta['seq'],hashlib.sha256(wire).hexdigest(),meta['denominator'],meta['genesis']),parts
+
+    def _is_current_event(self, info):
+        # None retains compatibility with hand-built EventInfo fixtures. Live
+        # signed wires ALWAYS receive the authenticated source genesis in _check.
+        return info.genesis is None or info.genesis == self.genesis
 
     def _apply_checked(self, info, parts):
         self._apply_checked_many([(info, parts)])
@@ -636,7 +732,23 @@ class ElasticEngine:
                     dest.copy_(val.to(dest.dtype))
                 from .relora import _refresh_spec
                 _refresh_spec(spec)
-            self.applied.update(identities)
+            # Old-generation carried events are separately deduplicated by
+            # CrossEpochCarryArchive.journal.  Marking them in this cache
+            # aliases unrelated new-generation (origin, seq) identities.
+            self.applied.update((info.origin, info.seq) for info, _ in updates
+                                if self._is_current_event(info))
+
+    def _event_conflict(self, info, existing):
+        # Never rewrite a signed identity or reset a replay cursor to hide a
+        # collision. Report evidence so the owner can distinguish a cloned
+        # local identity from a corrupted/stale journal or an async seal race.
+        recorded = existing[0][:16] if existing else 'missing'
+        return PatchError(
+            f'conflicting event ID: origin={info.origin} seq={info.seq} '
+            f'journal_sha256={recorded} incoming_sha256={info.digest[:16]} '
+            f'genesis={self.genesis[:16]} local_origin={info.origin == self.self_id}; '
+            'signed history preserved; inspect cloned peer identity, '
+            'concurrent seals and generation journal before restarting')
 
     def ingest(self, wire: bytes) -> bool:
         info, parts = self._check(wire)
@@ -644,9 +756,12 @@ class ElasticEngine:
             # _check also verifies signature on retransmissions.
             existing = self.journal.has(info.origin,info.seq)
             if not existing or existing[0] != info.digest:
-                raise PatchError('conflicting event ID')
+                raise self._event_conflict(info, existing)
             return False
-        self.journal.append(info.origin,info.seq,wire)
+        if not self.journal.append(info.origin,info.seq,wire):
+            # Another writer committed the identical event while we verified
+            # it. It must not be applied for a second time.
+            return False
         self._apply_checked(info,parts)
         return True
 
@@ -680,13 +795,17 @@ class ElasticEngine:
         if ident in self.applied:
             existing = self.journal.has(*ident)
             if not existing or existing[0] != info.digest:
-                raise PatchError('conflicting event ID')
+                raise self._event_conflict(info, existing)
             return False
         started = time.monotonic()
-        await self.journal.append_async(info.origin, info.seq, wire)
+        appended = await self.journal.append_async(info.origin, info.seq, wire)
+        if not appended:
+            # A concurrent append won. Re-application would double-count its
+            # signed delta; the durable journal remains authoritative.
+            return False
         journal_ms = (time.monotonic() - started)*1000
         started = time.monotonic()
-        await asyncio.to_thread(self._apply_checked, info, parts)
+        await model_task(self._apply_checked, info, parts,model=self.adapter.model)
         apply_ms = (time.monotonic() - started)*1000
         self.last_ingest_stages_ms = (check_ms, journal_ms, apply_ms)
         return True
@@ -696,18 +815,22 @@ class ElasticEngine:
         """Export/validate/apply model deltas off-loop; SQLite stays on-loop."""
         if type(denominator) is not int or not 1 <= denominator <= self.max_denominator:
             raise PatchError('invalid live peer count')
-        seq = self.journal.next_seq(self.self_id)
-        patch = await asyncio.to_thread(
-            self.adapter.export, self.self_id, seq=seq, dtype=dtype,
-            extra_meta={'elastic_protocol': PROTOCOL, 'genesis': self.genesis,
-                        'denominator': denominator})
-        wire = await asyncio.to_thread(pack_event, patch, self.self_id,
-                                       self.signer, public_key=self.event_public)
-        if max_wire_bytes is not None and len(wire) > max_wire_bytes:
-            raise PatchError('outgoing elastic event exceeds --max-patch-mb')
-        if not await self.ingest_responsive(wire):
-            raise PatchError('new local update had duplicate sequence')
-        return wire
+        async with self._local_seal_lock:
+            seq = self.journal.next_seq(self.self_id)
+            patch = await model_task(
+                self.adapter.export,self.self_id,seq=seq,dtype=dtype,model=self.adapter.model,
+                extra_meta={'elastic_protocol': PROTOCOL, 'genesis': self.genesis,
+                            'denominator': denominator})
+            wire = await asyncio.to_thread(pack_event, patch, self.self_id,
+                                           self.signer, public_key=self.event_public)
+            if max_wire_bytes is not None and len(wire) > max_wire_bytes:
+                raise PatchError('outgoing elastic event exceeds --max-patch-mb')
+            # Do not allow other local seals to allocate a sequence until this
+            # event has been both durably appended and applied. This protects
+            # direct callers that do not have the GUI trainer's commit_lock.
+            if not await self.ingest_responsive(wire):
+                raise PatchError('new local update had duplicate sequence')
+            return wire
 
     def replay(self):
         """Restore applied base from immutable --state-base plus durable update log."""
@@ -732,6 +855,23 @@ class ElasticEngine:
                 print(f'KAGAMI RESUME restored {seen} durable signed updates',flush=True)
         finally:
             self.applied.replaying=False
+
+    def replay_suffix(self, rowid: int):
+        """Verify and apply ONLY signed events after a locally verified base."""
+        import time
+        self.applied.replaying = True
+        seen = 0
+        start = time.monotonic()
+        try:
+            for wire in self.journal.events_after_rowid(rowid):
+                info, parts = self._check(wire)
+                self._apply_checked(info, parts)
+                seen += 1
+        finally:
+            self.applied.replaying = False
+        print(f'KAGAMI FAST RESUME cached base + {seen} signed suffix updates '
+              f'in {time.monotonic()-start:.2f}s', flush=True)
+        return seen
 
     def reset_factors(self):
         with self.adapter.lock,torch.no_grad():

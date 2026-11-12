@@ -18,6 +18,7 @@ from collections import OrderedDict
 from typing import Awaitable, Callable
 
 from .core import PatchError
+from .mps_runtime_v91 import model_task
 
 
 class AsyncInboundPipeline:
@@ -157,6 +158,18 @@ class AsyncInboundPipeline:
                     self.last_journal_ms = 0.0
                     self.last_weight_apply_ms = 0.0
                     ident = (info.origin,info.seq)
+                    # A remote peer may relay our already-durable signed event,
+                    # but it MUST NOT create a new event under our own origin.
+                    # This is typically cloned identity.pem / duplicated peer
+                    # state or a local sequence race. Letting it in would take
+                    # the next local seq and produce `conflicting event ID`.
+                    # Never silently drop an unknown signed event: fail closed
+                    # so the operator can repair the peer identity safely.
+                    if info.origin == self.engine.self_id and self.engine.journal.has(*ident) is None:
+                        raise PatchError(
+                            f'remote source presented NEW event for local peer identity '
+                            f'{info.origin} seq={info.seq}; duplicate peer identity or '
+                            'unrecovered local history: refuse to insert into own journal')
                     if ident in self.engine.applied:
                         current = self.engine.journal.has(*ident)
                         if not current or current[0] != info.digest:
@@ -170,7 +183,8 @@ class AsyncInboundPipeline:
                         await self.engine.journal.append_async(info.origin,info.seq,wire)
                         self.last_journal_ms = (time.monotonic()-journal_started)*1000
                         apply_started = time.monotonic()
-                        await asyncio.to_thread(self.engine._apply_checked,info,parts)
+                        await model_task(self.engine._apply_checked,info,parts,
+                                         model=getattr(self.engine.adapter, "model", None))
                         self.last_weight_apply_ms = (time.monotonic()-apply_started)*1000
                         self.applied += 1
                         fresh = True
@@ -219,6 +233,15 @@ class AsyncInboundPipeline:
             # A single fsync + SQLite transaction for the entire bundle.
             # All prechecks run before durable insertion, and per-ID duplicate
             # filtering preserves exact FedSum semantics on partial overlap.
+            # An aggregate is not allowed to install unseen signed events
+            # impersonating our local origin. Retain existing genuine echoes
+            # (same digest) as ordinary duplicates for anti-entropy ACKs.
+            for info, _parts, _wire, _digest in prepared:
+                if info.origin == self.engine.self_id and self.engine.journal.has(info.origin,info.seq) is None:
+                    raise PatchError(
+                        f'remote aggregate contains NEW local-origin event '
+                        f'{info.origin} seq={info.seq}; duplicate peer identity or '
+                        'unrecovered local history')
             journal_start=time.monotonic()
             flags=await self.engine.journal.append_many_async(
                 [(info.origin,info.seq,wire) for info,_,wire,_ in prepared]) if prepared else []
@@ -231,8 +254,9 @@ class AsyncInboundPipeline:
                     self.duplicates+=1
             if fresh:
                 apply_start=time.monotonic()
-                await asyncio.to_thread(self.engine._apply_checked_many,
-                                        [(info,parts) for info,parts,_ in fresh])
+                await model_task(self.engine._apply_checked_many,
+                                 [(info,parts) for info,parts,_ in fresh],
+                                 model=getattr(self.engine.adapter, "model", None))
                 self.last_weight_apply_ms=(time.monotonic()-apply_start)*1000
                 self.applied+=len(fresh)
         self.last_commit_ms=(time.monotonic()-started)*1000

@@ -3,14 +3,10 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import itertools
 import json
 import logging
-import math
 import os
 import sys
-import hashlib
-import importlib.util
 import re
 from pathlib import Path
 
@@ -18,362 +14,24 @@ import torch
 from safetensors.torch import load_file
 from .core import UniversalAdapter, PatchError, decode_patch
 from .p2p import PatchNode, exchange_file, exchange_state
-from .state import export_state, apply_state, verify_state, inspect_state, semantic_state_sha256
+from .state import export_state, apply_state, verify_state
 from .identity import generate_keypair, signer_from_pem, verifier_from_pem
 from .shards import (shard_state, export_state_sharded, read_manifest, verify_shards,
-                     assemble_state, DEFAULT_SHARD_BYTES, shard_map,
-                     apply_sharded_state, semantic_shard_sha256)
+                     assemble_state, shard_map)
 from .shardp2p import ShardNode, exchange_shards
-
-AUTO_CLASSES = {
-    'base': 'AutoModel',
-    'causal-lm': 'AutoModelForCausalLM',
-    'masked-lm': 'AutoModelForMaskedLM',
-    'seq2seq-lm': 'AutoModelForSeq2SeqLM',
-    'sequence-classification': 'AutoModelForSequenceClassification',
-    'token-classification': 'AutoModelForTokenClassification',
-    'question-answering': 'AutoModelForQuestionAnswering',
-    'image-classification': 'AutoModelForImageClassification',
-    'audio-classification': 'AutoModelForAudioClassification',
-    'speech-seq2seq': 'AutoModelForSpeechSeq2Seq',
-    'object-detection': 'AutoModelForObjectDetection',
-    'semantic-segmentation': 'AutoModelForSemanticSegmentation',
-}
+from .model_loading_v110 import (
+    AUTO_CLASSES, _untrusted_guard, _create_factory, resolve_device,
+    input_device, check_adapter_placement, load_model,
+)
+from .local_training_v110 import causal_labels_from_attention, run_step
+from . import local_training_v110 as _training_impl
 
 
-def _untrusted_guard(args):
-    """A policy check, NOT a security boundary: sandbox isolation is external."""
-    custom = bool(getattr(args,'trust_remote_code',False) or getattr(args,'factory_file',None))
-    if not custom:
-        return
-    if os.environ.get('FEDPARA_ISOLATED_RUNTIME') != '1':
-        raise PermissionError('Custom Python code requires the offline Docker sandbox; see sandbox/run_untrusted.sh')
-    if os.environ.get('HF_HUB_OFFLINE') != '1' or os.environ.get('TRANSFORMERS_OFFLINE') != '1':
-        raise PermissionError('Custom Python code can only run in explicitly offline runtime')
-    if getattr(args,'allow_legacy_bin',False):
-        raise PermissionError('Pickle/legacy checkpoint loading forbidden for untrusted code')
-    if getattr(args,'trust_remote_code',False):
-        if not re.fullmatch(r'[a-fA-F0-9]{40}', args.revision):
-            raise PermissionError('Custom Hugging Face remote code requires a pinned 40-hex commit')
-        if not Path(args.model).is_dir():
-            raise PermissionError('Custom HF code requires a predownloaded local model directory')
-    if getattr(args,'cmd','') in ('train-p2p', 'train-live', 'train-elastic'):
-        raise PermissionError('Cannot run untrusted model code inside the networked P2P process. Train offline and exchange files outside sandbox.')
+def training_batches(args):
+    """Compatibility facade; supports caller-injected batch-file loaders."""
+    yield from _training_impl.training_batches(args, batch_file_loader=load_file)
 
-
-def _create_factory(args):
-    factory = Path(args.factory_file)
-    if not factory.is_file() or factory.suffix != '.py':
-        raise ValueError('factory-file must be a local .py file')
-    spec = importlib.util.spec_from_file_location('_fedpara_user_factory', factory)
-    if spec is None or spec.loader is None:
-        raise ValueError('could not load factory')
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)  # ONLY inside isolated offline container
-    builder = getattr(module,'build_model',None)
-    if not callable(builder):
-        raise ValueError('factory-file must define build_model() -> torch.nn.Module')
-    model = builder()
-    if not isinstance(model, torch.nn.Module):
-        raise TypeError('factory must return torch.nn.Module')
-    return model
-
-def resolve_device(device):
-    """Resolve runtime device consistently; fail early for unavailable accelerators."""
-    if str(device) == 'auto':
-        if torch.cuda.is_available():
-            return torch.device('cuda')
-        if getattr(torch.backends, 'mps', None) and torch.backends.mps.is_available():
-            return torch.device('mps')
-        return torch.device('cpu')
-    result = torch.device(device)
-    if result.type == 'mps' and not torch.backends.mps.is_available():
-        raise RuntimeError('MPS selected, but PyTorch MPS is unavailable')
-    if result.type == 'cuda' and not torch.cuda.is_available():
-        raise RuntimeError('CUDA selected, but no available CUDA device was found')
-    return result
-
-
-def input_device(model, fallback):
-    """Use the compute device, not a frozen CPU-mapped disk weight."""
-    for mod in model.modules():
-        if getattr(mod,'_fedpara_disk_path',None):
-            overlay=getattr(mod,'_fedpara_disk_overlay',None)
-            if overlay is not None:
-                return overlay.local.parts[0].device
-            return resolve_device(fallback)
-    # An arbitrary PyTorch LM may expose the HF method without implementing it.
-    try:
-        emb = model.get_input_embeddings() if hasattr(model,'get_input_embeddings') else None
-    except (AttributeError, NotImplementedError):
-        emb = None
-    if emb is not None:
-        for param in emb.parameters():
-            if param.device.type != 'meta':
-                return param.device
-    for param in model.parameters():
-        return param.device
-    return resolve_device(fallback)
-
-
-def check_adapter_placement(adapter):
-    """Detect mixed-device factors *before* the first forward/backward."""
-    for group in adapter.groups:
-        modpath, _, name = group.aliases[0].rpartition('.')
-        original = adapter.model.get_submodule(modpath).parametrizations[name].original
-        module=adapter.model.get_submodule(modpath)
-        expected=(resolve_device(getattr(adapter.model,'_fedpara_compute_device','cpu'))
-                  if hasattr(module,'_fedpara_disk_source') else original.device)
-        for factor in group.overlay.local.parts:
-            if factor.device != expected:
-                raise RuntimeError(f'LoRA/LoHA factor for {group.canonical} on {factor.device}; expected {expected}')
-
-
-def load_model(args, *, use_adapter: bool):
-    _untrusted_guard(args)
-    initialization = getattr(args, 'initialization', 'pretrained')
-    if initialization not in ('pretrained', 'random', 'config'):
-        raise ValueError('initialization must be pretrained/random/config')
-    streaming=bool(getattr(args,'streaming_base',False))
-    lazy_write=bool(getattr(args,'streaming_lazy_write',False))
-    page_cow=bool(getattr(args,'streaming_page_cow',False))
-    factor_ledger=bool(getattr(args,'streaming_factor_ledger',False))
-    if factor_ledger and (not lazy_write or page_cow):
-        raise ValueError('--streaming-factor-ledger requires --streaming-lazy-write and excludes --streaming-page-cow')
-    if page_cow and not lazy_write:
-        raise ValueError('--streaming-page-cow requires --streaming-lazy-write')
-    if page_cow and getattr(args,'generation_v2_trainer',False):
-        raise ValueError('paged COW exporter is not yet certified for autonomous v2 generations')
-    if lazy_write and (not streaming or getattr(args,'cmd',None)!='train-elastic'
-                       or getattr(args,'mode','elastic')!='elastic'):
-        raise ValueError('--streaming-lazy-write requires --streaming-base and elastic train-elastic mode')
-    if lazy_write and getattr(args,'disk_linear_dir',None):
-        raise ValueError('--streaming-lazy-write cannot share --disk-linear-dir scratch')
-    if streaming and initialization != 'pretrained':
-        raise ValueError('--streaming-base requires pretrained safetensors, not random initialization')
-    if streaming and getattr(args,'factory_file',None):
-        raise ValueError('--streaming-base requires a Hugging Face meta-compatible architecture')
-    if streaming and (getattr(args,'state_base',None) or getattr(args,'sharded_base_manifest',None)):
-        raise ValueError('--streaming-base does not yet accept a separate .fstate/sharded initial override')
-    if initialization == 'config':
-        from .model_design import build_random_model
-        from .room_manifest import load_manifest
-        manifest_path=getattr(args,'room_manifest',None)
-        if not manifest_path:
-            raise ValueError('config creation needs an immutable room manifest')
-        manifest=load_manifest(manifest_path)
-        if manifest['model']['id']!=args.model or manifest['model']['revision']!=args.revision:
-            raise ValueError('config manifest/worker identity mismatch')
-        mdl, revision=build_random_model(manifest,args.hf_task)
-    elif initialization == 'random':
-        # Create the SAME GPT-Neo architecture, but do not fetch pretrained
-        # weights. This seed only governs model genesis, not data sampling.
-        from .live_initialization import create_random_tinystories_model
-        if getattr(args, 'factory_file', None):
-            raise ValueError('random TinyStories genesis cannot use custom model factory')
-        mdl, revision = create_random_tinystories_model(
-            args.model, args.revision, getattr(args, 'initial_seed', 42))
-    elif getattr(args,'factory_file',None):
-        mdl = _create_factory(args)
-        factory_sha = hashlib.sha256(Path(args.factory_file).read_bytes()).hexdigest()
-        revision = 'factory-sha256:'+factory_sha
-    else:
-        import transformers
-        clsname = args.auto_class or AUTO_CLASSES[args.hf_task]
-        if not (clsname == 'AutoModel' or (clsname.startswith('AutoModelFor') and clsname[12:].isalnum())):
-            raise ValueError('unknown Transformers AutoModel class')
-        cls = getattr(transformers,clsname)
-        custom = bool(getattr(args,'trust_remote_code',False))
-        if streaming:
-            from .hf_config_v83 import load_hf_config
-            from .streaming_base import materialize_meta_from_safetensors
-            # The HF model factory must support meta construction without
-            # eagerly materializing its own base weights.
-            cfg=load_hf_config(args.model,revision=args.revision,
-                       trust_remote_code=custom,local_files_only=custom)
-            from .hf_compat_v63 import validate_training_config
-            validate_training_config(cfg, args.model, streaming=True)
-            with torch.device('meta'):
-                mdl=cls.from_config(cfg,trust_remote_code=custom)
-            if Path(args.model).is_dir():
-                snapshot_dir=args.model
-            else:
-                from huggingface_hub import snapshot_download
-                snapshot_dir=snapshot_download(args.model,revision=args.revision,
-                    allow_patterns=['*.safetensors','*.json'],local_files_only=custom)
-            writable=(getattr(args,'cmd','') in ('train-live','train-elastic','train-p2p') and not lazy_write)
-            materialize_meta_from_safetensors(mdl,snapshot_dir,writable=writable,
-                preserve_checkpoint_dtype=True,
-                scratch_dir=getattr(args,'streaming_scratch_dir',None),
-                chunk_mib=getattr(args,'stream_chunk_mib',8),strict=True,
-                hash_genesis=getattr(args,'cmd','') in ('train-live','train-elastic'))
-            print('STREAMING BASE:',json.dumps(mdl._fedpara_streaming_base_info),flush=True)
-        else:
-            from .hf_compat_v63 import validate_training_config
-            # Give actionable errors for unsupported DeepSeek FP8/MoE families.
-            auto_config=getattr(transformers,'AutoConfig',None)
-            config = None
-            if auto_config is not None:
-                from .hf_config_v83 import load_hf_config
-                config = load_hf_config(args.model,revision=args.revision,
-                    trust_remote_code=custom,local_files_only=custom)
-                validate_training_config(config, args.model, streaming=False)
-            # v4 calls this torch_dtype; v5 calls it dtype. Avoid loading a
-            # BF16 Llama checkpoint as FP32 (often twice the necessary RAM).
-            version=str(getattr(transformers,'__version__',''))
-            dtype_arg=({'dtype':'auto'} if version.startswith('5.') else
-                       {'torch_dtype':'auto'} if version.startswith('4.') else {})
-            mdl = cls.from_pretrained(args.model, revision=args.revision,
-                        trust_remote_code=custom,
-                        local_files_only=custom,
-                        use_safetensors=not args.allow_legacy_bin,
-                        **({'config':config} if config is not None else {}), **dtype_arg)
-        revision = getattr(mdl.config,'_commit_hash',None) or args.revision
-    device = resolve_device(args.device)
-    if not streaming:
-        mdl.to(device)
-    if getattr(args, 'auto_rank', False) or getattr(args, 'resource_report', None):
-        from .device_planner import suggest_rank_and_experts
-        from .moe_planner import inspect_expert_shapes
-        groups = inspect_expert_shapes(mdl)
-        costs = [n for group in groups for n in group.bytes_per_expert]
-        recommendation = suggest_rank_and_experts(mdl, device=str(device),
-            disk_dir=getattr(args,'disk_linear_dir',None) or '.',kind=args.kind,
-            expert_bytes=costs if costs else None)
-        from dataclasses import asdict
-        from .device_planner import automatic_expert_counts
-        recommendation['expert_shapes'] = [asdict(g) for g in groups]
-        if groups:
-            try:
-                recommendation['expert_defaults_by_group'] = automatic_expert_counts(
-                    groups, max(0,recommendation['budget']['usable_bytes']//2))
-            except MemoryError:
-                recommendation['expert_defaults_by_group'] = None
-                recommendation['expert_default_warning'] = 'Cannot fit one expert per group in budget'
-        if getattr(args,'resource_report',None):
-            Path(args.resource_report).write_text(json.dumps(recommendation,indent=2),encoding='utf-8')
-        if getattr(args,'auto_rank',False):
-            if getattr(args,'cmd','') != 'train':
-                raise ValueError('--auto-rank is local-only: P2P peers must agree on the exact signed rank/layout')
-            if recommendation['rank_default'] is None:
-                raise MemoryError('no safe automatic rank; inspect the resource report')
-            args.rank = recommendation['rank_default']
-        print('RESOURCE PLAN',json.dumps({'rank_default':recommendation['rank_default'],
-              'expert_count_default':recommendation['expert_count_default'],
-              'source':recommendation['budget']['source']}),flush=True)
-    if hasattr(mdl,'config') and hasattr(mdl.config,'use_cache'):
-        mdl.config.use_cache = False
-    if getattr(args,'gradient_checkpointing',False):
-        from .training_compat_v84 import enable_adapter_safe_checkpointing
-        enable_adapter_safe_checkpointing(mdl)
-    model_id = args.model_id or args.model
-    if getattr(args,'state_base',None) and getattr(args,'sharded_base_manifest',None):
-        raise ValueError('--state-base and --sharded-base-manifest are mutually exclusive')
-    if bool(getattr(args,'sharded_base_manifest',None)) != bool(getattr(args,'sharded_base_store',None)):
-        raise ValueError('--sharded-base-manifest and --sharded-base-store must both be supplied')
-    if getattr(args,'sharded_base_manifest',None):
-        # A generation rollover manifest can be pinned to the original room
-        # revision string, while Transformers resolves a branch name to a
-        # concrete commit. The model data is independently SHA256 verified.
-        from .shards import read_manifest
-        base_info=read_manifest(Path(args.sharded_base_manifest),
-                                max_state_bytes=args.max_state_gb*1024**3)
-        if base_info['revision'] != revision:
-            from .room_manifest import load_manifest
-            pinned=load_manifest(Path(args.room_manifest)) if getattr(args,'room_manifest',None) else None
-            if (not pinned or base_info['revision']!=args.revision or
-                pinned['model']['revision']!=args.revision or
-                pinned['model']['id']!=model_id):
-                raise ValueError('sharded base revision differs from pinned model metadata')
-            revision=base_info['revision']
-        snapshot=apply_sharded_state(mdl,Path(args.sharded_base_manifest),
-            Path(args.sharded_base_store),model_id=model_id,revision=revision,
-            max_state_bytes=args.max_state_gb*1024**3)
-        revision = 'fstate-sha256:'+semantic_shard_sha256(snapshot)
-    if getattr(args,'state_base',None):
-        state = Path(args.state_base)
-        apply_state(mdl, state, model_id=model_id,revision=revision,
-                    max_bytes=args.max_state_gb*1024**3)
-        # The archive ZIP header contains timestamps and peer_id can vary.
-        # Bind to tensor CONTENT, not incidental archive bytes.
-        revision = 'fstate-sha256:'+semantic_state_sha256(state)
-    if getattr(args,'moe_plan',None):
-        from .moe_light import slice_moe_modulelist
-        plan=json.loads(Path(args.moe_plan).read_text(encoding='utf-8'))
-        if not isinstance(plan,list) or not 1 <= len(plan) <= 1024:
-            raise ValueError('MoE plan must be a nonempty list of layer plans')
-        for entry in plan:
-            if not isinstance(entry,dict) or set(entry)!={'experts','gate','count','seed'}:
-                raise ValueError('MoE entries require experts, gate, count, seed')
-            sl=slice_moe_modulelist(mdl,entry['experts'],entry['gate'],
-                                    count=entry['count'],seed=entry['seed'])
-            print('MoE retained expert indices:',sl.path,sl.keep,flush=True)
-    if not use_adapter:
-        return mdl,revision
-    resolved_scope=getattr(args,'target_scope','all')
-    # Automatic target detection is architecture-neutral, not GPT-Neo only.
-    # The adapter records each selected layer's kind/rank in the layout digest
-    # so incompatible P2P updates are rejected before application.
-    args.target_scope=resolved_scope
-    adapter = UniversalAdapter(mdl, model_id, revision,
-                               kind=args.kind,rank=args.rank,alpha=args.alpha,
-                               max_peers=args.max_peers,target_scope=resolved_scope,
-                               init_style=getattr(args,'init_style','balanced'),
-                               wide_lora_rank=getattr(args,'wide_lora_rank',4))
-    print(f'adapter policy scope={resolved_scope} init={getattr(args,"init_style","balanced")}',flush=True)
-    check_adapter_placement(adapter)
-    if getattr(args,'disk_linear_dir',None) or streaming:
-        from .layer_offload import install_disk_linear_offload
-        dest=(getattr(args,'disk_linear_dir',None) or
-              (Path(getattr(args,'streaming_scratch_dir',None) or '.') / '.fedpara-linear-pages'))
-        info=install_disk_linear_offload(mdl,adapter,dest,
-            min_weight_mib=(getattr(args,'disk_linear_min_mib',0.) or (1. if streaming else 0.)),
-            cache_fraction=getattr(args,'disk_cache_fraction',.6),
-            cache_mib=getattr(args,'disk_cache_mib',0),
-            tile_mib=getattr(args,'disk_tile_mib',16),include_embeddings=streaming,
-            max_dir_bytes=(getattr(args,'live_disk_linear_max_gb',32)*1024**3
-                           if getattr(args,'cmd','') in ('train-live','train-elastic')
-                           and getattr(args,'disk_linear_dir',None) else None))
-        print('DISK LINEAR OFFLOAD:',json.dumps(info),flush=True)
-        if streaming and device.type!='cpu':
-            from .layer_offload import place_streaming_compute_device
-            offload_cache=next((getattr(module,'_fedpara_disk_cache')
-                          for module in mdl.modules() if hasattr(module,'_fedpara_disk_cache')),None)
-            placement=place_streaming_compute_device(mdl,adapter,device,cache=offload_cache)
-            object.__setattr__(mdl,'_fedpara_compute_device',str(device))
-            print('STREAMING ACCELERATOR PLACEMENT:',json.dumps(placement),flush=True)
-            # Recheck factor placements after custom CPU/GPU dispatch.
-            check_adapter_placement(adapter)
-    if lazy_write:
-        if factor_ledger:
-            from .factor_ledger_v62 import attach_factor_ledger
-            manager=attach_factor_ledger(mdl,adapter,
-                scratch_dir=getattr(args,'streaming_scratch_dir',None),
-                max_entries=getattr(args,'stream_factor_max_events',32),
-                limit_gib=getattr(args,'stream_lazy_limit_gb',0))
-        elif page_cow:
-            from .paged_mutable_v61 import attach_paged_mutable
-            manager=attach_paged_mutable(mdl,adapter,
-                scratch_dir=getattr(args,'streaming_scratch_dir',None),
-                page_kib=getattr(args,'stream_page_kib',64),
-                limit_gib=getattr(args,'stream_lazy_limit_gb',0))
-        else:
-            from .lazy_mutable_weights_v60 import attach_lazy_mutable
-            manager=attach_lazy_mutable(mdl,adapter,
-                scratch_dir=getattr(args,'streaming_scratch_dir',None),
-                copy_mib=getattr(args,'stream_chunk_mib',8),
-                limit_gib=getattr(args,'stream_lazy_limit_gb',0))
-        print('LAZY STREAM MUTABLE:',json.dumps(manager.stats()),flush=True)
-    expert_path=getattr(args,'streaming_expert_path',None)
-    if expert_path:
-        if not streaming:
-            raise ValueError('--streaming-expert-path requires --streaming-base')
-        from .expert_disk import install_streamed_experts
-        count=install_streamed_experts(mdl,expert_path)
-        print('STREAMED FROZEN EXPERTS:',count,expert_path,flush=True)
-    print('adapter:',json.dumps({**adapter.counts(),'layout':adapter.layout,
-                                   'resolved_revision':revision},indent=2))
-    return mdl,adapter
+from .cli_arguments_v110 import add_model_args, add_train_args, add_identity
 
 
 def load(args):
@@ -398,231 +56,6 @@ def load(args):
     return load_model(args,use_adapter=True)
 
 
-def causal_labels_from_attention(input_ids, attention_mask):
-    """Preserve *real* EOS tokens when a causal LM uses EOS as padding.
-
-    DataCollatorForLanguageModeling compares token ID with pad_token_id;
-    for Llama/Qwen models whose PAD is EOS this silently drops every
-    genuine EOS supervision target. Attention masks distinguish them.
-    """
-    if input_ids.shape != attention_mask.shape:
-        raise ValueError('input IDs and attention masks differ in shape')
-    labels=input_ids.clone()
-    labels.masked_fill_(attention_mask == 0, -100)
-    return labels
-
-
-def training_batches(args):
-    # A specialized SFT/PPO peer is permitted to omit a pretraining corpus.
-    # Never fetch HF data for an objective with an explicit zero coefficient.
-    if (getattr(args,'pt_weight',1.) == 0 and
-            (getattr(args,'sft_jsonl',None) or getattr(args,'ppo_jsonl',None) or getattr(args,'sft_hf_repo','') or getattr(args,'ppo_hf_repo',''))):
-        while True:
-            yield {}  # run_step checks pt_weight=0 before invoking the model
-    from .data_sampling import peer_sampling_seed, shuffled_cycle
-    from .room_manifest import load_manifest
-    manifest = (load_manifest(args.room_manifest) if getattr(args, 'room_manifest', None)
-                and not (args.batches_dir or args.text_file or args.jsonl) else None)
-    # Same room seed, but independent deterministic stream per persistent peer.
-    root_seed = manifest['datasets']['seed'] if manifest is not None else 42
-    data_seed = peer_sampling_seed(getattr(args, 'peer_id', None), root_seed)
-    print(f'DATA SAMPLING peer={getattr(args, "peer_id", None) or "standalone"} '
-          f'seed={data_seed} source={"huggingface" if manifest else "local"}', flush=True)
-    if manifest is not None:
-        from .hf_datasets import batches_from_room
-        yield from batches_from_room(args,manifest)
-        return
-    if args.batches_dir:
-        files = sorted(Path(args.batches_dir).glob('*.safetensors'))
-        if not files:
-            raise ValueError('No .safetensors batches in --batches-dir')
-        for file in shuffled_cycle(files, data_seed):
-            # A batch is exactly the named tensor arguments accepted by model(**batch).
-            yield load_file(file)
-    else:
-        if args.hf_task not in ('causal-lm', 'masked-lm', 'seq2seq-lm', 'sequence-classification'):
-            raise ValueError('Use --batches-dir for this task; no generic text loss is defined')
-        from .hf_load_v85 import load_hf_tokenizer
-        from transformers import DataCollatorForLanguageModeling
-        tokenizer = load_hf_tokenizer(args.model, revision=args.revision,
-                                                   trust_remote_code=bool(getattr(args,'trust_remote_code',False)),
-                                                   local_files_only=bool(getattr(args,'trust_remote_code',False)))
-        if tokenizer.pad_token is None:
-            if tokenizer.eos_token is None:
-                raise ValueError('Tokenizer needs a PAD or EOS token')
-            tokenizer.pad_token = tokenizer.eos_token
-        if args.hf_task in ('causal-lm', 'masked-lm'):
-            if not args.text_file:
-                raise ValueError('--text-file required for text LM training')
-            lines = [line.strip() for line in Path(args.text_file).read_text(encoding='utf8').splitlines() if line.strip()]
-            if not lines:
-                raise ValueError('empty text dataset')
-            mlm = args.hf_task == 'masked-lm'
-            collator = DataCollatorForLanguageModeling(tokenizer, mlm=True, mlm_probability=0.15) if mlm else None
-            local_rows=shuffled_cycle(lines, data_seed)
-            for step in itertools.count():
-                selected = list(itertools.islice(local_rows, args.batch_size))
-                encoded = tokenizer(selected, truncation=True, max_length=args.max_length,
-                                    padding='max_length', return_tensors='pt',
-                                    **({'return_token_type_ids':False} if not mlm else {}))
-                # Collator masks -100 on pad tokens for CLM, random masks for MLM.
-                if mlm:
-                    yield collator([{k:v[j] for k,v in encoded.items()} for j in range(args.batch_size)])
-                else:
-                    encoded['labels'] = causal_labels_from_attention(encoded['input_ids'], encoded['attention_mask'])
-                    yield encoded
-        else:
-            if not args.jsonl:
-                raise ValueError('--jsonl required for sequence/classification training')
-            examples = [json.loads(line) for line in Path(args.jsonl).read_text(encoding='utf8').splitlines() if line.strip()]
-            if not examples:
-                raise ValueError('empty JSONL')
-            local_rows=shuffled_cycle(examples, data_seed)
-            for step in itertools.count():
-                items = list(itertools.islice(local_rows, args.batch_size))
-                enc = tokenizer([x['input'] if args.hf_task=='seq2seq-lm' else x['text'] for x in items],
-                                return_tensors='pt',padding=True,truncation=True,max_length=args.max_length,
-                                **({'return_token_type_ids':False} if args.hf_task=='seq2seq-lm' else {}))
-                if args.hf_task == 'seq2seq-lm':
-                    lab = tokenizer(text_target=[x['target'] for x in items],
-                                    return_tensors='pt',padding=True,truncation=True,max_length=args.max_length)
-                    labels = lab['input_ids']
-                    labels[labels == tokenizer.pad_token_id] = -100
-                    enc['labels'] = labels
-                else:
-                    enc['labels'] = torch.tensor([int(x['label']) for x in items], dtype=torch.long)
-                yield enc
-
-
-def run_step(model, adapter, optimizer, batch, args):
-    with adapter.lock:
-        model.train()
-        target = input_device(model, args.device)
-        batch = {k: v.to(target, non_blocking=True) if isinstance(v,torch.Tensor) else v
-                 for k, v in batch.items()}
-        from .model_contract_v64 import invoke_model, training_loss
-        from .mixed_learning_v65 import enabled as mixed_enabled, build as build_mixer
-        mixed=mixed_enabled(args)
-        if mixed:
-            previous=getattr(args,'_v65_mixer',None)
-            old_adapter=getattr(args,'_v65_mixer_adapter',None)
-            if previous is None or getattr(previous,'_closed',False) or (old_adapter is not None and old_adapter is not adapter):
-                if previous is not None:
-                    previous.close()  # epoch switch: discard old-policy PPO rollouts
-                # A new signed generation invalidates the old Actor/Critic
-                # pairing. Do not silently load a pre-v75 standalone Critic
-                # checkpoint (same room id, but stale Actor baseline).
-                skip_legacy=bool(getattr(args,'_v75_paired_active',False) and
-                                 old_adapter is not None and old_adapter is not adapter)
-                if skip_legacy:args._v75_skip_legacy_critic=True
-                try:
-                    args._v65_mixer=build_mixer(args)
-                finally:
-                    if skip_legacy:args._v75_skip_legacy_critic=False
-                if getattr(args,'_v75_paired_active',False) and args._v65_mixer is not None:
-                    args._v65_mixer._v75_paired=True
-            args._v65_mixer_adapter=adapter
-        mixer=getattr(args,'_v65_mixer',None) if mixed else None
-        if mixer is not None and float(args.pt_weight)==0:
-            loss=None  # intentional: no pretraining forward when its weight is zero
-            outputs=None
-        else:
-            outputs = invoke_model(model, batch, input_map=getattr(args,'input_map',None))
-            loss = training_loss(outputs,batch,task=getattr(args,'hf_task','causal-lm'),
-                                 policy=getattr(args,'loss_policy','auto'))
-        if mixer is not None:
-            total=0.0
-            if loss is not None:
-                if not bool(torch.isfinite(loss.detach()).all()):
-                    raise ValueError('nonfinite PT objective; refusing mixed optimizer update')
-                (loss * args.pt_weight / args.grad_accum).backward()
-                total += float(loss.detach())*args.pt_weight
-                mixer.counts['pt']+=1
-            if mixer.sft is not None and args.sft_weight>0:
-                sft_loss=mixer.sft_loss(model,target)
-                if not bool(torch.isfinite(sft_loss.detach()).all()):
-                    raise ValueError('nonfinite SFT objective; refusing mixed optimizer update')
-                (sft_loss*args.sft_weight/args.grad_accum).backward()
-                total+=float(sft_loss.detach())*args.sft_weight
-            if mixer.ppo is not None and args.ppo_weight>0:
-                mixer.critic_optim.zero_grad(set_to_none=True)
-                ppo_actor,ppo_critic,metrics=mixer.ppo_loss(model,target)
-                if not bool(torch.isfinite(ppo_actor.detach()).all() and
-                            torch.isfinite(ppo_critic.detach()).all()):
-                    raise ValueError('nonfinite PPO objective; refusing mixed optimizer update')
-                (ppo_actor*args.ppo_weight/args.grad_accum).backward()
-                (ppo_critic*args.ppo_weight).backward()
-                # AdamW on nan/inf gradients can permanently corrupt the
-                # locally persisted Critic even when the actor step is refused.
-                if any(p.grad is not None and not bool(torch.isfinite(p.grad).all())
-                       for p in mixer.critic.parameters() if p.requires_grad):
-                    mixer.critic_optim.zero_grad(set_to_none=True)
-                    raise ValueError('nonfinite PPO Critic gradient; refusing optimizer update')
-                if (getattr(args,'distributed_critic',False) and not getattr(args,'critic_rollout_gossip',False)
-                        and getattr(args,'mode',None)=='elastic'):
-                    # CPU copy under the SAME lock as the value update. SQLite
-                    # commits and RTC fanout happen on the event loop, never
-                    # from this model-training worker thread.
-                    from .distributed_critic_v78 import critic_params
-                    before=[p.detach().float().cpu().clone() for p in critic_params(mixer)]
-                else:
-                    before=None
-                mixer.critic_optim.step()
-                mixer.critic_steps+=1
-                if before is not None:
-                    args._v77_critic_before=before
-                if (getattr(args,'critic_rollout_gossip',False) and getattr(args,'mode',None)=='elastic'
-                        and mixer.reuses==1):
-                    args._v80_rollout_pending=(mixer.export_rollout_v80(),mixer.cached['behavior_checkpoint_v82'])
-                if mixer.critic_steps%10==0 and not getattr(mixer,'_v75_paired',False):
-                    mixer.save_critic()
-                total+=float(ppo_actor.detach())*args.ppo_weight
-                args._v65_ppo_metrics=metrics
-            # Preserve the existing GUI top-1 telemetry even in mixed mode.
-            if (outputs is not None and getattr(args,'telemetry_file',None)
-                    and getattr(args,'_metric_step',0)%10==0):
-                with torch.no_grad():
-                    from .model_contract_v64 import _loss_or_logits
-                    _,logits=_loss_or_logits(outputs)
-                    labels=batch.get('labels')
-                    if (isinstance(logits,torch.Tensor) and logits.ndim==3 and
-                            isinstance(labels,torch.Tensor) and labels.ndim==2 and
-                            logits.shape[:2]==labels.shape):
-                        valid=labels[:,1:]!=-100
-                        if bool(valid.any().item()):
-                            guess=logits[:,:-1,:].argmax(-1)
-                            args._latest_accuracy=float(((guess==labels[:,1:]) & valid).sum().item()/valid.sum().item())
-            args._metric_step=getattr(args,'_metric_step',0)+1
-            if not math.isfinite(total):
-                raise ValueError('nonfinite mixed objective')
-            return total
-        # Exact local minibatch token/top-1 accuracy, not validation accuracy.
-        # Collected only once every ten steps; no logits are retained.
-        if getattr(args, 'telemetry_file', None) and getattr(args, '_metric_step', 0) % 10 == 0:
-            with torch.no_grad():
-                logits = getattr(outputs, 'logits', None)
-                labels = batch.get('labels')
-                try:
-                    if isinstance(logits, torch.Tensor) and isinstance(labels, torch.Tensor):
-                        if logits.ndim == 3 and labels.ndim == 2 and logits.shape[1] == labels.shape[1]:
-                            predicted = logits[:, :-1].argmax(dim=-1)
-                            truth = labels[:, 1:]
-                        elif logits.ndim == 2 and labels.ndim == 1:
-                            predicted, truth = logits.argmax(dim=-1), labels
-                        else:
-                            predicted = truth = None
-                        if predicted is not None:
-                            valid = truth != -100
-                            total = int(valid.sum().item())
-                            if total:
-                                args._latest_accuracy = float(((predicted == truth) & valid).sum().item() / total)
-                except (RuntimeError, ValueError):
-                    pass
-        args._metric_step = getattr(args, '_metric_step', 0) + 1
-        (loss / args.grad_accum).backward()
-        return float(loss.detach().cpu())
-
-
 def _train_impl(args):
     model, adapter = load(args)
     base_seq = 0
@@ -644,14 +77,19 @@ def _train_impl(args):
         loss = run_step(model, adapter, optimizer, next(iterator), args)
         if step % args.grad_accum == 0:
             with adapter.lock:
+                from .mixed_learning_v65 import clip_actor_grads
+                clip_actor_grads(adapter,args)
                 optimizer.step()
                 optimizer.zero_grad(set_to_none=True)
         if step % args.log_steps == 0 or step == 1:
             print(f'step {step}/{args.steps} loss={loss:.6g}', flush=True)
     # Flush incomplete gradient accumulation.
     if args.steps % args.grad_accum:
-        optimizer.step()
-        optimizer.zero_grad(set_to_none=True)
+        with adapter.lock:
+            from .mixed_learning_v65 import clip_actor_grads
+            clip_actor_grads(adapter,args)
+            optimizer.step()
+            optimizer.zero_grad(set_to_none=True)
     if hasattr(optimizer,'flush'): optimizer.flush()
     data = adapter.export(args.peer_id, seq=base_seq + args.steps, dtype=args.wire_dtype)
     Path(args.output).write_bytes(data)
@@ -716,9 +154,13 @@ async def _train_p2p_impl(args):
                 except PatchError as e:
                     print('rejected remote snapshot:', e, file=sys.stderr)
             # One step runs in a worker thread while the event loop transmits.
-            loss = await asyncio.to_thread(run_step, model, adapter, optimizer, next(iterator), args)
+            from .mps_runtime_v91 import model_task, execution_device
+            loss = await model_task(run_step, model, adapter, optimizer, next(iterator), args,
+                                    device=execution_device(args), model=model)
             if step % args.grad_accum == 0:
                 with adapter.lock:
+                    from .mixed_learning_v65 import clip_actor_grads
+                    clip_actor_grads(adapter,args)
                     optimizer.step()
                     optimizer.zero_grad(set_to_none=True)
             if step % args.sync_steps == 0:
@@ -727,7 +169,10 @@ async def _train_p2p_impl(args):
             if step % args.log_steps == 0 or step == 1:
                 print(f'step {step}/{args.steps} loss={loss:.6g}',flush=True)
         if args.steps % args.grad_accum:
-            optimizer.step(); optimizer.zero_grad(set_to_none=True)
+            with adapter.lock:
+                from .mixed_learning_v65 import clip_actor_grads
+                clip_actor_grads(adapter,args)
+                optimizer.step(); optimizer.zero_grad(set_to_none=True)
         if hasattr(optimizer,'flush'): optimizer.flush()
         seq += 1
         node.publish(adapter.export(args.peer_id, seq, args.wire_dtype))
@@ -797,7 +242,8 @@ async def train_p2p(args):
     finally:
         # run_step runs in an awaited to_thread; it must be finished before
         # the local head, optimizer and iterable worker are closed.
-        await asyncio.to_thread(_close_mixed_trainer,args)
+        from .mps_runtime_v91 import model_task, execution_device
+        await model_task(_close_mixed_trainer,args,device=execution_device(args))
 
 def merge(args):
     model, adapter = load(args)
@@ -1003,176 +449,6 @@ def code_register_cli(args):
     print(json.dumps(register_code(args.registry,args.file.name,args.file.read_bytes()),indent=2))
 
 
-def add_model_args(p):
-    p.add_argument('--model', required=True, help='HF model ID or local pretrained directory')
-    p.add_argument('--model-id', help='Stable canonical identifier; must match peers')
-    p.add_argument('--factory-file', help='Untrusted custom Python build_model() factory; offline container required')
-    p.add_argument('--trust-remote-code', action='store_true',help='Explicit opt-in, only in sandbox with local pinned HF snapshot')
-    p.add_argument('--state-base',help='Apply verified full-state base before attaching any patches')
-    p.add_argument('--sharded-base-manifest',type=Path,
-                   help='Load existing model state directly from verified .fmanifest shards (no .fstate assembly)')
-    p.add_argument('--sharded-base-store',type=Path,
-                   help='Content-addressed shard store for --sharded-base-manifest')
-    p.add_argument('--initialization',choices=('pretrained','random','config'),default='pretrained',
-        help='random creates official TinyStories-1M config weights from a fixed seed (no pretrained weights)')
-    p.add_argument('--initial-seed',type=int,default=42,
-        help='Shared random model genesis seed; MUST match all room peers')
-    p.add_argument('--max-state-gb',type=int,default=32,help='Full state file limit in GiB')
-    p.add_argument('--hf-task', choices=tuple(AUTO_CLASSES), default='causal-lm')
-    p.add_argument('--auto-class', help='Override with a packaged Transformers AutoModelFor* class')
-    p.add_argument('--revision', default='main', help='Prefer pinned Hub commit SHA')
-    p.add_argument('--kind', choices=('lora','loha'), default='loha')
-    p.add_argument('--rank', type=int, default=16,help='SHARED room LoHa rank; do not auto-change between peers')
-    p.add_argument('--auto-rank',action='store_true',
-        help='Local train only: device-based rank default; prohibited for P2P genesis')
-    p.add_argument('--resource-report',type=Path,
-        help='Write device resource/rank/expert recommendations to JSON')
-    p.add_argument('--disk-linear-dir',type=Path,
-        help='Opt-in frozen nn.Linear disk-mapped weights; per-layer forward/backward I/O')
-    p.add_argument('--live-disk-linear-max-gb',type=int,default=32,
-        help='Per live model mutable base on-disk limit in GiB (not a RAM guarantee)')
-    p.add_argument('--disk-linear-min-mib',type=float,default=0.,
-        help='Only offload Linear weights >= this size in MiB')
-    p.add_argument('--wide-lora-rank',type=int,default=4,
-        help='Mixed adapter: LoRA rank for automatically detected embeddings, output heads and very rectangular matrices (default 4)')
-    p.add_argument('--target-scope',choices=('all','gpt_neo_linear','gpt_neo_full','auto','linear','universal'),default='all',
-        help='universal: all supported differentiable Parameters, including 1-D/N-D custom kernels. Explicit opt-in creates a NEW P2P adapter layout')
-    p.add_argument('--init-style',choices=('legacy','balanced'),default='balanced',
-        help='LoHa initialization: balanced avoids near-zero initial gradients')
-    p.add_argument('--optimizer',choices=('adamw','lora-muon'),default='adamw',
-        help='Continual adapter optimizer; LoRA-Muon requires --kind lora')
-    p.add_argument('--muon-momentum',type=float,default=.9)
-    p.add_argument('--muon-weight-decay',type=float,default=0.)
-    p.add_argument('--moe-plan',type=Path,help='Shared, deterministic explicit ModuleList expert plan JSON (experimental)')
-    p.add_argument('--alpha', type=float, default=None)
-    p.add_argument('--max-peers', type=int, default=8)
-    p.add_argument('--device', default='cpu', help='cpu / cuda / mps')
-    p.add_argument('--gradient-checkpointing', action='store_true')
-    p.add_argument('--allow-legacy-bin', action='store_true', help='Opt in to non-safetensors legacy checkpoint files')
-    p.add_argument('--streaming-base', action='store_true',
-        help='Create HF model on meta and mmap local safetensors; CPU streaming execution only')
-    p.add_argument('--streaming-lazy-write',action='store_true',
-        help='Experimental train-elastic: no up-front full mutable base copy; materialize each modified tensor once into private scratch')
-    p.add_argument('--streaming-factor-ledger',action='store_true',
-                   help='EXPERIMENTAL: retain verified before/after LoHA/LoRA factors as virtual base; compact exactly after bounded events')
-    p.add_argument('--stream-factor-max-events',type=int,default=32,
-                   help='maximum signed contributions per group before exact dense compaction (1..256)')
-    p.add_argument('--streaming-page-cow',action='store_true',
-        help='Experimental: retain only modified tensor pages on disk; no v2 auto epoch export')
-    p.add_argument('--stream-page-kib',type=int,default=64,choices=(4,16,64,256,1024),
-        help='Per-tensor sparse COW page size in KiB')
-    p.add_argument('--streaming-expert-path',
-        help='Expert ModuleList/Dict whose entirely frozen experts run on demand from CPU mappings')
-    p.add_argument('--stream-lazy-limit-gb',type=int,default=0,
-        help='Maximum lazy writable tensor scratch GiB (0=no hard cap; monitor disk usage)')
-    p.add_argument('--streaming-scratch-dir',type=Path,
-        help='Fast disk for temporary writable pages; live restarts reconstruct from immutable genesis')
-    p.add_argument('--stream-chunk-mib',type=int,default=8,
-        help='Max bytes per copied tensor slice during writable streaming initialization')
-    p.add_argument('--disk-cache-fraction',type=float,default=.6,
-        help='Fraction of free VRAM devoted to opportunistic LRU frozen-weight cache (max .85)')
-    p.add_argument('--disk-cache-mib',type=int,default=0,
-        help='Optional hard cache cap in MiB; 0 uses detected available memory')
-    p.add_argument('--disk-tile-mib',type=int,default=16,
-        help='Max frozen-weight transfer tile size in MiB for large projections')
-
-
-def add_train_args(p):
-    add_model_args(p)
-    p.add_argument('--peer-id', help='Legacy peer identifier (auto-generated for --room-id)')
-    src = p.add_mutually_exclusive_group(required=False)
-    src.add_argument('--batches-dir', help='Task-neutral pretokenized .safetensors batches')
-    src.add_argument('--text-file', help='Raw text for causal/MLM')
-    src.add_argument('--jsonl', help='JSONL with input/target or text/label')
-    p.add_argument('--room-manifest',type=Path,help='Room v2 Hugging Face dataset collection; no local text file required')
-    p.add_argument('--loss-policy',choices=('auto','provided','causal','token','classification'),default='auto',
-                   help='Model-neutral loss contract; auto uses returned scalar loss or known task logits')
-    p.add_argument('--input-map',default='',
-                   help='JSON mapping, e.g. {"input_ids":"tokens","attention_mask":null}; pin consistently across peers')
-    # v65: one model, simultaneous gradient contributions from PT, SFT and PPO.
-    p.add_argument('--mix-policy',type=Path,
-                   help='Optional shared immutable JSON objective protocol: permits PT-only, SFT, or PPO specialized peers in one signed room')
-    p.add_argument('--sft-jsonl',type=Path,help='Local JSONL {prompt,response}; alternatively use --sft-hf-repo and related flags')
-    p.add_argument('--ppo-jsonl',type=Path,help='Local JSONL {prompt,reference}; alternatively use --ppo-hf-repo and related flags')
-    p.add_argument('--sft-hf-repo',default='',help='Pinned Hub SFT repo')
-    p.add_argument('--sft-hf-revision',default='',help='Pinned Hub SFT revision')
-    p.add_argument('--sft-hf-config',default='',help='Pinned Hub SFT config')
-    p.add_argument('--sft-hf-split',default='train',help='Pinned Hub SFT split')
-    p.add_argument('--sft-hf-prompt-column',default='prompt',help='Pinned Hub SFT prompt_column')
-    p.add_argument('--sft-hf-response-column',default='response',help='Pinned Hub SFT response_column')
-    p.add_argument('--ppo-hf-repo',default='',help='Pinned Hub PPO repo')
-    p.add_argument('--ppo-hf-revision',default='',help='Pinned Hub PPO revision')
-    p.add_argument('--ppo-hf-config',default='',help='Pinned Hub PPO config')
-    p.add_argument('--ppo-hf-split',default='train',help='Pinned Hub PPO split')
-    p.add_argument('--ppo-hf-prompt-column',default='prompt',help='Pinned Hub PPO prompt_column')
-    p.add_argument('--ppo-hf-reference-column',default='reference',help='Pinned Hub PPO reference_column')
-    p.add_argument('--pt-weight',type=float,default=1.,help='Pretraining objective gradient coefficient')
-    p.add_argument('--sft-weight',type=float,default=1.,help='Response-only SFT objective coefficient')
-    p.add_argument('--ppo-weight',type=float,default=.2,help='Clipped PPO objective coefficient')
-    p.add_argument('--ppo-clip',type=float,default=.2,help='PPO actor and value clipping epsilon')
-    p.add_argument('--ppo-kl-coef',type=float,default=.02,help='Penalty relative to frozen rollout behavior policy')
-    p.add_argument('--ppo-value-coef',type=float,default=.5,help='Auxiliary local value estimator coefficient')
-    p.add_argument('--ppo-gamma',type=float,default=.99)
-    p.add_argument('--ppo-gae-lambda',type=float,default=.95)
-    p.add_argument('--ppo-max-tokens',type=int,default=8,help='Max autoregressive PPO rollout tokens per mixed step')
-    p.add_argument('--ppo-reuse',type=int,default=2,help='Max clipped PPO updates per sampled trajectory')
-    p.add_argument('--ppo-kv-cache',choices=('auto','off'),default='auto',
-                   help='Use causal KV cache during no-gradient PPO rollout if forward explicitly supports it; never for PPO gradients')
-    p.add_argument('--critic-kind',choices=('mlp','linear','hf'),default='mlp',help='PPO value critic: local MLP/Linear or pinned Hugging Face scalar value head')
-    p.add_argument('--critic-hidden',type=int,default=32,help='Local value critic hidden width (8..512)')
-    p.add_argument('--critic-lr',type=float,default=1e-3,help='Local PPO value critic learning rate')
-    p.add_argument('--distributed-critic',action='store_true',help='Opt-in independent signed P2P Critic value-head training (new room; PPO peers only)')
-    p.add_argument('--critic-rollout-gossip',action='store_true',
-        help='EXPERIMENTAL v80: signed replay of peer PPO trajectories with receiver-side IS Critic updates (instead of sharing Critic parameter deltas)')
-    p.add_argument('--critic-offpolicy',choices=('auto','gae','trajectory_is'),default='auto',
-                   help='Critic value target: auto=unclipped trajectory IS in P2P mode, legacy GAE locally. No clipping; high variance possible')
-    p.add_argument('--critic-hf-repo',default='',help='Pinned HF scalar value-model repo (organization/name)')
-    p.add_argument('--critic-hf-revision',default='',help='Immutable 40-hex HF value critic revision')
-    p.add_argument('--critic-hf-loader',choices=('sequence_classification','token_classification'),default='sequence_classification')
-    p.add_argument('--critic-hf-device',choices=('cpu','cuda','mps'),default='cpu')
-    p.add_argument('--critic-hf-max-length',type=int,default=512)
-    p.add_argument('--critic-init',type=Path,help='Optional Kagami safetensors value-critic initial weights')
-    p.add_argument('--critic-state-dir',type=Path,help='Private local value-critic optimizer+weights directory')
-    p.add_argument('--ppo-reward',choices=('token_match','exact','hf_model'),default='token_match',
-                   help='Verifiable ground-truth reward; never model-judged')
-    p.add_argument('--reward-model-id',default='',help='Hugging Face scalar sequence-classification Reward Model repo')
-    p.add_argument('--reward-model-revision',default='',help='Pinned 40-hex commit SHA of Reward Model')
-    p.add_argument('--reward-model-device',choices=('cpu','cuda','mps'),default='cpu',help='Inference device, independent from actor')
-    p.add_argument('--reward-model-idle-offload',action='store_true',
-                   help='Opt-in move frozen HF Reward Model from accelerator to CPU between PPO scoring calls (saves resident VRAM, transfer overhead)')
-    p.add_argument('--reward-model-loader',choices=('sequence_classification','auto_model'),default='sequence_classification')
-    p.add_argument('--reward-model-format',choices=('plain','chat'),default='plain')
-    p.add_argument('--reward-model-output',choices=('logits','score','end_scores','rewards'),default='logits')
-    p.add_argument('--reward-model-index',type=int,default=0,help='Reward column (index 0 for scalar)')
-    p.add_argument('--reward-model-scale',type=float,default=1.0)
-    p.add_argument('--reward-model-max-length',type=int,default=512)
-    p.add_argument('--steps', type=int, default=50)
-    p.add_argument('--batch-size', type=int, default=2)
-    p.add_argument('--max-length', type=int, default=128)
-    p.add_argument('--lr', type=float, default=1e-3)
-    p.add_argument('--weight-decay', type=float, default=0.0)
-    p.add_argument('--grad-accum', type=int, default=1)
-    p.add_argument('--disk-optimizer-dir',type=Path,
-        help='Opt-in disk-mapped AdamW moments; elastic live uses journal-tip-bound working snapshots')
-    p.add_argument('--disk-optimizer-max-gb',type=int,default=32,
-        help='Per-instance disk AdamW moment budget in GiB (elastic mode)')
-    p.add_argument('--resume-disk-optimizer',action='store_true',
-        help='Resume external AdamW moments; requires matching factor layout')
-    p.add_argument('--log-steps', type=int, default=10)
-    p.add_argument('--resume', help='Previous local .fpatch with exactly matching model')
-    p.add_argument('--wire-dtype', choices=['float32','float16'], default='float16')
-    p.add_argument('--output', default='local.fpatch')
-    p.add_argument('--full-state-output',help='Also emit full effective tensor state as .fstate')
-    p.add_argument('--shard-state-manifest',type=Path,help='Also export effective weights as shards, no .fstate intermediate')
-    p.add_argument('--shard-store',type=Path,help='Storage for --shard-state-manifest')
-    p.add_argument('--shard-mb',type=int,default=4)
-
-
-def add_identity(p):
-    p.add_argument('--signing-key',help='Ed25519 private key PEM for outgoing file signatures')
-    p.add_argument('--peer-public-key',help='Pinned Ed25519 public key PEM; reject unsigned incoming')
-
-
 def main():
     parser = argparse.ArgumentParser(description='Model-independent LoRA/LoHA + Mummy/WebRTC P2P patches')
     sub = parser.add_subparsers(dest='cmd',required=True)
@@ -1244,13 +520,16 @@ def main():
     livefed.add_argument('--swarm-max-events',type=int,default=0,help=argparse.SUPPRESS)
     livefed.add_argument('--epoch-v2-probe-committee',type=Path,help='EXPERIMENTAL: fixed JSON list of signed peer IDs for no-op Epoch Paxos WebRTC probe; does NOT change v1 training')
     livefed.add_argument('--generation-v1-committee',type=Path,help='EXPERIMENTAL: pinned crash-fault committee for verified WebRTC generation certificate gossip. Does not automatically rebase model weights or delete history.')
+    livefed.add_argument('--generation-auto-v88',action='store_true',help='For NEW owner-pinned GUI rooms, sign an immutable 1..3-peer committee after discovery; certificate quorum is 1/1, 2/2, or 2/3 (never reduced on disconnect)')
     livefed.add_argument('--generation-v2-trainer',action='store_true',help='EXPERIMENTAL: permit only fully verified paged-v2 quorum certificates to drive trainer recovery and step-boundary carry')
-    livefed.add_argument('--generation-v2-propose-every',type=int,default=0,help='EXPERIMENTAL: committee leader exports a fenced model checkpoint every N locally emitted signed events (0 disables; may pause local steps for large models)')
+    livefed.add_argument('--generation-v2-propose-every',type=int,default=None,help='EXPERIMENTAL: committee leader exports a fenced model checkpoint every N local signed events (defaults to 256 when --generation-v2-trainer is enabled, otherwise 0; explicit 0 disables)')
     livefed.add_argument('--inbound-queue',type=int,default=32,
         help='Maximum signed incoming updates awaiting asynchronous application (1..256)')
     livefed.add_argument('--durable-every',type=int,default=0,help='Unpublished optimizer-state checkpoint every N local steps (0=off, signed events remain FULL durable)')
     livefed.add_argument('--working-save-every',type=int,default=10,help='Persist the large local factor+AdamW working snapshot every N published updates (default 10; 1=old maximum durability)')
-    livefed.add_argument('--max-journal-gb',type=int,default=0,help='Signed-event journal limit in GiB (0=unlimited by application, requires adequate disk; no silent pruning)')
+    livefed.add_argument('--max-journal-gb',type=int,default=4,help='Maximum signed-event payload GiB (default 4; 0 explicitly disables cap, old history is never silently deleted)')
+    livefed.add_argument('--min-free-disk-mib',type=int,default=1024,help='Stop safely before free space drops below this reserve (default 1024 MiB; 0 disables guard)')
+    livefed.add_argument('--fast-resume-every',type=int,default=32,help='Materialize committed model and anchors every N local signed events, and periodically when only remote/carry receipts advance; resume skips covered signed history (0 disables). Needs roughly one full model of extra disk space; v61 paged COW unsupported.')
     livefed.add_argument('--peer-timeout',type=float,default=45.,help='Inactive peer expires from denominator')
     livefed.add_argument('--heartbeat-interval',type=float,default=4.,help='Signed heartbeat cadence in seconds')
     livefed.add_argument('--hf-shuffle-buffer',type=int,default=512,
@@ -1499,6 +778,11 @@ def main():
         parser.error('--peer-id is required for train and train-p2p')
     if args.cmd in ('train-live','train-elastic') and args.mode=='elastic' and not args.room_id and not args.peer_id:
         parser.error('provide --room-id (recommended), or legacy --peer-id and --link')
+    if args.cmd in ('train','train-p2p','train-live','train-elastic'):
+        # v101: validate external PPO model cache capacity before any model
+        # loads or durable P2P state changes. This is read-only HF metadata IO.
+        from .hf_disk_preflight_v101 import preflight_training_resources
+        preflight_training_resources(args)
     if args.cmd=='training-preflight':
         if getattr(args,'pt_weight',1.) == 0:
             parser.error('training-preflight needs a nonzero pretraining objective; use architecture-probe --probe-batch for PPO/SFT-only rooms')

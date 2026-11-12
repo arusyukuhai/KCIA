@@ -64,8 +64,16 @@ def write_working_capture(captured):
     target, tensors, meta, disk_optimizer = captured
     target.parent.mkdir(parents=True, exist_ok=True)
     name = target.with_name(target.name + '.' + os.urandom(8).hex() + '.tmp')
+    from .disk_health_v86 import require_space, MIB
+    # The active snapshot is kept intact until the replacement is fsynced.
+    # Fail before allocating a second large safetensors file.
+    required = sum(t.numel() * t.element_size() for t in tensors.values())
     published=False
     try:
+        # Must be *inside* try so a previously cloned moment snapshot is
+        # removed even when the final safetensors reservation is rejected.
+        require_space(target.parent, additional=required + 8*MIB,
+                      action='working optimizer/factor checkpoint')
         if disk_optimizer is not None:
             # Immutable reflinks are checksummed off the trainer/optimizer lock.
             disk_optimizer.finalize_moments(meta['disk_optimizer'],target.parent)
@@ -119,8 +127,15 @@ class AsyncWorkingSaver:
             self.task.result()  # surface a failed fsync immediately
         # Capture is an atomic tensor snapshot at the caller's optimizer
         # boundary; only this (much shorter) stage gates further training.
-        captured = await asyncio.to_thread(capture_working,journal,adapter,optimizer,
-                                             steps,journal_tip=journal_tip)
+        from .disk_health_v86 import DiskPressureError
+        try:
+            from .mps_runtime_v91 import model_task
+            captured = await model_task(capture_working,journal,adapter,optimizer,
+                                        steps,journal_tip=journal_tip,model=adapter.model)
+        except DiskPressureError as exc:
+            print(f'KAGAMI WORKING CHECKPOINT deferred: {exc}', flush=True)
+            self.skipped += 1
+            return False
         async def flush():
             started=time.monotonic()
             await asyncio.to_thread(write_working_capture,captured)

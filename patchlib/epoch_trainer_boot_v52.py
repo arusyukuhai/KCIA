@@ -91,6 +91,50 @@ def __digest(p):
     return _digest(p)
 
 
+def _frozen_source_cut_with_witness(old_journal, boot, receipt):
+    """Cache an already-verified certified old-generation cut locally.
+
+    A certified source has a frozen writer at handoff. Its append-only index
+    has a durable mutation witness. If schema, mutation counter, or MAX(rowid)
+    changes, recompute the full signed digest rather than trusting the cache.
+    This is a local speed hint only: the quorum certificate and original
+    receipts must still be verified independently on every boot.
+    """
+    from .core import _canonical_json
+    import json
+    from .epoch_live_rebase_v52 import verify_certified_cut
+    db=old_journal.db
+    guard=old_journal.epoch_cut_guard()
+    max_rowid=db.execute('SELECT COALESCE(MAX(rowid),0) FROM events').fetchone()[0]
+    key='kagami_v96_frozen_source_cut_witness'
+    expected={'source_genesis':boot.previous_genesis,
+              'target_genesis':boot.current_genesis,
+              'manifest':boot.manifest_hash,
+              'source_rowid':receipt['source_rowid'],
+              'cut':boot.proposal['cut'],
+              'cutoffs_digest':hashlib.sha256(_canonical_json(sorted(
+                    boot.proposal['cutoffs'].items()))).hexdigest(),
+              'schema_guard':list(guard) if guard is not None else None,
+              'current_max_rowid':max_rowid}
+    if guard is not None:
+        prior=db.execute('SELECT value FROM meta WHERE name=?',(key,)).fetchone()
+        if prior is not None:
+            try:
+                if json.loads(prior[0])==expected:
+                    return max_rowid
+            except (ValueError,TypeError):
+                pass
+    _,actual_max=verify_certified_cut(old_journal,
+        boot.proposal['cutoffs'],boot.proposal['cut'])
+    if actual_max!=receipt['source_rowid']:
+        raise PatchError('old journal changed after committed epoch handoff')
+    if guard is not None:
+        with db:
+            db.execute('INSERT OR REPLACE INTO meta(name,value) VALUES(?,?)',
+                       (key,json.dumps(expected,sort_keys=True,separators=(',',':'))))
+    return actual_max
+
+
 def verify_boot_carry(boot:CertifiedEpochBoot, archive, *, old_journal):
     """Reject restart if the source writer made any update after handoff.
 
@@ -112,16 +156,26 @@ def verify_boot_carry(boot:CertifiedEpochBoot, archive, *, old_journal):
         raise PatchError('durable carry receipt mismatches certified epoch')
     if type(receipt.get('source_rowid')) is not int or receipt['source_rowid']<0:
         raise PatchError('invalid certified old-writer boundary')
-    cut_count,old_max=verify_certified_cut(old_journal,boot.proposal['cutoffs'],boot.proposal['cut'])
-    if old_max!=receipt['source_rowid']:
-        raise PatchError('old journal changed after committed epoch handoff')
-    total=0;sha=hashlib.sha256()
+    # V88: original handoff archive is an immutable prefix. Signed old-genesis
+    # updates that arrive *after* the epoch handoff are appended at later
+    # rowids. These must still survive restart and be replayed exactly once.
     from .core import _canonical_json
-    for origin,seq,digest in archive.journal.db.execute(
-            'SELECT origin,seq,digest FROM events ORDER BY origin,seq'):
-        sha.update(_canonical_json([origin,seq,digest])+b'\n')
-        total+=1
-    if (type(receipt.get('total_archived')) is not int or receipt['total_archived']!=total
-            or receipt.get('archive_digest')!=sha.hexdigest()):
-        raise PatchError('carried signed updates differ from final handoff receipt')
+    from .compact_journal_gc_v88 import verify_receipt_prefix, verify_retirement_marker
+    if old_journal is None:
+        tomb = Path(str(boot.source_path)+'.retired.json')
+        legacy={'epoch':boot.epoch,'manifest':boot.manifest_hash,
+                'new_journal':str(boot.journal_path.resolve())}
+        if (tomb.is_file() and not tomb.is_symlink() and
+                tomb.read_bytes()==_canonical_json(legacy)):
+            # Previous version supported retirement only when there were no
+            # uncaptured old-genesis deltas. Preserve old safe restarts.
+            if boot.source_path.exists() or boot.source_path.is_symlink() or archive.journal.count()!=0:
+                raise PatchError('retired source missing trustworthy GC tombstone or carry empty proof')
+        else:
+            verify_retirement_marker(boot,receipt)
+    else:
+        old_max=_frozen_source_cut_with_witness(old_journal,boot,receipt)
+        if old_max!=receipt['source_rowid']:
+            raise PatchError('old journal changed after committed epoch handoff')
+    verify_receipt_prefix(archive.journal.db,receipt)
     return True

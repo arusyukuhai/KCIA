@@ -245,8 +245,10 @@ class AsyncPairedSaver:
         if journal_tip is None:
             journal_tip=_tip(journal)
         # Copy under lock off-loop; FS writes never hold adapter.lock.
-        captured=await asyncio.to_thread(capture,journal,adapter,actor_optimizer,mixer,
-                                         steps,journal_tip=journal_tip)
+        from .mps_runtime_v91 import model_task, execution_device
+        captured=await model_task(capture,journal,adapter,actor_optimizer,mixer,
+                                  steps,journal_tip=journal_tip,model=adapter.model,
+                                  device=execution_device(mixer.args))
         async def flush():
             start=time.monotonic()
             await asyncio.to_thread(write,captured)

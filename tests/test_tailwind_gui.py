@@ -15,9 +15,9 @@ def test_desktop_runtime_cdn_theme_and_bridge():
     # the privileged WebView, under a restrictive CSP.
     assert CDN not in page
     assert '<style>' in page
-    assert '--accent:#10b981' in css
+    assert '--accent: #10b981' in css
     assert '.model-card' in css
-    assert 'height:100dvh' in css
+    assert 'height: 100dvh' in css
     assert "connect-src 'none'" in page
     assert '<link rel="stylesheet"' not in page
     assert 'desktop_webview.css' not in page
@@ -29,13 +29,18 @@ def test_desktop_runtime_cdn_theme_and_bridge():
 
 
 def test_all_other_html_views_are_tailwind_only():
-    for filename in ('index.html','dashboard.html','patches.html'):
+    for filename in ('index.html','patches.html'):
         page = (WEB / filename).read_text(encoding='utf-8')
         assert CDN in page
         assert '<style' not in page
         assert '<body class=' in page
         assert 'bg-[#080e0b]' in page
         assert f'<script src="{CDN}"' in page
+
+
+def test_retired_dashboard_is_not_bundled():
+    # Legacy Fedpara P2P console had no served route or runtime references.
+    assert not (WEB / 'dashboard.html').exists()
 
 
 def test_no_legacy_css_or_build_tool_required():

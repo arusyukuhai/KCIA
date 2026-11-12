@@ -54,8 +54,9 @@ def snapshot_inventory(journal, cutoffs=None):
 
 
 class LiveSnapshotLink:
-    def __init__(self, store: Path, recv_dir: Path, max_state_bytes: int, verifier_ready):
+    def __init__(self, store: Path, recv_dir: Path, max_state_bytes: int, verifier_ready, *, outgoing_store=None):
         self.store=Path(store)
+        self.outgoing_store=Path(outgoing_store) if outgoing_store is not None else self.store
         self.recv_dir=Path(recv_dir)
         self.max_state_bytes=max_state_bytes
         self.verifier_ready=verifier_ready
@@ -218,7 +219,7 @@ class LiveSnapshotLink:
                 elif kind=='manifest':
                     await send_manifest(channel,data,self.signer,on_progress=progressed)
                 elif kind=='shard':
-                    await send_shard(channel,self.store,data,self.session.local_objects[data],
+                    await send_shard(channel,self.outgoing_store,data,self.session.local_objects[data],
                                      on_progress=progressed)
         except asyncio.CancelledError:
             raise

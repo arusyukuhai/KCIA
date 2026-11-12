@@ -46,11 +46,14 @@ class DesktopController:
                       initialization=None,initial_seed=None,lr=1e-4,local_steps=4,max_length=64,
                       wide_lora_rank=4,peers=None,rounds=200,telemetry_file=None,journal_sync="full",push_fanout=2,
                       shard_state_manifest=None,shard_store=None,max_state_gb=32,
-                      max_journal_gb=0,streaming_base=False,stream_chunk_mib=8,
+                      max_journal_gb=4,streaming_base=False,stream_chunk_mib=8,
                       disk_cache_fraction=.6,pause_file=None,snapshot_request_file=None,
                       sharded_base_manifest=None,sharded_base_store=None,
-                      mixed_options=None,mixed_policy=None,critic_state_dir=None):
+                      mixed_options=None,mixed_policy=None,critic_state_dir=None,
+                      device='auto'):
         from .room_manifest import load_manifest
+        if device not in ('auto','cpu','cuda','mps'):
+            raise ValueError('Unsupported local compute device')
         validate_room(room)
         desc=load_manifest(Path(manifest))
         if desc['version'] != 2 or desc['model']['id'] != model or desc['model']['revision'] != revision:
@@ -108,8 +111,8 @@ class DesktopController:
             raise ValueError('invalid live learning rate')
         if type(wide_lora_rank) is not int or not 1 <= wide_lora_rank <= 16:
             raise ValueError('wide rank must be 1..16')
-        if peers is not None and (type(peers) is not int or not 2 <= peers <= 4096):
-            raise ValueError('legacy expected peers must be 2..4096')
+        if peers is not None and (type(peers) is not int or not 1 <= peers <= 4096):
+            raise ValueError('legacy expected peers must be 1..4096')
         if type(push_fanout) is not int or not 1 <= push_fanout <= 8:
             raise ValueError('push_fanout must be 1..8')
         if type(rounds) is not int or not 0 <= rounds <= 100000:
@@ -152,10 +155,10 @@ class DesktopController:
                 '--init-style','balanced' if kind=='loha' else 'legacy',
                 '--lr',str(0.01 if optimizer=='lora-muon' else lr),
                 '--local-steps',str(local_steps),'--max-length',str(max_length),
-                '--device','auto',
+                '--device',device,
                 '--journal',str(journal),'--journal-sync',journal_sync,'--rounds',str(rounds),
                 '--working-save-every','10','--durable-every','0',
-                '--max-state-gb',str(max_state_gb),'--max-journal-gb',str(max_journal_gb)] + (['--shard-state-manifest',str(shard_state_manifest),'--shard-store',str(shard_store),'--shard-mb','16'] if shard_state_manifest is not None else []) + (['--telemetry-file',str(telemetry_file)] if telemetry_file is not None else []) + (['--sharded-base-manifest',str(sharded_base_manifest),
+                '--max-state-gb',str(max_state_gb),'--max-journal-gb',str(max_journal_gb)] + (['--generation-auto-v88'] if 'generation' in desc else []) + (['--shard-state-manifest',str(shard_state_manifest),'--shard-store',str(shard_store),'--shard-mb','16'] if shard_state_manifest is not None else []) + (['--telemetry-file',str(telemetry_file)] if telemetry_file is not None else []) + (['--sharded-base-manifest',str(sharded_base_manifest),
                   '--sharded-base-store',str(sharded_base_store)] if sharded_base_manifest else
                  (['--state-base',str(base)] if not streaming_base else [
                   '--streaming-base','--gradient-checkpointing',
@@ -186,12 +189,17 @@ class DesktopController:
         self.stop_requested = False
         self.logfile=Path(logfile).resolve()
         self.logfile.parent.mkdir(parents=True,exist_ok=True)
+        self._cap_disposable_log()
         fd=os.open(self.logfile,os.O_WRONLY|os.O_CREAT|os.O_APPEND,0o600)
         self.log_handle=os.fdopen(fd,'ab',buffering=0)
         try:
             # Two simultaneous training windows must not starve the WebView.
             # Limits apply to the CHILD only; the UI keeps its own CPU budget.
             env=os.environ.copy()
+            # An explicit GUI selection opts the TRAINING CHILD into v92 MPS.
+            # The WebView process and other rooms remain in safe CPU mode.
+            from .mps_launch_v108 import launch_environment
+            env=launch_environment(command,env)
             threads=max(1,min(4,(os.cpu_count() or 4)//4))
             if os.environ.get('FEDPARA_WORKER_THREADS','').isdigit():
                 threads=max(1,min(64,int(os.environ['FEDPARA_WORKER_THREADS'])))
@@ -232,7 +240,24 @@ class DesktopController:
         if self.log_handle:
             self.log_handle.flush()
 
+    def _cap_disposable_log(self):
+        """Prevent unbounded GUI stderr/stdout logs while child keeps O_APPEND.
+
+        Reset the debug-only log at 32 MiB. Training history and signed events
+        are wholly separate. ftruncate keeps the live child's file descriptor
+        valid, unlike renaming the file while the child is running.
+        """
+        if self.logfile is None or self.logfile.is_symlink():
+            return
+        try:
+            if self.logfile.stat().st_size > 32 * 1024 * 1024:
+                with self.logfile.open('r+b') as fh:
+                    fh.truncate(0)
+        except OSError:
+            pass  # Logging is best effort; never disrupt the training worker.
+
     def tail(self, max_bytes=10000):
+        self._cap_disposable_log()
         if self.logfile is None or not self.logfile.exists():
             return ''
         with self.logfile.open('rb') as f:

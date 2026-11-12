@@ -91,6 +91,36 @@ class CrossEpochCarryArchive:
         self._replayed_count=count
         return count
 
+    def resume_suffix(self, engine, rowid: int):
+        """Restore authenticated old-generation updates newer than a dual-lane
+        materialized checkpoint; no historic event bodies are reread.
+
+        Caller MUST have validated both checkpoint cursors and imported the
+        exact committed model state.  The archive remains authoritative for
+        duplicate detection and future old-genesis receipt validation.
+        """
+        if self._replayed or self._poisoned:
+            raise PatchError('carry archive already resumed or poisoned')
+        if type(rowid) is not int or rowid < 0:
+            raise PatchError('invalid carry resume boundary')
+        self._validate_engine(engine)
+        self._replayed=True
+        count=0
+        try:
+            for wire in self.journal.events_after_rowid(rowid):
+                info, prepared = self._check(engine, wire)
+                engine._apply_checked(info, prepared)
+                count+=1
+        except BaseException:
+            self._replayed=False
+            self._poisoned=True
+            raise
+        # No older bytes need decoding for anti-entropy: the archive SQLite
+        # PK index already authenticates membership of stored signed bytes.
+        self._replayed_count=self.journal.count()
+        print(f'KAGAMI FAST RESUME carry restored suffix={count} archived_total={self._replayed_count}',flush=True)
+        return count
+
     def accept(self,engine,wire:bytes):
         """Archive before application: a crash after append is recovered by
         rebuilding from base and replaying the entire authenticated archive.
@@ -142,7 +172,9 @@ class CrossEpochCarryArchive:
                 # cannot see an unapplied durable row under this lock.
                 if not await self.journal.append_async(info.origin,info.seq,wire):
                     raise PatchError('unexpected duplicate within carry commit lock')
-                await asyncio.to_thread(engine._apply_checked,info,prepared)
+                from .mps_runtime_v91 import model_task
+                await model_task(engine._apply_checked,info,prepared,
+                                 model=getattr(engine.adapter,'model',None))
             except BaseException:
                 self._poisoned=True
                 raise

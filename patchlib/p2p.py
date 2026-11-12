@@ -249,6 +249,22 @@ class DiskFrameReceiver:
             raise
 
 
+def _relay_only_sdp(sdp: str) -> str:
+    """Send only TURN relay candidates; fail closed when TURN allocation failed.
+
+    aiortc gathers a complete SDP (no outbound Trickle ICE). Filtering the
+    advertised candidates on BOTH endpoints makes direct ICE impossible to
+    select without a TURN relay. The standard path remains unchanged.
+    """
+    lines = sdp.splitlines(keepends=True)
+    relay = [line for line in lines
+             if line.startswith('a=candidate:') and ' typ relay' in line]
+    if not relay:
+        raise ConnectionError('TURN-only mode: no relay ICE candidates were gathered')
+    return ''.join(line for line in lines
+                   if not line.startswith('a=candidate:') or ' typ relay' in line)
+
+
 class PatchNode:
     def __init__(self, signal_url: str, room: str, token: str = '', *,
                  max_bytes: int = MAX_PATCH, turn_only: bool = False,
@@ -468,7 +484,8 @@ class PatchNode:
                     # aiortc gathers all candidates into localDescription.sdp;
                     # this is compatible with Mummy and browser Trickle ICE.
                     self.set_phase('offer-sent')
-                    await signal({'type':'offer','sdp':pc.localDescription.sdp})
+                    await signal({'type':'offer','sdp':(_relay_only_sdp(pc.localDescription.sdp)
+                                                       if self.turn_only else pc.localDescription.sdp)})
 
                 if role == 'initiator':
                     attach_channel(pc.createDataChannel('fedpara-patch', ordered=True))
@@ -505,7 +522,8 @@ class PatchNode:
                             for cand in negotiation.release(): await pc.addIceCandidate(cand)
                             await pc.setLocalDescription(await pc.createAnswer())
                             self.set_phase('answer-sent')
-                            await signal({'type':'answer', 'sdp':pc.localDescription.sdp})
+                            await signal({'type':'answer', 'sdp':(_relay_only_sdp(pc.localDescription.sdp)
+                                                                      if self.turn_only else pc.localDescription.sdp)})
                         elif kind == 'answer' and role == 'initiator':
                             if not negotiation.accept_answer(pc.signalingState):
                                 log.debug('ignored duplicate or stale SDP answer room=%s state=%s',self.room,pc.signalingState)

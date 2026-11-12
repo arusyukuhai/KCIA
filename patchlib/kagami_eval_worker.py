@@ -27,7 +27,8 @@ def resolve_precision(torch, precision):
     if torch.cuda.is_available():
         return 'bf16' if torch.cuda.is_bf16_supported() else 'fp16'
     mps=getattr(torch.backends,'mps',None)
-    if mps is not None and mps.is_available():
+    from .mps_policy_v92 import mps_allowed
+    if mps_allowed() and mps is not None and mps.is_available():
         return 'fp16'
     return 'fp32'
 
@@ -36,7 +37,8 @@ def _compute_device(torch):
     if torch.cuda.is_available():
         return 'cuda'
     mps=getattr(torch.backends,'mps',None)
-    if mps is not None and mps.is_available():
+    from .mps_policy_v92 import mps_allowed
+    if mps_allowed() and mps is not None and mps.is_available():
         return 'mps'
     return 'cpu'
 
