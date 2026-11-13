@@ -10,12 +10,14 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import logging
+import os
 import time
 from pathlib import Path
 
 from .core import PatchError, _canonical_json
 from .shards import read_manifest, shard_map, manifest_bytes, verify_shards, _atomic_write
 from .shardp2p import ShardSession, send_manifest, send_shard, ctrl
+from .p2p import bulk_rate
 
 log = logging.getLogger("kcia.snapshot")
 
@@ -70,6 +72,13 @@ class LiveSnapshotLink:
         self.error=None
         self.last_activity=time.monotonic()
         self.last_received=self.last_activity
+        # Deliberately slower than the network's theoretical maximum: long
+        # WAN/TURN streams must leave scheduling room for ICE consent/STUN.
+        self.pacer=bulk_rate('KCIA_SNAPSHOT_RATE_MIB',default=1.0)
+        self.tx_bytes=0
+        self.rx_bytes=0
+        self._last_tx_report=self.last_activity
+        self._last_rx_report=self.last_activity
 
     def _new_session(self):
         # Keep content-addressed, SHA-256-verified files on disk, but never
@@ -77,6 +86,34 @@ class LiveSnapshotLink:
         return ShardSession(self.store,self.recv_dir,
             max_state_bytes=self.max_state_bytes,
             verifier=self._verify,request_remote=True,defer_verify=True)
+
+    @property
+    def bulk_transfer_active(self) -> bool:
+        """Cross-DataChannel priority: pause huge signed patches during state sync."""
+        if not self.connected.is_set():return False
+        s=self.session
+        return bool((s.local_data is not None and not s.acked_local) or
+                    (s.remote_meta is not None and not s.remote_complete) or
+                    s.reading == 'manifest' or not self.outbox.empty())
+
+    def _sent_bytes(self, amount: int):
+        self.tx_bytes+=amount
+        now=time.monotonic()
+        if now-self._last_tx_report>=5:
+            print(f'SNAPSHOT TX sent_mib={self.tx_bytes/1048576:.1f} '
+                  f'buffered_kib={getattr(self.channel,"bufferedAmount",0)/1024:.0f} '
+                  f'rate_limit_mib_s={self.pacer.bytes_per_second/1048576:g}',flush=True)
+            self._last_tx_report=now
+
+    def _received_bytes(self, amount: int):
+        self.rx_bytes+=amount
+        now=time.monotonic()
+        if now-self._last_rx_report>=5:
+            print(f'SNAPSHOT RX received_mib={self.rx_bytes/1048576:.1f} '
+                  f'verified_shards={self.session.received_objects} '
+                  f'reused_shards={self.session.reused_objects} '
+                  f'outstanding={len(self.session.outstanding)}',flush=True)
+            self._last_rx_report=now
 
     def mark_failed(self, exc):
         if self.error is None:
@@ -143,6 +180,7 @@ class LiveSnapshotLink:
             if self.channel is not ch: return
             try:
                 replies,asks=self.session.feed(data)
+                if isinstance(data,bytes):self._received_bytes(len(data))
                 self.last_activity=time.monotonic()
                 self.last_received=self.last_activity
                 for rep in replies:
@@ -217,10 +255,12 @@ class LiveSnapshotLink:
                     if channel.readyState!='open':raise ConnectionError('snapshot channel closed')
                     channel.send(data)
                 elif kind=='manifest':
-                    await send_manifest(channel,data,self.signer,on_progress=progressed)
+                    await send_manifest(channel,data,self.signer,on_progress=progressed,
+                                        pacer=self.pacer,on_bytes=self._sent_bytes)
                 elif kind=='shard':
                     await send_shard(channel,self.outgoing_store,data,self.session.local_objects[data],
-                                     on_progress=progressed)
+                                     on_progress=progressed,pacer=self.pacer,
+                                     on_bytes=self._sent_bytes)
         except asyncio.CancelledError:
             raise
         except Exception as exc:

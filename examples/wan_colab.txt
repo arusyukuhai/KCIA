@@ -1,0 +1,10 @@
+The Colab worker runs neural network optimization using the CUDA runtime.
+A training mini-batch produces gradients for low-rank adaptation parameters.
+Local optimizer statistics should not be transmitted as model weights.
+A distributed learner checks signatures before applying incoming updates.
+Peers may be temporarily disconnected and later rejoin their room.
+A cloud signaling endpoint forwards connection metadata rather than the model.
+The communication layer uses WebRTC and can fall back to a TURN relay.
+Different device budgets justify different physical LoHA matrix ranks.
+A pilot must compare committed update identities and recovery after a reconnect.
+Independent training examples help test that the peers are not just duplicating work.

@@ -37,7 +37,7 @@ async def connect(args):
     room=pair_room(validate_room(args.room_id),local,remote)
     node=ElasticNode(args.ws,room,args.token,origin=local,remote=remote,
                      genesis='0'*64,signer=signer,public_key=public,
-                     turn_only=args.turn_only)
+                     turn_only=args.turn_only, turn_transport=args.turn_transport)
     task=asyncio.create_task(node.run())
     print('Connecting to the other machine (signed hello required).')
     try:
@@ -75,6 +75,8 @@ def main():
     conn.add_argument('--room-id',required=True)
     conn.add_argument('--remote-public-key',required=True)
     conn.add_argument('--turn-only',action='store_true',help='Only advertise TURN relay candidates on this endpoint')
+    conn.add_argument('--turn-transport',choices=['auto','udp','tcp'],default='auto',
+                      help='TURN client-to-server transport; TCP can work when Colab blocks UDP')
     conn.add_argument('--timeout',type=float,default=120)
     args=ap.parse_args()
     logging.basicConfig(level=logging.INFO,format='%(levelname)s %(name)s %(message)s')

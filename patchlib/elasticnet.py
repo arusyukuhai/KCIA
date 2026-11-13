@@ -26,7 +26,7 @@ from .snapshot_boundary import (SnapshotBoundaryAssembler, boundary_pages,
                                 validate_cutoffs)
 from .identity import signer_from_pem, verifier_from_pem
 from .livefed import parse_links, parse_peer_keys
-from .p2p import FrameReceiver, PatchNode, WINDOW, transmit
+from .p2p import FrameReceiver, PatchNode, WINDOW, transmit, bulk_rate
 
 log = logging.getLogger('kcia.elastic')
 from .elastic_control_v110 import (
@@ -299,12 +299,15 @@ class ElasticNode(PatchNode):
         """
         priority_streak=0
         deferred=deque()
+        pacer=bulk_rate('KCIA_PATCH_RATE_MIB',default=1.0)
+        def snapshot_busy():
+            return bool(self.snapshot_link and self.snapshot_link.bulk_transfer_active)
         try:
             while True:
                 # A mixed-generation link transports ONLY signed certificate
                 # controls. Keep v1 events in the durable journal for same-epoch
                 # peers; never send them to a differently keyed optimizer.
-                if not self.hello_received or self.bridge_only:
+                if not self.hello_received or self.bridge_only or snapshot_busy():
                     await asyncio.sleep(.05)
                     continue
                 data=None
@@ -395,10 +398,14 @@ class ElasticNode(PatchNode):
                 self.sent.clear()
                 # A permanently wedged SCTP send buffer must not keep this
                 # authenticated-looking link unable to respond indefinitely.
-                timeout=max(60.0, min(300.0, 60.0 + len(data)/(256*1024)))
+                # Snapshot traffic has priority even if a 158 MiB patch was
+                # already being sent when the full-model offer began. The
+                # transfer's stall watchdog still catches genuine SCTP stalls.
+                timeout=max(600.0, 60.0 + len(data)/pacer.bytes_per_second*2)
                 try:
                     await asyncio.wait_for(
-                        transmit(self._channel,data,max_bytes=self.max_bytes,signer=self.signer),
+                        transmit(self._channel,data,max_bytes=self.max_bytes,
+                                 signer=self.signer,pacer=pacer,pause_when=snapshot_busy),
                         timeout=timeout)
                 except BaseException:
                     # The response has been removed from the NEED backlog,
@@ -2153,7 +2160,11 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
             tip,count,cutoffs=snapshot_inventory(journal)
             from .shards import export_state_sharded
             from .shards import manifest_bytes
-            path=outgoing_manifests/f'offer-{args.peer_id}-{count}-{tip[:16]}.fmanifest'
+            # Include the snapshot shard layout in the immutable offer name.
+            # Upgrading a v131 room from 4 MiB to 2 MiB shards must not reuse
+            # an old 4 MiB manifest for the SAME signed event frontier.
+            offer_tag=hashlib.sha256(f'{tip}:{args.shard_mb}'.encode('ascii')).hexdigest()[:16]
+            path=outgoing_manifests/f'offer-{args.peer_id}-{count}-{offer_tag}.fmanifest'
             path.parent.mkdir(parents=True,exist_ok=True)
             if not path.exists():
                 # Exporting a full model needs a new disk-resident copy, even
@@ -3175,6 +3186,7 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
     network_receiver_task=None
     wal_maintenance_task=None
     last_swarm_report=0.0
+    last_snapshot_priority_report=0.0
     next_outgoing_gc=0.0
     last_free_disk_check=0.0
     last_epoch_pressure_report=0.0
@@ -3817,6 +3829,28 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
                               flush=True)
                     record_telemetry('paused')
                     await asyncio.sleep(.1)
+                    continue
+            # Optional WAN pilot policy: keep large snapshot and signed patch
+            # traffic from competing with simultaneous new local updates.
+            # Network receiving, verified snapshot serving and epoch housekeeping
+            # all ran above this branch. This only defers NEW optimizer steps.
+            if os.environ.get('KCIA_SNAPSHOT_PRIORITY','0') == '1':
+                serving=[s for s in slots.values()
+                         if (not s.disabled and s.node is not None and
+                             s.node.snapshot_link is not None and
+                             s.node.snapshot_link.bulk_transfer_active)]
+                if serving:
+                    if local_steps:
+                        await seal_if_needed()
+                        nonlocal_optimizer[0]=optimizer
+                    if now-last_snapshot_priority_report>=10.0:
+                        print(f'SNAPSHOT PRIORITY HOLD peer={args.peer_id} '
+                              f'active_transfers={len(serving)} '
+                              f'journal_events={journal.count()} '
+                              'optimizer steps temporarily paused',flush=True)
+                        last_snapshot_priority_report=now
+                    record_telemetry('snapshot-sync')
+                    await asyncio.sleep(.05)
                     continue
             if loop.time()-last_free_disk_check>=3.0:
                 last_free_disk_check=loop.time()

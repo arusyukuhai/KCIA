@@ -47,11 +47,15 @@ def test_local_report_has_no_secrets_and_detects_source_files():
 def test_colab_notebook_sends_real_max_rank_and_distinct_colab_state():
     nb=json.loads((ROOT/'notebooks/KCIA_Cloudflare_Mac_Colab.ipynb').read_text())
     body='\n'.join(''.join(c.get('source',[])) for c in nb['cells'])
-    assert "'--rank','32'" in body
-    assert "'--local-loha-rank','auto'" in body
+    # v130 delegates the signed room-mode trainer to the same tested launcher
+    # on both devices, rather than embedding an outdated argv in the notebook.
+    assert 'start_wan_pt.py' in body
     assert 'wan_preflight.py' in body
-    assert "--rounds" not in body or "'--rounds','12'" in body
     assert "private/colab.pem" in body
+    launcher=(ROOT/'scripts/start_wan_pt.py').read_text()
+    assert "'--rank','32','--local-loha-rank','auto'" in launcher
+    assert "'--reinit-every','20','--local-steps','4'" in launcher
+    assert "'--signing-key'" not in launcher
 
 
 def test_pilot_readme_separates_discovery_from_real_training_and_respects_20_4():

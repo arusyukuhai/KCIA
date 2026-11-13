@@ -5,7 +5,7 @@ import argparse
 import asyncio
 import json
 from urllib.parse import urlsplit, urlunsplit
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 
 
 def _health_url(ws: str) -> str:
@@ -22,11 +22,13 @@ async def probe(ws: str, *, timeout: float=12.0, expect_turn: bool=True) -> None
     health = _health_url(ws)
     # urllib is synchronous; execute off-loop so a local test server can respond.
     def request_health():
-        with urlopen(health,timeout=timeout) as response:
+        req = Request(health, headers={'User-Agent': 'KCIA-WAN-Pilot/1.0'})
+        with urlopen(req,timeout=timeout) as response:
             if response.status != 200 or json.load(response).get('ok') is not True:
                 raise RuntimeError('unhealthy signaling server')
     await asyncio.to_thread(request_health)
-    opts={'open_timeout':timeout,'max_size':200_000,'close_timeout':3}
+    opts={'open_timeout':timeout,'max_size':200_000,'close_timeout':3,
+          'user_agent_header':'KCIA-WAN-Pilot/1.0'}
     async with websockets.connect(ws, **opts) as a:
         await a.send(json.dumps({'type':'join','mode':'p2p','room':room}))
         first=json.loads(await asyncio.wait_for(a.recv(),timeout))

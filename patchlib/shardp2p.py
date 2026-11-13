@@ -41,7 +41,8 @@ async def _wait_buffer(channel, *, stall_seconds: float = 45.0):
     return await wait_send_window(channel,stall_seconds=stall_seconds)
 
 
-async def send_manifest(channel, payload: bytes, signer=None, on_progress=None):
+async def send_manifest(channel, payload: bytes, signer=None, on_progress=None,
+                        *, pacer=None, on_bytes=None):
     if not 0 < len(payload) <= MAX_SHARD_MANIFEST:
         raise PatchError('bad outgoing manifest')
     digest = hashlib.sha256(payload).hexdigest()
@@ -51,13 +52,17 @@ async def send_manifest(channel, payload: bytes, signer=None, on_progress=None):
     channel.send(ctrl('manifest-start',**start))
     for off in range(0,len(payload),CHUNK):
         await _wait_buffer(channel)
-        channel.send(payload[off:off+CHUNK])
+        piece=payload[off:off+CHUNK]
+        if pacer is not None: await pacer.pace(len(piece))
+        channel.send(piece)
+        if on_bytes: on_bytes(len(piece))
         if on_progress: on_progress()
     await _wait_buffer(channel)
     channel.send(ctrl('manifest-end',sha256=digest))
 
 
-async def send_shard(channel, store: Path, digest: str, size: int, on_progress=None):
+async def send_shard(channel, store: Path, digest: str, size: int, on_progress=None,
+                     *, pacer=None, on_bytes=None):
     path = _blob_path(store,digest)
     # Detect poisoned/corrupt local store before emitting even a header.
     # Hashing a 64 MiB shard can block SCTP keepalives if executed on the
@@ -68,7 +73,9 @@ async def send_shard(channel, store: Path, digest: str, size: int, on_progress=N
     with path.open('rb') as f:
         while data := f.read(CHUNK):
             await _wait_buffer(channel)
+            if pacer is not None: await pacer.pace(len(data))
             channel.send(data)
+            if on_bytes: on_bytes(len(data))
             if on_progress: on_progress()
     await _wait_buffer(channel)
     channel.send(ctrl('shard-end',sha256=digest))

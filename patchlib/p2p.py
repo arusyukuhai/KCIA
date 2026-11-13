@@ -26,6 +26,37 @@ CHUNK = 16 * 1024
 WINDOW = 256 * 1024
 
 
+class BulkPacer:
+    """Cooperative, bounded bandwidth pacing for large TURN/SCTP transfers.
+
+    A limit on bufferedAmount alone is not a network rate limit: a healthy local
+    SCTP queue can drain while the remote ICE consent requests are starved.
+    This pacer yields on EVERY frame, including when the send window is empty.
+    """
+
+    def __init__(self, mebibytes_per_second: float):
+        rate=float(mebibytes_per_second)
+        if not 0.125 <= rate <= 32.0:
+            raise ValueError('bulk transfer rate must be 0.125..32 MiB/s')
+        self.bytes_per_second=rate*1024*1024
+        self.next_at=0.0
+
+    async def pace(self, length: int):
+        loop=asyncio.get_running_loop()
+        now=loop.time()
+        self.next_at=max(now,self.next_at)+length/self.bytes_per_second
+        await asyncio.sleep(max(0.0,self.next_at-now))
+
+
+def bulk_rate(name: str, *, default: float = 1.0) -> BulkPacer:
+    """Per-process WAN tuning; avoid unbounded or zero-rate configuration."""
+    value=os.environ.get(name,str(default))
+    try:
+        return BulkPacer(float(value))
+    except ValueError as exc:
+        raise ValueError(f'{name} must be 0.125..32 MiB/s, got {value!r}') from exc
+
+
 async def wait_send_window(channel, *, stall_seconds: float = 45.0):
     """Event-driven SCTP flow control, with bounded fallback polling.
 
@@ -133,7 +164,8 @@ class FrameReceiver:
         return None
 
 
-async def transmit(channel, data: bytes, max_bytes: int = MAX_PATCH, signer=None):
+async def transmit(channel, data: bytes, max_bytes: int = MAX_PATCH, signer=None,
+                   *, pacer=None, pause_when=None):
     if not 0 < len(data) <= max_bytes:
         raise PatchError('patch too large')
     patch_id = secrets.token_hex(12)
@@ -145,11 +177,26 @@ async def transmit(channel, data: bytes, max_bytes: int = MAX_PATCH, signer=None
         digest = hashlib.sha256(data).hexdigest()
     head = {'v':1, 'type':'start', 'id':patch_id, 'size':len(data), 'sha256':digest}
     if signer is not None: head['sig'] = signer(len(data), digest)
+    # A snapshot gets priority over a potentially 158 MiB signed patch.
+    # Pausing between frames is safe: each patch DataChannel is ordered and
+    # keeps its existing signed frame boundaries.
+    async def defer_to_snapshot():
+        while pause_when is not None and pause_when():
+            if channel.readyState!='open':
+                raise ConnectionError('patch channel closed while snapshot has priority')
+            await asyncio.sleep(.05)
+
+    await defer_to_snapshot()
     channel.send(json.dumps(head))
     # SCTP messages are modestly sized for compatibility with browsers.
     for start in range(0, len(data), CHUNK):
+        await defer_to_snapshot()
         await wait_send_window(channel)
-        channel.send(data[start:start + CHUNK])
+        chunk=data[start:start + CHUNK]
+        if pacer is not None:
+            await pacer.pace(len(chunk))
+        channel.send(chunk)
+    await defer_to_snapshot()
     await wait_send_window(channel)
     channel.send(json.dumps({'v':1,'type':'end','id':patch_id}))
 
@@ -265,10 +312,52 @@ def _relay_only_sdp(sdp: str) -> str:
                    if not line.startswith('a=candidate:') or ' typ relay' in line)
 
 
+
+def _select_turn_transport(ice_servers: list, transport: str) -> list:
+    """Select one advertised TURN transport for aioice/aiortc.
+
+    aiortc chooses the first TURN URL and does NOT automatically try the
+    second on failure. Keep the default unchanged, but allow TCP-only
+    allocation (e.g. Colab where outgoing UDP is unavailable).
+    """
+    if transport not in ("auto", "udp", "tcp"):
+        raise ValueError("KCIA_TURN_TRANSPORT must be auto, udp, or tcp")
+    if transport == "auto":
+        return ice_servers
+    selected = []
+    found = False
+    for raw in ice_servers:
+        if not isinstance(raw, dict):
+            continue
+        old_urls = raw.get("urls", [])
+        urls = [old_urls] if isinstance(old_urls, str) else old_urls
+        if not isinstance(urls, list):
+            continue
+        chosen = []
+        for u in urls:
+            if not isinstance(u, str):
+                continue
+            if u.startswith(("stun:", "stuns:")):
+                chosen.append(u)
+            elif u.startswith("turn:"):
+                actual = "tcp" if "?transport=tcp" in u else "udp"
+                if actual == transport:
+                    chosen.append(u)
+                    found = True
+            elif u.startswith("turns:") and transport == "tcp":
+                chosen.append(u)
+                found = True
+        if chosen:
+            selected.append({**raw, "urls": chosen})
+    if not found:
+        raise ConnectionError(f"signaling server did not advertise TURN/{transport}")
+    return selected
+
 class PatchNode:
     def __init__(self, signal_url: str, room: str, token: str = '', *,
                  max_bytes: int = MAX_PATCH, turn_only: bool = False,
-                 state_dir: Path | None = None, signer=None, verifier=None):
+                 state_dir: Path | None = None, signer=None, verifier=None,
+                 turn_transport: str | None = None):
         if not (16 <= len(room) <= 64) or not all(c.isalnum() and c.isascii() or c in '_-' for c in room):
             raise ValueError('room must be 16-64 ASCII alphanumeric/_/- characters')
         if not signal_url.startswith(('wss://','ws://')):
@@ -276,6 +365,12 @@ class PatchNode:
         self.url, self.room, self.token = signal_url, room, token
         self.max_bytes = max_bytes
         self.turn_only = turn_only
+        # Set KCIA_TURN_TRANSPORT=tcp on restricted networks such as Colab.
+        # 'auto' preserves the existing advertised server order.
+        self.turn_transport = (turn_transport if turn_transport is not None else
+                               os.environ.get("KCIA_TURN_TRANSPORT", "auto")).lower()
+        if self.turn_transport not in ("auto", "udp", "tcp"):
+            raise ValueError("turn_transport must be auto, udp, or tcp")
         self.state_dir = Path(state_dir) if state_dir is not None else None
         self.signer, self.verifier = signer, verifier
         self.outgoing: asyncio.Queue[bytes | Path] = asyncio.Queue(maxsize=1)
@@ -419,7 +514,7 @@ class PatchNode:
         pc = None
         try:
             self.set_phase('signaling-connect')
-            async with websockets.connect(self.url, max_size=200_000,
+            async with websockets.connect(self.url, user_agent_header="KCIA-WAN-Client/1.0", max_size=200_000,
                                           open_timeout=10, close_timeout=4,
                                           **signaling_keepalive(self.url)) as ws:
                 self.set_phase('signaling-join')
@@ -428,7 +523,12 @@ class PatchNode:
                 if first.get('type') != 'joined':
                     raise ConnectionError('join failed: '+str(first))
                 servers = []
-                for raw in first.get('iceServers', []):
+                raw_ice_servers = first.get('iceServers', [])
+                if not isinstance(raw_ice_servers, list):
+                    raise ConnectionError('signaling server provided invalid iceServers')
+                raw_ice_servers = _select_turn_transport(raw_ice_servers, self.turn_transport)
+                log.info('P2P ICE TURN transport=%s room=%s', self.turn_transport, self.room)
+                for raw in raw_ice_servers:
                     urls = raw.get('urls', [])
                     if isinstance(urls, str): urls = [urls]
                     servers.append(RTCIceServer(urls=urls, username=raw.get('username'),

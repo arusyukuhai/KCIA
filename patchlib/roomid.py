@@ -217,7 +217,7 @@ class RoomDiscovery:
               if stop.is_set(): break
               try:
                 connected_at=None
-                async with websockets.connect(url,max_size=65536,open_timeout=8,
+                async with websockets.connect(url,user_agent_header="KCIA-WAN-Client/1.0",max_size=65536,open_timeout=8,
                                               **signaling_keepalive(url)) as ws:
                     self.active_url=url
                     # Each reconnection establishes a fresh authoritative view.
@@ -307,7 +307,7 @@ async def fetch_room_manifest(ws_url: str, room: str, token: str='', *, timeout:
     # Never use a temporary group-join for a metadata lookup: it marks the room
     # as previously inhabited on Mummy and can permanently prevent the first
     # real participant from becoming its snapshot-serving genesis founder.
-    async with websockets.connect(ws_url,max_size=65536,open_timeout=timeout) as ws:
+    async with websockets.connect(ws_url,user_agent_header="KCIA-WAN-Client/1.0",max_size=65536,open_timeout=timeout) as ws:
         await ws.send(json.dumps({'type':'group-describe','room':room,'token':token}))
         reply=json.loads(await asyncio.wait_for(ws.recv(),timeout=timeout))
         if reply.get('type') != 'room-description':
@@ -336,7 +336,7 @@ def list_public_rooms(ws_url: str, *, timeout=5.0) -> list[dict]:
     """Bounded, read-only public registry; no code execution or data downloads."""
     import urllib.request
     url=public_room_endpoint(ws_url)
-    with urllib.request.urlopen(url, timeout=timeout) as response:
+    with urllib.request.urlopen(urllib.request.Request(url,headers={"User-Agent":"KCIA-WAN-Client/1.0"}), timeout=timeout) as response:
         if response.status != 200:
             raise ConnectionError('directory responded with status '+str(response.status))
         if response.headers.get('Content-Length') and int(response.headers['Content-Length']) > 256*1024:
@@ -371,7 +371,7 @@ async def register_room_manifest(ws_url: str, room: str, manifest: dict, *,
     public_room_endpoint(ws_url)  # also enforces TLS for remote hosts
     payload={'type':'room-register','room':room,'manifest':manifest,'publish':bool(publish)}
     if token: payload['token']=token
-    async with websockets.connect(ws_url,max_size=65536,open_timeout=timeout) as ws:
+    async with websockets.connect(ws_url,user_agent_header="KCIA-WAN-Client/1.0",max_size=65536,open_timeout=timeout) as ws:
         await ws.send(json.dumps(payload,separators=(',',':')))
         reply=json.loads(await asyncio.wait_for(ws.recv(),timeout))
     if reply.get('type')!='room-registered' or reply.get('room')!=room:

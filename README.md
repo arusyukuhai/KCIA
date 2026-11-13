@@ -1,3 +1,9 @@
+> **KCIA v132: WANスナップショット安定化** — 詳細は [README_V132_SNAPSHOT_WAN_JA.md](README_V132_SNAPSHOT_WAN_JA.md) を参照。
+
+# KCIA v130 — Mac + Colab live training pilot
+
+[今すぐ学習を開始](README_TRAIN_NOW_JA.md) / [WAN接続準備](README_WAN_PILOT_JA.md)
+
 # KCIA v129 — WAN pilot preparation
 
 VPS + Cloudflare + Mac + Colab の実機接続は [README_WAN_PILOT_JA.md](README_WAN_PILOT_JA.md) から開始してください。v128の学習プロトコルは変更していません。

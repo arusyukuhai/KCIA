@@ -1,0 +1,10 @@
+A distributed model learns from data kept on independent computers.
+The Mac worker computes a local language-modeling loss and an adapter update.
+Signed updates are shared with participants through encrypted peer-to-peer channels.
+Every client keeps a durable journal and cryptographic identity.
+The LoHA factor rank may be smaller on a CPU than on a GPU.
+A healthy control plane helps peers find each other, but does not perform training.
+The room manifest pins the model and configuration for reproducible experiments.
+When a remote peer joins, the gossip process should exchange missing updates.
+An immutable initial checkpoint helps every participant validate the same baseline.
+A successful test records loss values and confirms at least one remote update.

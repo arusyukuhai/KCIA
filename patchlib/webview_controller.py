@@ -129,7 +129,7 @@ class WebviewController:
         ws = check_signaling_url(payload.get('ws') or self._signaling_url())
         import websockets
         async def handshake():
-            async with websockets.connect(ws, max_size=65536, open_timeout=6, close_timeout=3) as conn:
+            async with websockets.connect(ws, user_agent_header="KCIA-WAN-Client/1.0", max_size=65536, open_timeout=6, close_timeout=3) as conn:
                 await conn.send(json.dumps({'type':'ping'}))
                 reply = json.loads(await asyncio.wait_for(conn.recv(), timeout=6))
                 if reply.get('type') != 'pong':
