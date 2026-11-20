@@ -1,3 +1,5 @@
+- [v137 品質監査とボトルネック修正](../README_V137_AUDIT_JA.md)
+- [v136以前の統合リリース履歴](releases/RELEASE_HISTORY_PRE_V137.md)
 # KCIA ドキュメント索引
 
 - [v114 GUI作成修正・HFモデルピッカー・ロゴ](releases/README_V114_GUI_CREATION_MODEL_PICKER_JA.md)

@@ -14,7 +14,6 @@ import time
 import secrets
 import os
 import tempfile
-from dataclasses import dataclass
 from pathlib import Path
 
 from .core import MAX_PATCH, PatchError, decode_patch
@@ -364,7 +363,14 @@ class PatchNode:
             raise ValueError('signaling URL must be ws:// or wss://')
         self.url, self.room, self.token = signal_url, room, token
         self.max_bytes = max_bytes
-        self.turn_only = turn_only
+        # WAN pilot can require relay candidates without changing the shared
+        # train-live CLI. Keep the normal P2P path unchanged unless explicitly
+        # requested. Invalid values fail closed rather than silently using a
+        # different transport from the one being diagnosed.
+        relay_flag = os.environ.get('KCIA_FORCE_TURN_RELAY', '0').strip().lower()
+        if relay_flag not in ('0', '1', 'false', 'true'):
+            raise ValueError('KCIA_FORCE_TURN_RELAY must be 0/1 or false/true')
+        self.turn_only = bool(turn_only) or relay_flag in ('1', 'true')
         # Set KCIA_TURN_TRANSPORT=tcp on restricted networks such as Colab.
         # 'auto' preserves the existing advertised server order.
         self.turn_transport = (turn_transport if turn_transport is not None else
@@ -527,7 +533,8 @@ class PatchNode:
                 if not isinstance(raw_ice_servers, list):
                     raise ConnectionError('signaling server provided invalid iceServers')
                 raw_ice_servers = _select_turn_transport(raw_ice_servers, self.turn_transport)
-                log.info('P2P ICE TURN transport=%s room=%s', self.turn_transport, self.room)
+                log.info('P2P ICE TURN transport=%s relay_only=%s room=%s',
+                         self.turn_transport, self.turn_only, self.room)
                 for raw in raw_ice_servers:
                     urls = raw.get('urls', [])
                     if isinstance(urls, str): urls = [urls]

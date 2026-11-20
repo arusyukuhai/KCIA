@@ -7,6 +7,7 @@ import base64
 import hashlib
 import json
 import logging
+import math
 import os
 import re
 import secrets
@@ -30,9 +31,9 @@ from .p2p import FrameReceiver, PatchNode, WINDOW, transmit, bulk_rate
 
 log = logging.getLogger('kcia.elastic')
 from .elastic_control_v110 import (
-    CTRL_VERSION, CTRL_MAX, INVENTORY_PAGE, HandshakeError,
+    CTRL_MAX, INVENTORY_PAGE, HandshakeError,
     REQUEST_PAGE, REQUEST_BACKLOG_LIMIT, FRONTIER_WINDOW,
-    FRONTIER_ORIGIN_LIMIT, FRONTIER_PAGE_SIZE, FRONTIER_KNOWN_ORIGINS_LIMIT,
+    FRONTIER_PAGE_SIZE, FRONTIER_KNOWN_ORIGINS_LIMIT,
     FRONTIER_PENDING_LIMIT, PUSH_FANOUT_DEFAULT, NEED_IN_FLIGHT_RETRY_SECONDS,
     frontier_advertisement_delay, inventory_cycle_delay,
     frontier_advertisement_page, selective_push_targets,
@@ -884,6 +885,30 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
     """
     from .mps_runtime_v91 import model_task, execution_device
     from .mps_policy_v92 import guard_training_devices
+    # Set per-worker ICE preferences before constructing any PatchNode.
+    # Production GUI defaults to the verified auto candidate selection.
+    if getattr(args,'turn_transport',None) is not None:
+        os.environ['KCIA_TURN_TRANSPORT']=args.turn_transport
+    if getattr(args,'relay_only',None) is not None:
+        os.environ['KCIA_FORCE_TURN_RELAY']='1' if args.relay_only else '0'
+    snapshot_priority=getattr(args,'snapshot_priority',None)
+    if snapshot_priority is not None:
+        os.environ['KCIA_SNAPSHOT_PRIORITY']='1' if snapshot_priority=='snapshot' else '0'
+    min_publish=getattr(args,'min_publish_steps',0)
+    if type(min_publish) is not int or not 0 <= min_publish <= 10000:
+        raise ValueError('--min-publish-steps must be 0..10000')
+    if min_publish:
+        args.local_steps=max(args.local_steps,min_publish)
+    if (not math.isfinite(getattr(args,'bandit_wire_cost',.08)) or
+        not 0 <= getattr(args,'bandit_wire_cost',.08) <= 10 or
+        not math.isfinite(getattr(args,'bandit_exploration',.04)) or
+        not 0 <= getattr(args,'bandit_exploration',.04) <= 1):
+        raise ValueError('invalid WAN online bandit settings')
+    print('KCIA GUI WAN policy: publish_floor=%d snapshot_priority=%s '
+          'turn_transport=%s relay_only=%s' % (
+              min_publish, snapshot_priority or ('snapshot' if os.environ.get('KCIA_SNAPSHOT_PRIORITY')=='1' else 'training'),
+              os.environ.get('KCIA_TURN_TRANSPORT','auto'),
+              os.environ.get('KCIA_FORCE_TURN_RELAY','0')),flush=True)
     guard_training_devices(args)
     # Device placement is a LOCAL runtime preference, not an immutable room
     # objective. Report effective Actor placement before any HF downloads.
@@ -962,7 +987,7 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
         args.grad_accum=max(args.grad_accum,policy.grad_accum)
         args.gradient_checkpointing |= policy.gradient_checkpointing
         args.wire_dtype=policy.wire_dtype
-        args.local_steps=min(getattr(args,'max_sync_steps',64),policy.local_steps)
+        args.local_steps=max(min_publish,min(getattr(args,'max_sync_steps',64),policy.local_steps))
         print('adaptive local policy:',json.dumps(policy.json()),flush=True)
 
     room_manifest=None
@@ -1078,6 +1103,32 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
     # v92: build on the *same* GPU worker as training, never create Metal
     # tensors on the asyncio thread then move execution to another thread.
     model,adapter=await model_task(load_model,args,device=execution_device(args))
+    # Count parameters without materializing large disk-backed frozen tensors.
+    # The result never enters genesis; WAN cadence is purely a local setting.
+    from .wan_cadence_v138 import recommend_steps as _wan_recommend
+    _wan_cadence_enabled=bool(getattr(args,'auto_model_cadence',False))
+    _wan_bandit_enabled=_wan_cadence_enabled and getattr(args,'cost_bandit',True)
+    _wan_parameter_count=(sum(p.numel() for p in model.parameters())
+                          if _wan_cadence_enabled else 0)
+    _wan_baseline=max(args.local_steps,int(getattr(args,'min_publish_steps',0)))
+    _wan_cadence_target=(_wan_recommend(parameters=_wan_parameter_count,
+                        baseline=_wan_baseline,maximum=max(1024,_wan_baseline))
+                         if _wan_cadence_enabled else 0)
+    _wan_bandit=None
+    if _wan_bandit_enabled:
+        from .wan_bandit_v139 import WanCostBandit
+        _wan_bandit=WanCostBandit(
+            baseline=_wan_cadence_target,ceiling=max(1024,_wan_cadence_target),
+            wire_cost=getattr(args,'bandit_wire_cost',.08),
+            exploration=getattr(args,'bandit_exploration',.04),
+            path=Path(str(args.journal)+'.wan-bandit-v139.json'))
+        _wan_cadence_target=_wan_bandit.selected
+        print('KCIA WAN COST BANDIT active base=%d selected=%d trials=%d cost_per_MiB_step=%.3g'
+              % (_wan_bandit.baseline,_wan_bandit.selected,_wan_bandit.samples,
+                 _wan_bandit.wire_cost),flush=True)
+    if _wan_cadence_enabled:
+        print(f'KCIA WAN AUTO CADENCE parameters={_wan_parameter_count} '
+              f'initial_steps={_wan_cadence_target} base={_wan_baseline}',flush=True)
     genesis_input={'model_id':adapter.model_id,'revision':adapter.revision,
                    'layout':adapter.layout,'kind':adapter.kind,'rank':adapter.rank,
                    'alpha':adapter.alpha}
@@ -1206,7 +1257,7 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
         print(f'CERTIFIED EPOCH RECOVERY epoch={epoch_boot.epoch} '
               f'manifest={epoch_boot.manifest_hash[:16]} ',flush=True)
     journal_path=epoch_boot.journal_path if epoch_boot else Path(args.journal)
-    from .snapshot_live import journal_tip, snapshot_inventory
+    from .snapshot_live import snapshot_inventory
     snapshot_root=Path(str(args.journal)+'.snapshots')
     snapshot_store=snapshot_root/'objects'
     # V86: outgoing exports are disposable, never mixed with verified incoming
@@ -1378,7 +1429,6 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
         # Stable PUBLIC keys can be pre-pinned. An offline validator need not
         # join WebRTC just to make its past signatures verifiable. Identity
         # derives from Ed25519, never from a user-supplied display label.
-        from .identity import verifier_from_pem as _verifier_from_file
         for committee_peer,pem in committee_keys.items():
             pub=load_pem_public_key(pem)
             store_pin(committee_peer,pem,make_verifier(pub))
@@ -1510,7 +1560,7 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
             muon_momentum=getattr(args,'muon_momentum',.9))
     optimizer=new_optimizer()
     optimizer.zero_grad(set_to_none=True)
-    from .localprogress import restore_working, save_working, snapshot_path, AsyncWorkingSaver
+    from .localprogress import restore_working, save_working, AsyncWorkingSaver
     from .paired_checkpoint_v75 import AsyncPairedSaver, snapshot_path as paired_path
     from .paired_recovery_v76 import recover as recover_paired_v76
     from .hf_mixed_datasets_v68 import source_selected as _v75_has_source
@@ -1656,6 +1706,9 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
     last_local_lock_ms=0.0
     last_local_stages_ms=(0.0,0.0,0.0,0.0)
     last_working_save_ms=0.0
+    if _wan_bandit is not None:
+        from .wan_bandit_v139 import WireEgressTracker
+        wire_egress_tracker=WireEgressTracker()
     def record_telemetry(state='training', force=False):
         telemetry.record(steps=total_steps,loss=recent_loss,emitted=emitted,
             inbound_applied=inbound_pipeline.applied,
@@ -1677,9 +1730,15 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
             local_journal_ms=last_local_stages_ms[2],
             local_apply_ms=last_local_stages_ms[3],
             working_save_ms=working_saver.disk_ms,
-            publish_steps=(adaptive_publish_steps(args.local_steps,living_count(),
-                           max_steps=getattr(args,'max_sync_steps',64))
-                           if getattr(args,'adaptive_sync',True) else args.local_steps),
+            publish_steps=max(
+                (adaptive_publish_steps(args.local_steps,living_count(),
+                 max_steps=getattr(args,'max_sync_steps',64))
+                 if getattr(args,'adaptive_sync',True) else args.local_steps),
+                _wan_cadence_target),
+            bandit_trials=(_wan_bandit.samples if _wan_bandit else 0),
+            bandit_gain_per_1000=(_wan_bandit.last_improvement if _wan_bandit else None),
+            bandit_signed_mib_per_step=(_wan_bandit.last_wire_per_step if _wan_bandit else None),
+            bandit_net_utility=(_wan_bandit.last_utility if _wan_bandit else None),
             aggregation_events=inbound_pipeline.aggregate_events,
             aggregation_batches=inbound_pipeline.aggregate_batches,
             aggregation_saved_mib=sum(s.node.aggregate_bytes_avoided for s in slots.values()
@@ -1813,9 +1872,9 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
         # updates; signed frontier/NEED inventory performs lossless repair.
         # Exact replicas still eventually require each original event, so this
         # avoids redundant uploads rather than claiming sublinear information.
-        eligible={slot.peer:slot for slot in slots.values()
-                  if slot.node and slot.node.connected.is_set() and
-                  not getattr(slot.node,'bridge_only',False) and not slot.disabled}
+        from .wan_bandit_v139 import eligible_live_push_slots
+        eligible=eligible_live_push_slots(
+            slots,now=time.monotonic(),peer_timeout=args.peer_timeout)
         fanout_limit=getattr(args,'push_fanout',PUSH_FANOUT_DEFAULT)
         seed=hashlib.blake2b(wire[:1024],digest_size=16).digest()
         chosen=selective_push_targets(args.peer_id,eligible,
@@ -1834,6 +1893,7 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
 
     async def seal_if_needed():
         nonlocal local_steps,emitted,optimizer,last_local_seal_ms,last_local_lock_ms,last_local_stages_ms,last_working_save_ms
+        nonlocal _wan_cadence_target
         if not local_steps: return
         # Only unfinished accumulation needs one final optimizer step.
         if pending[0]:
@@ -1851,7 +1911,43 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
                                                     max_wire_bytes=args.max_patch_mb*1024**2)
         last_local_seal_ms=(time.monotonic()-seal_started)*1000
         last_local_stages_ms=getattr(engine,'last_local_seal_stages_ms',(0.0,0.0,0.0,0.0))
+        block_steps=local_steps
         emitted+=1;local_steps=0
+        if _wan_bandit is not None:
+            # Only count live, authenticated, ready recipients up to the
+            # actual push fanout. A room with 8 neighbors but push_fanout=2
+            # must NOT be charged for eight copies of every giant LoHA event.
+            from .wan_bandit_v139 import live_push_recipients
+            connected=live_push_recipients(
+                slots,fanout=getattr(args,'push_fanout',PUSH_FANOUT_DEFAULT),
+                now=time.monotonic(),peer_timeout=args.peer_timeout)
+            # Handle RTC channel replacement/disconnect without losing the
+            # original node's traffic or treating its counters as zero.
+            observed_egress=wire_egress_tracker.poll(slots)
+            valid=_wan_bandit.observe(steps=block_steps,signed_bytes=len(wire),
+                                      inbound_applied=inbound_pipeline.applied,
+                                      recipients=connected,
+                                      measured_egress_bytes=observed_egress)
+            next_steps=_wan_bandit.selected
+            if next_steps!=_wan_cadence_target:
+                print(f'KCIA WAN BANDIT updated_steps={next_steps} '
+                      f'previous={_wan_cadence_target} trials={_wan_bandit.samples} '
+                      f'loss_gain_per_1000={_wan_bandit.last_improvement} '
+                      f'signed_patch_mib={len(wire)/(1024**2):.2f} '
+                      f'estimated_utility={_wan_bandit.last_prediction}',flush=True)
+            _wan_cadence_target=next_steps
+            if emitted%5==0:
+                print(f'KCIA WAN BANDIT status steps={_wan_cadence_target} '
+                      f'valid_observation={valid} samples={_wan_bandit.samples} '
+                      f'patch_mib={len(wire)/(1024**2):.2f}',flush=True)
+        elif _wan_cadence_enabled:
+            new_target=_wan_recommend(parameters=_wan_parameter_count,
+                        observed_patch_bytes=len(wire),baseline=_wan_baseline,
+                        maximum=max(1024,_wan_baseline))
+            if new_target!=_wan_cadence_target:
+                print(f'KCIA WAN AUTO CADENCE updated_steps={new_target} '
+                      f'patch_bytes={len(wire)} previous={_wan_cadence_target}',flush=True)
+            _wan_cadence_target=new_target
         if engine.should_reinitialize(emitted):
             # _apply_checked committed delta and deterministically refreshed
             # local factors+anchors as part of this durable signed event.
@@ -1915,6 +2011,11 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
 
     pending=[0]
     last_autosave_resume_attempt = [float('-inf')]
+    # WAN pilot: keep an immutable snapshot offer across transient ICE drops.
+    # Previously the connection-only hold resumed training as soon as SCTP
+    # closed, changing the signed event frontier on every retry and defeating
+    # content-addressed shard reuse. Bounded pilot-only lease (15 minutes).
+    snapshot_pilot_holds: dict[str, float] = {}
 
     async def maybe_materialize_resume_periodically(*, pressure_hold=False):
         """Persist remote/carry-only progress, even with ZERO local seals.
@@ -2159,7 +2260,6 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
         async with inbound_commit_lock:
             tip,count,cutoffs=snapshot_inventory(journal)
             from .shards import export_state_sharded
-            from .shards import manifest_bytes
             # Include the snapshot shard layout in the immutable offer name.
             # Upgrading a v131 room from 4 MiB to 2 MiB shards must not reuse
             # an old 4 MiB manifest for the SAME signed event frontier.
@@ -2195,6 +2295,8 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
             print(f'SNAPSHOT TIP BACKPRESSURE peer={slot.peer}: retry pending',flush=True)
             return False
         node.snapshot_link.offer(path,signer)
+        if os.environ.get('KCIA_SNAPSHOT_PRIORITY','0') == '1':
+            snapshot_pilot_holds.setdefault(slot.peer,loop.time())
         node.control('snapshot-status', request_id=node.snapshot_pending_id,
                      stage='offered')
         node.snapshot_tx_stage='offered'
@@ -2599,7 +2701,7 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
     # checkpoint shards simply defer adoption, without a fabricated vote.
     from .epoch_hot_swap_v45 import TrainerGeneration,TrainerStepRouter
     from .live_epoch_switch_v48 import (LiveEpochSwitchService,PreparedEpoch,
-                                        certified_genesis,verify_candidate_files)
+                                        certified_genesis)
     from .epoch_local_stage_v53 import stage_verified_local_view
     from .epoch_live_rebase_v52 import StreamingCertifiedRebase
     from .epoch_carry_v46 import CrossEpochCarryArchive
@@ -2861,8 +2963,7 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
         nonlocal optimizer, initial_complete
         if bootstrap.snapshot_installed or not bootstrap.fresh_join:
             return
-        from .shards import assemble_state,read_manifest
-        from .state import apply_effective_state
+        from .shards import read_manifest
         for peer,manifest in list(received_snapshots.items()):
             tip=snapshot_tips.get(peer)
             if tip is None:continue
@@ -3560,7 +3661,7 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
                     node.retry_missing(now)
             if controller is not None:
                 # Only mutate safe runtime pacing. Patch rank/layout never change.
-                args.local_steps=min(getattr(args,'max_sync_steps',64),controller.tune(timeout=args.peer_timeout).local_steps)
+                args.local_steps=max(min_publish,min(getattr(args,'max_sync_steps',64),controller.tune(timeout=args.peer_timeout).local_steps))
             await maybe_checkpoint()
             # Remote-only / carry-only rooms would not hit the local-seal
             # snapshot counter. Persist a dual-lane checkpoint periodically.
@@ -3835,17 +3936,33 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
             # Network receiving, verified snapshot serving and epoch housekeeping
             # all ran above this branch. This only defers NEW optimizer steps.
             if os.environ.get('KCIA_SNAPSHOT_PRIORITY','0') == '1':
+                # A completed shard transfer is acknowledged by the receiver.
+                # Only that authenticated ACK releases the cross-reconnect
+                # freeze; losing the SCTP channel must NOT change the offer.
+                for peer, started in list(snapshot_pilot_holds.items()):
+                    ps=slots.get(peer)
+                    if (ps is not None and ps.node is not None and
+                            ps.node.snapshot_link is not None and
+                            ps.node.snapshot_link.session.acked_local):
+                        del snapshot_pilot_holds[peer]
+                        print(f'SNAPSHOT PRIORITY RELEASE peer={peer} '
+                              'receiver acknowledged full snapshot',flush=True)
+                    elif now-started>=900.0:
+                        del snapshot_pilot_holds[peer]
+                        print(f'SNAPSHOT PRIORITY EXPIRED peer={peer} '
+                              '15-minute pilot freeze limit; local training resumes',flush=True)
                 serving=[s for s in slots.values()
                          if (not s.disabled and s.node is not None and
                              s.node.snapshot_link is not None and
                              s.node.snapshot_link.bulk_transfer_active)]
-                if serving:
+                if serving or snapshot_pilot_holds:
                     if local_steps:
                         await seal_if_needed()
                         nonlocal_optimizer[0]=optimizer
                     if now-last_snapshot_priority_report>=10.0:
                         print(f'SNAPSHOT PRIORITY HOLD peer={args.peer_id} '
                               f'active_transfers={len(serving)} '
+                              f'pending_reconnects={len(snapshot_pilot_holds)} '
                               f'journal_events={journal.count()} '
                               'optimizer steps temporarily paused',flush=True)
                         last_snapshot_priority_report=now
@@ -3856,6 +3973,9 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
                 last_free_disk_check=loop.time()
                 require_space(journal.path, reserve_mib=getattr(args,'min_free_disk_mib',1024),
                               action='next optimizer training step')
+            # Training wall time excludes idle network/snapshot waits from
+            # the published cumulative training-hours metric.
+            training_block_started=time.monotonic()
             if trajectory_gossip is not None:
                 # Each receiver chooses its own CURRENT target Actor and
                 # independently evaluates the signed sample. No sender Critic
@@ -3922,6 +4042,8 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
                 loss=await run_step_offloop(run_step,model,adapter,optimizer,batch_iter,args)
             local_steps+=1; pending[0]+=1; recent_loss=loss
             total_steps+=1
+            if _wan_bandit is not None:
+                _wan_bandit.step(loss,inbound_applied=inbound_pipeline.applied)
             record_telemetry()
             if pending[0]>=args.grad_accum:
                 def advance_optimizer():
@@ -3931,11 +4053,15 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
                         optimizer.step();optimizer.zero_grad(set_to_none=True)
                 await model_task(advance_optimizer,device=execution_device(args),model=model)
                 pending[0]=0
+            if lobby is not None:
+                lobby.note_training(time.monotonic()-training_block_started)
             # Durable local-only adapter+AdamW state: an abrupt process death
             # must not reset every unsealed optimizer step to genesis.
             publish_target=(adaptive_publish_steps(args.local_steps,living_count(),
                             max_steps=getattr(args,'max_sync_steps',64))
                             if getattr(args,'adaptive_sync',True) else args.local_steps)
+            if _wan_cadence_enabled:
+                publish_target=max(publish_target,_wan_cadence_target)
             if (pending[0] == 0 and local_steps < publish_target
                 and getattr(args,'durable_every',4)
                 and local_steps % getattr(args,'durable_every',4) == 0):
@@ -3967,6 +4093,8 @@ async def train_elastic(args, *, load_model:Callable, training_batches:Callable,
                       f'active={active_count()} living={living_count()} '
                       f'async_inbound={inbound_pipeline.queue.qsize()} applied={inbound_pipeline.applied} '
                       f'channels={channels} authed={authed} synced={synced_count()} '
+                      f'publish_target={publish_target} grad_accum={args.grad_accum} '
+                      f'local_minibatches_total={total_steps} '
                       f'peer={args.peer_id}',flush=True)
                 ppo_metrics=getattr(args,'_v65_ppo_metrics',None)
                 if isinstance(ppo_metrics,dict):

@@ -46,8 +46,8 @@ def test_reader_ignores_partial_lines_and_keeps_recent_samples(tmp_path):
     assert results[0]['steps']==480 and results[-1]['steps']==499
     with path.open('ab') as f:
         f.write(b'\n')
-    # Malformed trailing line ignored.
-    assert recent_samples(path,max_samples=1)==[]
+    # Malformed trailing line ignored, but never hide the last valid point.
+    assert [r['steps'] for r in recent_samples(path,max_samples=1)] == [499]
 
 
 def test_empty_and_short_reads(tmp_path):

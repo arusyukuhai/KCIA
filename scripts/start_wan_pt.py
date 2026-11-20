@@ -42,10 +42,12 @@ def make_command(a):
          '--auto-state','--state-base',str(state/'genesis.fstate'),
          '--text-file',str(data),'--journal',str(state/'events.sqlite3'),
          '--kind','loha','--rank','32','--local-loha-rank','auto',
-         '--reinit-every','20','--local-steps','4',
+         # One signed publication per 32 local minibatches (formerly 4).
+         # ReLoRA every 20 signed events remains pinned to the room's genesis.
+         '--reinit-every','20','--local-steps',str(getattr(a,'local_steps',32)),
          '--device',device,'--batch-size','1','--max-length','64',
          '--rounds',str(a.rounds),'--lr','0.0001',
-         '--shard-mb',str(a.snapshot_shard_mb)]
+         '--shard-mb',str(getattr(a,'snapshot_shard_mb',1))]
     # Mac CPU smoke test must not be silently switched to MPS by adaptive tuning.
     if device=='cpu':cmd+=['--no-auto-tune']
     return cmd
@@ -61,8 +63,12 @@ def main(argv=None):
     run.add_argument('--ws',default=WS)
     run.add_argument('--device',choices=('cpu','cuda','mps'),default=None)
     run.add_argument('--rounds',type=int,default=0,help='0 keeps training until manually stopped')
-    run.add_argument('--snapshot-shard-mb',type=int,default=2,
-                     help='Full-snapshot shard size in MiB (1..64); 2 MiB improves reconnect resume')
+    run.add_argument('--local-steps',type=int,default=32,
+                     help='Local minibatches per signed publication (default: 32; old pilot: 4)')
+    run.add_argument('--snapshot-priority',choices=['training','snapshot'],default='training',
+                     help='Training continues while sending a verified snapshot; snapshot=old pause behavior')
+    run.add_argument('--snapshot-shard-mb',type=int,default=1,
+                     help='Full-snapshot shard size in MiB (1..64); 1 MiB can complete before a 40s WAN disconnect')
     run.add_argument('--dry-run',action='store_true')
     a=ap.parse_args(argv)
     if a.cmd=='prepare':
@@ -76,6 +82,8 @@ def main(argv=None):
         print('COPY room_id AND revision to Colab. Never share signing private keys.')
         return 0
     if a.rounds<0:ap.error('--rounds must be >= 0')
+    if not 4<=a.local_steps<=64 or a.local_steps % 4:
+        ap.error('--local-steps must be a multiple of 4 from 4 to 64')
     if not 1<=a.snapshot_shard_mb<=64:ap.error('--snapshot-shard-mb must be 1..64')
     try:cmd=make_command(a)
     except ValueError as e:ap.error(str(e))
@@ -97,10 +105,23 @@ def main(argv=None):
     print('Press Ctrl-C after both peers connect, exchange updates, and record loss. Keep your wan_state folder.',flush=True)
     try:
         env=os.environ.copy()
-        # Pilot nodes prioritize a joining peer's verified full snapshot over
-        # local steps that would fill the journal before the join completes.
-        # Production train-live remains unchanged unless explicitly enabled.
-        env.setdefault('KCIA_SNAPSHOT_PRIORITY','1')
+        # Protocol-safe tradeoff: prioritize local optimization, not a global
+        # optimizer freeze lasting an entire 326 MiB snapshot transfer. The
+        # snapshot's signed frontier still defines the immutable base; subsequent
+        # signed events are reconciled as a suffix. The existing patch sender
+        # defers large patch frames while its snapshot DataChannel is active.
+        # Explicit --snapshot-priority snapshot restores the old conservative
+        # pause if the WAN link cannot sustain compute and snapshot together.
+        env['KCIA_SNAPSHOT_PRIORITY']='1' if a.snapshot_priority=='snapshot' else '0'
+        # 'auto + no relay-only' is the last field-proven ICE mode for both
+        # Mac/Colab; do NOT force TURN/TCP by default (v133 regression).
+        env.setdefault('KCIA_TURN_TRANSPORT','auto')
+        env.setdefault('KCIA_FORCE_TURN_RELAY','0')
+        print('KCIA WAN ICE route:', env['KCIA_TURN_TRANSPORT'],
+              'relay_only='+env['KCIA_FORCE_TURN_RELAY'],flush=True)
+        print(f'KCIA TRAIN cadence local_minibatches_per_event={a.local_steps} '
+              f'reinit_every_events=20 approx_minibatches_per_refresh={a.local_steps*20} '
+              f'snapshot_priority={a.snapshot_priority}',flush=True)
         return subprocess.call(cmd,cwd=ROOT,env=env)
     except KeyboardInterrupt:
         return 130

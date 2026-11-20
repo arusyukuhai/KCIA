@@ -1,7 +1,7 @@
 ## WebRTC signaling + TURN ephemeral credentials, with optional native endpoint.
 ## Usage: nim c -d:release --threads:on --mm:orc -r src/main.nim
 import mummy, mummy/routers
-import std/[json, locks, tables, strutils, algorithm, sequtils, times, os, base64, openssl]
+import std/[json, locks, tables, sets, strutils, algorithm, sequtils, times, os, base64, openssl]
 when defined(rtcNative):
   import rtc_native
 
@@ -14,6 +14,10 @@ const MaxGroups = 1024
 const MaxGroupMembers = 4096
 const MaxStoredRooms = 4096
 const MaxListedRooms = 256
+# Bound in-memory / serialized directory accounting per room. These are
+# pseudonymous signing-peer identifiers, NOT verified human identities.
+const MaxMetricPeers = 65536
+const MaxMetricRuns = 65536
 # Each peer consumes one lobby WS plus up to 8 transient pair signaling WS.
 # The operator must configure OS file descriptors/RAM for this many sockets.
 const MaxClients = 65536
@@ -21,6 +25,12 @@ const MaxWsMessageBytes = 140_000
 const MaxRoomManifestBytes = 16384
 const MaxMessagesPerTenSeconds = 80
 const MaxBytesPerTenSeconds = 512_000
+
+type UsageRun = tuple[ms: int64, at: int64]
+type RoomUsage = object
+  peers: HashSet[string]
+  runs: Table[string, UsageRun]
+  computeMs: int64
 
 type RateState = object
   since: float
@@ -32,6 +42,8 @@ type Client = object
   native: bool
   group: bool
   peerId: string
+  joinedAt: int64
+  trainingRun: string
   when defined(rtcNative):
     session: NativeSession
 
@@ -48,6 +60,8 @@ var roomPublished = initTable[string, bool]()
 var roomCreated = initTable[string, int64]()
 var roomEverJoined = initTable[string, bool]()
 var rates = initTable[WebSocket, RateState]()
+var roomUsage = initTable[string, RoomUsage]()
+var roomUsageLastSaved = initTable[string, int64]()
 
 let allowedOrigin = getEnv("ALLOWED_ORIGIN")
 let turnSecret = getEnv("TURN_SECRET")
@@ -185,6 +199,82 @@ proc loadRoomDirectory() =
                            record["created_at"].getInt().int64 else: 0'i64)
     except CatchableError:
       discard  # Do not crash the signaling service on a corrupt metadata file.
+
+proc emptyUsage(): RoomUsage =
+  result.peers = initHashSet[string]()
+  result.runs = initTable[string, UsageRun]()
+  result.computeMs = 0
+
+proc usagePath(room: string): string = roomDataDir / "_usage" / (room & ".json")
+
+proc persistUsage(room: string): bool =
+  # A separate private mutable file: NEVER alter immutable signed room
+  # manifests or publish private room IDs through the directory endpoint.
+  if not validRoom(room) or room notin roomUsage: return false
+  try:
+    let folder = roomDataDir / "_usage"
+    createDir(roomDataDir)
+    createDir(folder)
+    setFilePermissions(folder,{fpUserRead,fpUserWrite,fpUserExec})
+    let usage = roomUsage[room]
+    var peers = newJArray()
+    for peer in usage.peers.items: peers.add(%peer)
+    var runs = newJObject()
+    for key,entry in usage.runs.pairs:
+      runs[key] = %*{"ms":entry.ms,"at":entry.at}
+    let record = %*{"version":1,"room":room,"peers":peers,
+                    "compute_ms":usage.computeMs,"runs":runs}
+    let tmp = folder / (room & ".tmp")
+    writeFile(tmp,$record)
+    setFilePermissions(tmp,{fpUserRead,fpUserWrite})
+    moveFile(tmp,usagePath(room))
+    return true
+  except CatchableError as e:
+    echo "room usage write failed: ", e.msg
+    return false
+
+proc loadRoomUsage() =
+  let folder = roomDataDir / "_usage"
+  if not dirExists(folder): return
+  for path in walkFiles(folder / "*.json"):
+    try:
+      if getFileSize(path) > 12_000_000: continue
+      let doc = parseFile(path)
+      let room = doc.getString("room")
+      if (not validRoom(room) or extractFilename(path) != room & ".json" or
+          room notin groupManifests or not doc.hasKey("version") or
+          doc["version"].kind != JInt or doc["version"].getInt() != 1 or
+          not doc.hasKey("peers") or doc["peers"].kind != JArray or
+          not doc.hasKey("runs") or doc["runs"].kind != JObject or
+          not doc.hasKey("compute_ms") or doc["compute_ms"].kind != JInt): continue
+      var usage = emptyUsage()
+      let total = doc["compute_ms"].getInt().int64
+      if total < 0 or doc["peers"].len > MaxMetricPeers or
+          doc["runs"].len > MaxMetricRuns: continue
+      usage.computeMs = total
+      for item in doc["peers"].items:
+        if item.kind == JString and item.getStr().len == 33 and
+            item.getStr()[0] == 'p':
+          usage.peers.incl(item.getStr())
+      for key,val in doc["runs"].pairs:
+        if (key.len != 66 or val.kind != JObject or
+            not val.hasKey("ms") or not val.hasKey("at") or
+            val["ms"].kind != JInt or val["at"].kind != JInt): continue
+        let ms = val["ms"].getInt().int64
+        let at = val["at"].getInt().int64
+        if ms >= 0 and at > 0:
+          usage.runs[key] = (ms:ms,at:at)
+      roomUsage[room] = usage
+      roomUsageLastSaved[room] = getTime().toUnix()
+    except CatchableError:
+      discard
+
+proc maybePersistUsage(room: string) =
+  # One bounded full rewrite per minute PER ROOM rather than once per peer
+  # heartbeat (which would cause quadratic IO at thousands of peers).
+  let now = getTime().toUnix()
+  if now - roomUsageLastSaved.getOrDefault(room,0'i64) >= 60:
+    if persistUsage(room): roomUsageLastSaved[room] = now
 
 proc acceptBudget(ws:WebSocket, n:int):bool {.gcsafe.} =
   {.cast(gcsafe).}:
@@ -485,7 +575,13 @@ proc groupJoin(ws:WebSocket, data:JsonNode) {.gcsafe.} =
                 oldIds.add(clients[prior].peerId)
                 byPeer[clients[prior].peerId]=prior
             groups.mgetOrPut(room,@[]).add(ws)
-            clients[ws]=Client(room:room,group:true,peerId:identity)
+            clients[ws]=Client(room:room,group:true,peerId:identity,
+                               joinedAt:getTime().toUnix())
+            var usage = roomUsage.getOrDefault(room,emptyUsage())
+            if identity notin usage.peers and usage.peers.len < MaxMetricPeers:
+              usage.peers.incl(identity)
+              roomUsage[room] = usage
+              maybePersistUsage(room)
             groupDegree[room]=requestedDegree
             oldIds.sort()
             var newIds=oldIds & @[identity]
@@ -507,6 +603,7 @@ proc groupJoin(ws:WebSocket, data:JsonNode) {.gcsafe.} =
     var reply = %*{"type":"group-members","peers":roster,
                     "existing_room":previouslyRegistered}
     reply["topology"] = %"bounded-v2"
+    reply["usage_v1"] = %true
     reply["degree"] = %requestedDegree
     reply["online"] = %occupancy
     reply["revision"] = %version
@@ -516,6 +613,53 @@ proc groupJoin(ws:WebSocket, data:JsonNode) {.gcsafe.} =
     for notice in topologyNotices:
       try: notice.target.send(notice.payload)
       except CatchableError: discard
+
+proc groupTrainingReport(ws: WebSocket, data: JsonNode) {.gcsafe.} =
+  # Reports are measured by the worker during actual training blocks, not
+  # signaling presence. Transport sender identity is bound to the joined WS,
+  # but a malicious client can fabricate metrics: these are untrusted reports.
+  {.cast(gcsafe).}:
+    let run = getString(data,"run")
+    if run.len != 32 or not data.hasKey("compute_ms") or
+        data["compute_ms"].kind != JInt:
+      errorWs(ws,"Invalid training report")
+      return
+    for ch in run:
+      if ch notin {'0'..'9','a'..'f'}:
+        errorWs(ws,"Invalid training run")
+        return
+    let value = data["compute_ms"].getInt().int64
+    if value < 0 or value > 3_600_000_000_000'i64:
+      errorWs(ws,"Invalid measured training milliseconds")
+      return
+    withLock mutex:
+      if ws notin clients or not clients[ws].group: return
+      # One run ID per live connection. Restart/reconnect can create a new
+      # run, but cycling IDs on the same socket cannot mint fresh allowances.
+      var c = clients[ws]
+      if c.trainingRun.len > 0 and c.trainingRun != run: return
+      if c.trainingRun.len == 0:
+        c.trainingRun = run
+        clients[ws] = c
+      let room = c.room
+      let key = c.peerId & ":" & run
+      var usage = roomUsage.getOrDefault(room,emptyUsage())
+      if key notin usage.runs and usage.runs.len >= MaxMetricRuns: return
+      let now = getTime().toUnix()
+      let prev = usage.runs.getOrDefault(key,(ms:0'i64,at:0'i64))
+      if value <= prev.ms: return  # retransmits and reconnects are idempotent
+      # A report cannot count more work than the elapsed wall time since its
+      # previous high watermark (+5 seconds tolerance). First claim is
+      # bounded by this WS's actual join lifetime, not a fixed 60 seconds.
+      let allowance = (if prev.at > 0:
+                         max(0'i64,now-prev.at)*1000'i64+5000'i64
+                       else:
+                         max(0'i64,now-clients[ws].joinedAt)*1000'i64+5000'i64)
+      let increment = max(0'i64,min(value-prev.ms,allowance))
+      usage.runs[key] = (ms:value,at:now)
+      usage.computeMs = usage.computeMs + increment
+      roomUsage[room] = usage
+      maybePersistUsage(room)
 
 proc onJoin(ws:WebSocket, data:JsonNode) {.gcsafe.} =
   {.cast(gcsafe).}:
@@ -661,6 +805,7 @@ proc websocketHandler(ws:WebSocket, event:WebSocketEvent, message:Message) {.gcs
     of "join": onJoin(ws, doc)
     of "group-join": groupJoin(ws, doc)
     of "group-describe": groupDescribe(ws, doc)
+    of "training-report": groupTrainingReport(ws, doc)
     of "room-register": groupRegister(ws, doc)
     of "offer", "answer", "candidate": forwardMessage(ws, doc, kind)
     of "leave":
@@ -720,10 +865,14 @@ proc directoryHandler(request:Request) {.gcsafe.} =
         elif doc.hasKey("dataset"):
           datasets.add(%doc["dataset"].getString("name"))
         let live = groups.getOrDefault(id).len
+        let stats = roomUsage.getOrDefault(id,emptyUsage())
         resultRows.add(%*{"room_id":id,
                             "model":doc["model"].getString("id"),
                             "revision":doc["model"].getString("revision"),
                             "datasets":datasets,"online":live,
+                            "cumulative_participants":stats.peers.len,
+                            "training_seconds":stats.computeMs.float / 1000.0,
+                            "metrics_source":"peer-reported",
                             "capacity":MaxGroupMembers,
                             "created_at":roomCreated.getOrDefault(id,0'i64)})
     var headers:HttpHeaders
@@ -746,6 +895,7 @@ if turnSecret.len > 0 and turnSecret.len < 32:
   quit("TURN_SECRET must have >= 32 characters", QuitFailure)
 
 loadRoomDirectory()
+loadRoomUsage()
 var router:Router
 router.get("/", htmlHandler)
 router.get("/healthz", healthHandler)

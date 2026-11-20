@@ -50,7 +50,9 @@ class DesktopController:
                       disk_cache_fraction=.6,pause_file=None,snapshot_request_file=None,
                       sharded_base_manifest=None,sharded_base_store=None,
                       mixed_options=None,mixed_policy=None,critic_state_dir=None,
-                      device='auto'):
+                      device='auto',min_publish_steps=0,snapshot_priority=None,turn_transport=None,relay_only=None,shard_mb=None,
+                      auto_model_cadence=False,peer_pt_sources_file=None,
+                      bandit_wire_cost=.08):
         from .room_manifest import load_manifest
         if device not in ('auto','cpu','cuda','mps'):
             raise ValueError('Unsupported local compute device')
@@ -125,6 +127,16 @@ class DesktopController:
             raise ValueError('both checkpoint manifest and model shard store must be given')
         if type(local_steps) is not int or not 1 <= local_steps <= 10000:
             raise ValueError('local_steps must be 1..10000')
+        if type(min_publish_steps) is not int or not 0 <= min_publish_steps <= 10000:
+            raise ValueError('min_publish_steps must be 0..10000')
+        if snapshot_priority not in (None,'training','snapshot'):
+            raise ValueError('invalid snapshot_priority')
+        if turn_transport not in (None,'auto','tcp','udp'):
+            raise ValueError('invalid TURN transport')
+        if relay_only is not None and type(relay_only) is not bool:
+            raise ValueError('relay_only must be boolean')
+        if shard_mb is not None and (type(shard_mb) is not int or not 1 <= shard_mb <= 64):
+            raise ValueError('shard_mb must be 1..64')
         if type(max_length) is not int or not 8 <= max_length <= 8192:
             raise ValueError('max_length must be 8..8192')
         if desc.get('adapter',{}).get('target_scope') == 'universal' and optimizer == 'lora-muon':
@@ -166,6 +178,32 @@ class DesktopController:
                   '--stream-chunk-mib',str(stream_chunk_mib),
                   '--disk-cache-fraction',str(disk_cache_fraction),
                   '--streaming-scratch-dir',str((Path(shard_store) if shard_store is not None else Path(journal).parent / (Path(journal).stem + '-streaming')) / '.temporary-streaming-pages')])) + (['--auto-state'] if auto_state else []) + (['--swarm-pause-file',str(pause_file)] if pause_file is not None else []) + (['--eval-snapshot-request-file',str(snapshot_request_file)] if snapshot_request_file is not None else []) + (['--room-public'] if room_public else []) + (['--hf-shuffle-buffer',str(int(os.environ['KCIA_HF_SHUFFLE_BUFFER']))] if os.environ.get('KCIA_HF_SHUFFLE_BUFFER','').isdigit() else [])
+        if min_publish_steps:
+            command += ['--min-publish-steps',str(min_publish_steps)]
+        if not isinstance(bandit_wire_cost,(int,float)) or isinstance(bandit_wire_cost,bool):
+            raise ValueError('bandit_wire_cost must be a finite number in [0,10]')
+        import math
+        if not math.isfinite(bandit_wire_cost) or not 0 <= bandit_wire_cost <= 10:
+            raise ValueError('bandit_wire_cost must be in [0,10]')
+        if auto_model_cadence:
+            command += ['--auto-model-cadence','--cost-bandit',
+                        '--bandit-wire-cost',str(float(bandit_wire_cost)),
+                        '--max-sync-steps',str(max(512,local_steps))]
+        if peer_pt_sources_file is not None:
+            command += ['--peer-pt-sources-file',str(peer_pt_sources_file)]
+        if snapshot_priority is not None:
+            command += ['--snapshot-priority',snapshot_priority]
+        if turn_transport is not None:
+            command += ['--turn-transport',turn_transport]
+        if relay_only is not None:
+            command += ['--relay-only' if relay_only else '--no-relay-only']
+        # Sharded state exports may already specify a size; override rather
+        # than adding duplicate CLI options with surprising precedence.
+        if shard_mb is not None:
+            if '--shard-mb' in command:
+                command[command.index('--shard-mb')+1]=str(shard_mb)
+            else:
+                command += ['--shard-mb',str(shard_mb)]
         if mixed_options and mixed_options.get('enabled'):
             from .mix_gui_v66 import command_options
             command.extend(command_options(mixed_options,state_dir=critic_state_dir))
@@ -302,7 +340,7 @@ class FederatedDesktop:
         self.v={name:tk.StringVar(value=default) for name,default in {
             'room':create_room_id(),'model':'sshleifer/tiny-gpt2',
             'revision':'main','task':'causal-lm',
-            'base':'genesis.fstate','ws':'ws://127.0.0.1:8080/ws',
+            'base':'genesis.fstate','ws':'wss://signal.kcia.tech/ws',
             'kind':'loha','rank':'32','journal':'gui-events.sqlite3',
             'manifest':'room-manifest.json','repo':'',
             'config':'','split':'train','dataset_revision':'main',

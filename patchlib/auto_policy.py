@@ -58,6 +58,60 @@ def estimate_training_policy(*, config: dict | None, available_ram_bytes: int = 
                       'Live topology is measured after connecting.')}
 
 
+def estimate_wan_publish_cadence(*, config: dict | None, adapter_wire_mib: float = 0.,
+                                 default_uplink_mib_s: float = 4.) -> dict:
+    """Local advisory publication interval, monotone in model and adapter size.
+
+    This is a WAN *starting point*, not a bandwidth measurement or a claim
+    of optimizer convergence. The signed room's 20-event ReLoRA schedule stays
+    untouched. Peer-specific hardware/bandwidth never enters the manifest.
+    """
+    cfg = config if isinstance(config,dict) else {}
+    def positive_int(*keys, fallback=0):
+        for key in keys:
+            value=cfg.get(key)
+            if type(value) is int and 0 < value <= 10**9:
+                return value
+        return fallback
+    # Actual numbers (when config declares them) beat rough shape estimates.
+    params=positive_int('num_parameters','n_parameters','parameter_count')
+    if not params:
+        h=positive_int('hidden_size','n_embd','d_model','dim')
+        layers=positive_int('num_hidden_layers','n_layer','num_layers','n_layers')
+        if h and layers:
+            intermediate=positive_int('intermediate_size','n_inner','ffn_dim',fallback=4*h)
+            vocab=positive_int('vocab_size',fallback=0)
+            # Transformer attention QKV+output, SwiGLU MLP, embeddings;
+            # rough overestimate for some architectures and an underestimate
+            # for MoE models (which should provide num_parameters).
+            params=min(10**13, layers*(4*h*h+3*h*intermediate)+vocab*h)
+    tiers=((500_000_000,32),(1_500_000_000,64),(6_000_000_000,128),
+           (20_000_000_000,256),(60_000_000_000,512))
+    steps=32
+    if params:
+        steps=next((rate for limit,rate in tiers if params<=limit),1024)
+    try:
+        wire=float(adapter_wire_mib)
+        uplink=float(default_uplink_mib_s)
+    except (TypeError,ValueError):
+        wire=0.; uplink=4.
+    if not (math.isfinite(wire) and wire>=0):wire=0.
+    if not (math.isfinite(uplink) and 0.125<=uplink<=1024):uplink=4.
+    # Large signed deltas must not be produced at tiny time intervals.
+    # The proxy does not know real compression, uplink or instantaneous RTT.
+    transfer_seconds=wire/uplink
+    if transfer_seconds>240:steps=max(steps,512)
+    elif transfer_seconds>120:steps=max(steps,256)
+    elif transfer_seconds>60:steps=max(steps,128)
+    elif transfer_seconds>30:steps=max(steps,64)
+    return {'local_steps':steps,'estimated_parameters':params or None,
+            'estimated_transfer_seconds':round(transfer_seconds,1),
+            'assumed_uplink_mib_s':uplink,
+            'reason':('WAN publication interval increases with the model parameter '
+                      'count and estimated signed update transfer cost. '
+                      'This does not alter the room-wide ReLoRA refresh.')}
+
+
 # The canonical target layout and MAXIMUM rank are shared and immutable.
 # Each upgraded peer independently chooses its physical LoHA rank below the cap.
 RANK_CHOICES = (4, 8, 16, 32, 64)

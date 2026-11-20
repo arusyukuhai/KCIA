@@ -50,8 +50,14 @@ def test_pt_only_peer_preserves_signed_policy_without_private_dataset():
 
 def test_rejects_changed_repo_or_private_paths():
     m=room()
-    with pytest.raises(ValueError,match='cannot differ'):
+    with pytest.raises(ValueError,match='40-character|pin a 40'):
         for_local_peer(m,{'enabled':True,'sft_hf_repo':'other/another'})
+    # A pinned, peer-specific HF dataset can implement the same signed SFT
+    # objective without replacing the room's immutable shared descriptor.
+    different=for_local_peer(m,{'enabled':True,'sft_hf_repo':'other/another',
+                                     'sft_hf_revision':'b'*40})
+    assert different['sft_hf_repo']=='other/another'
+    assert shared_policy(m)['weights']==[1.,1.,0.]
     with pytest.raises(ValueError,match='private'):
         canonical_training({'enabled':True,'sft_jsonl':'/Users/me/.ssh/id.jsonl'})
     malformed=dict(m)

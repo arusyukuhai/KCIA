@@ -7,7 +7,7 @@ const translations = {
     modelsSubtitle:'分散モデルを見つけて管理する',language:'言語',connecting:'接続中',
     modelCurrentLoss:'直近のLoss',modelCurrentAccuracy:'直近のTop-1',autoRankLabel:'ランク（自動・共通）',
     modelsIntro:'モデルはアーキテクチャと既定データセットを含む学習空間です。',refreshModels:'一覧を更新',
-    source:'表示',all:'すべて',local:'ローカル',public:'公開',searchModels:'モデル名・データセットで検索',
+    source:'表示',all:'すべて',local:'ローカル（デバッグ）',public:'WANルーム',searchModels:'モデル名・データセットで検索',
     noModels:'モデルがまだありません。「一覧を更新」を押してください。',independentExperiment:'同じ設定でも別の実験として作成する',selectedModel:'選択中のモデル',
     networkPeers:'オンライン人数',architecture:'アーキテクチャ',sizeEstimate:'規模の目安',revision:'リビジョン',
     defaultDatasets:'既定のデータセット',useModel:'このモデルを選択',goTraining:'学習画面へ',
@@ -16,6 +16,7 @@ const translations = {
     accuracy:'トークン正解率',localAccuracy:'学習中のTop-1（検証ではない）',throughput:'学習速度',
     historyWindow:'表示期間',chartBoth:'全指標',ptAccuracyChart:'PT · 次トークンTop-1',sftAccuracyChart:'SFT · 応答Top-1',sftPreferenceChart:'SFT · 選好ペア勝率',ppoReferenceChart:'PPO · 正解文との位置一致率',ppoRewardChart:'PPO · 平均報酬（精度ではない）',ppoKlChart:'PPO · 近似KL',ppoCriticLossChart:'PPO · Critic Loss',chartLossOnly:'Lossを拡大',chartAccuracyOnly:'Top-1を拡大',entireRun:'実行全期間',lossChart:'Lossの推移',accuracyChart:'Top-1正解率の推移',activity:'直近ログ',copy:'コピー',
     trainingSettings:'学習設定',adapter:'アダプター',optimizer:'最適化手法',learningRate:'学習率',
+    publishPolicy:'送信間隔',wanPublish:'WAN · モデル規模＋更新サイズで自動調整',customPublish:'カスタム（手動）',adaptivePublish:'従来の自動調整（デバッグ）',stepsPerUpdate:'ミニバッチ/更新',snapshotPriority:'スナップショット同期中',continueTraining:'学習を継続（推奨）',pauseTraining:'学習を一時停止',turnTransport:'TURNトランスポート',relayPolicy:'ICE候補',anyIce:'自動選択（推奨）',relayOnly:'TURNのみ（診断用）',
     localSteps:'公開ごとのステップ',contextLength:'文脈長',peers:'参加者（観測値）',cacheFraction:'VRAMキャッシュ率',
     streaming:'重み読込',normal:'通常',streamMode:'ストリーミング',reinitEvery:'再初期化間隔',
     advanced:'詳細設定',wideRank:'Embedding rank',journalSize:'履歴上限 GiB',baseCheckpoint:'初期 .fstate（任意）',
@@ -28,7 +29,7 @@ const translations = {
     prompt:'プロンプト',precision:'精度 / 量子化',maxTokens:'生成最大トークン',generate:'▶ 推論',cancel:'中止',
     evalDisclaimer:'実効重みのチェックポイントを検証して読み込みます。量子化には一時ディスクが必要になる場合があります。',
     output:'出力',networkIntro:'この端末から現在確認できるWebRTC接続だけを可視化します。',
-    connections:'現在の接続',localView:'自端末から見える隣接グラフ（全体図ではありません）',
+    connections:'現在の接続',localView:'この端末が接続したWANピア（全体図ではありません）',
     networkTelemetry:'ネットワーク統計',connectedPeers:'接続中ピア',duplicates:'重複イベント',
     appliedEvents:'適用した更新',inbox:'受信キュー',
     networkNote:'直接接続した隣接ピアのみ表示します。他ピア間の接続は観測できないため描きません。',
@@ -47,20 +48,20 @@ const translations = {
     trainPaused:'学習を停止しました。更新とモデルの中継は続いています。',
     disconnecting:'切断を要求しました。チェックポイント保存を待ってください。',
     noAccuracy:'タスクが非対応、または正解率の計測待ち',unknownModel:'対応可否は未確認です。',
-    autoTraining:'自動最適化 · 動的推定',autoNote:'モデル・メモリから自動推定。公開間隔はオンラインピア数で再調整されます。',datasetDuplicate:'同じデータセットは既に追加されています',datasetAdded:'データセットを追加しました',datasetLimit:'一つのモデルにつき最大12件です',
+    autoTraining:'WAN学習優先 · 自動資源調整',autoNote:'WAN既定では32ミニバッチごとに署名付き更新を公開。GPU/メモリ最適化は継続。',datasetDuplicate:'同じデータセットは既に追加されています',datasetAdded:'データセットを追加しました',datasetLimit:'一つのモデルにつき最大12件です',
     pleaseSearch:'データセットを検索してください',modelSelected:'モデル設定を読み込みました',
     hubError:'Hubへの接続に失敗しました',evalRunning:'推論プロセスでモデルを読み込んでいます',
     noBrowser:'Pythonブリッジがありません。python -m patchlib.cli gui で起動してください。',
     noNetwork:'学習ピアが接続されていません',lastSeen:'直近メトリクスから取得',checkNeeded:'環境依存・未検証',
     unsupported:'未対応',createFirst:'最初にモデルを作成してください',noDataset:'データセットを追加してください',
-    localScope:'ローカル',remoteScope:'公開',current:'選択中'
+    localScope:'端末のみ・WAN未登録',remoteScope:'WAN公開 · kcia.tech',registeredWan:'WAN登録済み（確認履歴）',current:'選択中'
   },
   en: {
     workspace:'WORKSPACE',system:'SYSTEM',checkpoints:'Checkpoints',weightFiles:'Weights',genesis:'Genesis',
     modelsSubtitle:'Discover and manage distributed models',language:'Language',connecting:'Connecting',
     modelCurrentLoss:'LATEST LOSS',modelCurrentAccuracy:'LATEST TOP-1',autoRankLabel:'Rank · auto / shared',
     modelsIntro:'Each model includes architecture, default datasets, and a shared training space.',refreshModels:'Refresh models',
-    source:'Source',all:'All',local:'Local',public:'Public',searchModels:'Search models or datasets',
+    source:'Source',all:'All',local:'Local (debug)',public:'WAN rooms',searchModels:'Search models or datasets',
     noModels:'No models yet. Refresh the directory to begin.',independentExperiment:'Create an independent experiment with identical settings',selectedModel:'SELECTED MODEL',
     networkPeers:'ONLINE PEERS',architecture:'ARCHITECTURE',sizeEstimate:'SIZE ESTIMATE',revision:'REVISION',
     defaultDatasets:'DEFAULT DATASETS',useModel:'Select this model',goTraining:'Open training',
@@ -69,6 +70,7 @@ const translations = {
     accuracy:'TOKEN ACCURACY',localAccuracy:'Local top-1, not validation',throughput:'Throughput',
     historyWindow:'DISPLAY RANGE',chartBoth:'All metrics',ptAccuracyChart:'PT · token Top-1',sftAccuracyChart:'SFT · response Top-1',sftPreferenceChart:'SFT · preference-pair win',ppoReferenceChart:'PPO · reference token match',ppoRewardChart:'PPO · reward (not accuracy)',ppoKlChart:'PPO · approximate KL',ppoCriticLossChart:'PPO · Critic loss',chartLossOnly:'Enlarge loss',chartAccuracyOnly:'Enlarge Top-1',entireRun:'実行全期間',lossChart:'Loss history',accuracyChart:'Top-1 accuracy',activity:'RECENT ACTIVITY',copy:'Copy',
     trainingSettings:'TRAINING SETTINGS',adapter:'Adapter',optimizer:'Optimizer',learningRate:'Learning rate',
+    publishPolicy:'Publication cadence',wanPublish:'WAN · model-size-aware automatic',customPublish:'Custom cadence',adaptivePublish:'Legacy adaptive (debug)',stepsPerUpdate:'Minibatches/update',snapshotPriority:'During snapshot sync',continueTraining:'Continue learning (recommended)',pauseTraining:'Pause learning',turnTransport:'TURN transport',relayPolicy:'ICE candidates',anyIce:'Automatic (recommended)',relayOnly:'TURN only (diagnostic)',
     localSteps:'Steps / publication',contextLength:'Context length',peers:'Online peers (observed)',cacheFraction:'VRAM cache fraction',
     streaming:'Weight loading',normal:'Normal',streamMode:'Streamed',reinitEvery:'Reinitialization interval',
     advanced:'Advanced options',wideRank:'Embedding rank',journalSize:'Journal limit GiB',baseCheckpoint:'Initial .fstate (optional)',
@@ -81,7 +83,7 @@ const translations = {
     prompt:'PROMPT',precision:'PRECISION / QUANTIZATION',maxTokens:'MAX NEW TOKENS',generate:'▶ Generate',cancel:'Cancel',
     evalDisclaimer:'Verified effective-weight shards are loaded. Quantization may need substantial temporary disk space.',
     output:'OUTPUT',networkIntro:'Visualize real WebRTC links observable from this local peer.',
-    connections:'LIVE CONNECTIONS',localView:'Local peer view (not global topology)',
+    connections:'LIVE CONNECTIONS',localView:'WAN peers seen by this device (not global topology)',
     networkTelemetry:'NETWORK TELEMETRY',connectedPeers:'Connected peers',duplicates:'Duplicate events',
     appliedEvents:'Applied updates',inbox:'Inbound queue',
     networkNote:'Only directly observed links are drawn. The links between other peers are not observable.',
@@ -100,19 +102,37 @@ const translations = {
     trainPaused:'Training paused. Gossip and snapshot relay continue.',
     disconnecting:'Disconnect requested. Wait for checkpoint completion.',
     noAccuracy:'Waiting for accuracy or task unsupported',unknownModel:'Compatibility is not confirmed.',
-    autoTraining:'AUTO TUNING · LIVE',autoNote:'Estimated from model/device; publish interval adapts to online membership.',datasetDuplicate:'This dataset is already attached',datasetAdded:'Dataset attached',datasetLimit:'A model supports up to 12 datasets',
+    autoTraining:'WAN TRAINING · RESOURCE TUNING',autoNote:'WAN default: one signed update per 32 minibatches; hardware tuning remains enabled.',datasetDuplicate:'This dataset is already attached',datasetAdded:'Dataset attached',datasetLimit:'A model supports up to 12 datasets',
     pleaseSearch:'Search for a dataset',modelSelected:'Model settings loaded',
     hubError:'Cannot reach Hugging Face Hub',evalRunning:'Inference worker is loading model weights',
     noBrowser:'Python bridge missing. Launch python -m patchlib.cli gui.',
     noNetwork:'No training peer is connected',lastSeen:'From latest telemetry',checkNeeded:'Device-dependent / unverified',
     unsupported:'Unsupported',createFirst:'Create a model to begin',noDataset:'Add a dataset first',
-    localScope:'Local',remoteScope:'Public',current:'Selected'
+    localScope:'Local only · not WAN registered',remoteScope:'WAN public · kcia.tech',registeredWan:'WAN registered (cached receipt)',current:'Selected'
   }
 };
 let lang='ja';let currentTab='models';let sources=[];let codePath='';let models=[];
 let selected=null;let activatedRoom=null;let selectedByUser=false;let modelPage=0;let datasetsPage=0;let hubResults=[];let run={running:false};
 let capabilities={};let latestTelemetry=[];let chartTelemetry=[];let lastHistoryFetch=0;let historyPending=false;let historyVersion=0;let startup=false;let lastLog='';let autoPlan=null;let autoPlanRequest=0;
-const compatibilityPending=new Set();let compatibilityActive=0;const compatibilityQueue=[];
+// Keep bounded per-model metadata across room-list refreshes; multiple rooms
+// can pin the same HF revision. Without this, every redraw repeats expensive
+// Hub requests and ties up pywebview RPC worker threads.
+const compatibilityPending=new Set(),compatibilityCache=new Map();
+let compatibilityActive=0;const compatibilityQueue=[];
+const compatibilityKey=x=>String(x.model)+'\0'+String(x.revision||'main');
+function cacheCompatibility(key,value){
+ // A Hub timeout is transient; do not permanently mark a model "unknown".
+ const transient=value?.reason==='Hub metadata not available';
+ compatibilityCache.delete(key);
+ compatibilityCache.set(key,{result:value,expires:Date.now()+(transient?30000:300000)});
+ if(compatibilityCache.size>128)compatibilityCache.delete(compatibilityCache.keys().next().value);
+}
+function cachedCompatibility(key){
+ const hit=compatibilityCache.get(key);
+ if(!hit)return null;
+ if(Date.now()>=hit.expires){compatibilityCache.delete(key);return null;}
+ return hit.result;
+}
 const t=(key)=>translations[lang][key]||key;
 const m=(x)=>Number.isFinite(Number(x))?Number(x):0;
 const short=(s,n=18)=>String(s||'—').length>n?String(s).slice(0,n)+'…':String(s||'—');
@@ -132,20 +152,37 @@ function updateWsNotice(){
   setText('wsNotice',msg);
 }
 $('ws').addEventListener('input',()=>{updateWsNotice();setText('signalConnectivity','NOT TESTED');});
-let previousRemoteWs='';
+const DEFAULT_WAN_WS='wss://signal.kcia.tech/ws';
+let previousRemoteWs=DEFAULT_WAN_WS;
 $('networkMode').addEventListener('change',()=>{
+  if(run.running){
+    // The backend refuses network changes during training. Keep the screen
+    // consistent with the actual running peer, not a rejected dropdown value.
+    $('networkMode').value=get('ws').startsWith('wss://')?'internet':'local';
+    notify('Disconnect the training worker before switching networks',true);
+    return;
+  }
   const mode=get('networkMode');
   if(mode==='local'){
     if(get('ws').startsWith('wss://'))previousRemoteWs=get('ws');
     $('ws').value='ws://127.0.0.1:8080/ws';
   }else if(!get('ws').startsWith('wss://')){
-    $('ws').value=previousRemoteWs;
+    $('ws').value=previousRemoteWs||DEFAULT_WAN_WS;
   }
+  // Never show old WAN directory entries for the newly chosen network.
+  cachedPublicRooms=[];
+  $('modelScope').value=mode==='local'?'local':'public';
   updateWsNotice();drawSelection();setText('signalConnectivity','NOT TESTED');
+  // Select is an explicit network action; persist WAN WSS. Local debug is
+  // intentionally ephemeral across GUI restarts (WAN must remain default).
+  void api('setNetwork',{ws:get('ws')}).catch(e=>notify('Network: '+String(e.message||e),true));
+  void refreshModels().catch(e=>notify('Directory: '+String(e.message||e),true));
 });
 $('connectNetwork').addEventListener('click',safe('Network',async()=>{
   const url=get('ws');
   await api('setNetwork',{ws:url});
+  $('networkMode').value=url.startsWith('wss://')?'internet':'local';
+  if(url.startsWith('wss://'))previousRemoteWs=url;
   setText('signalConnectivity','CHECKING');
   try{
     const result=await api('probeNetwork',{ws:url});
@@ -160,9 +197,9 @@ $('connectNetwork').addEventListener('click',safe('Network',async()=>{
   }
 }));
 function get(id){return String($(id).value||'').trim();}
-const routes=Object.freeze({defaults:'defaults',newRoom:'new_room',setNetwork:'configure_network',probeNetwork:'probe_network',save:'save_room',join:'join_room',register:'register_room',
+const routes=Object.freeze({defaults:'defaults',newRoom:'new_room',setNetwork:'configure_network',setTrainingPrefs:'configure_training',probeNetwork:'probe_network',save:'save_room',join:'join_room',register:'register_room',
   publicModels:'list_rooms',localModels:'local_models',select:'select_model',compat:'model_compatibility',
-  mixedSettings:'mixed_settings',pickMixFile:'pick_training_file',
+  mixedSettings:'mixed_settings',peerPtSettings:'peer_pt_settings',pickMixFile:'pick_training_file',
   mixPinDataset:'pin_mixed_dataset',mixProbeDataset:'probe_mixed_dataset',hubDiscover:'discover_hub_assets',rewardSearch:'search_reward_models',rewardInspect:'inspect_reward_model',device:'device_capabilities',datasets:'search_datasets',inspect:'inspect_dataset',plan:'recommend_training',code:'register_code',start:'start_training',
   status:'training_status',history:'training_history',pause:'stop_training',resume:'resume_training',disconnect:'disconnect_training',
   resetPreview:'preview_full_reset',resetRequest:'request_full_reset',
@@ -171,26 +208,70 @@ let bridgeWait;
 function ready(){return !!window.pywebview?.api&&typeof window.pywebview.api.defaults==='function';}
 async function waitBridge(){if(ready())return window.pywebview.api;if(bridgeWait)return bridgeWait;bridgeWait=new Promise((resolve,reject)=>{const started=Date.now();let timer=null;function check(){if(ready()){clearTimeout(timer);resolve(window.pywebview.api);return;}if(Date.now()-started>9000){reject(new Error(t('noBrowser')));return;}timer=setTimeout(check,110);}check();}).finally(()=>{bridgeWait=null;});return bridgeWait;}
 async function api(action,payload={}){const name=routes[action];if(!name)throw Error('Unknown RPC route');const bridge=await waitBridge();if(typeof bridge[name]!=='function')throw Error('Missing Python RPC: '+name);
-  const ms=(action==='publicModels')?7500:(action==='hubDiscover'||action==='datasets'||action==='inspect'||action==='plan'||action==='publicModels'||action==='join'||action==='select'||action==='rewardSearch'||action==='rewardInspect'||action==='mixPinDataset')?16500:(action==='eval'||action==='captureSnapshot'||action==='mixProbeDataset')?45000:action==='status'?4500:10000;
+  const ms=(action==='publicModels')?7500:(action==='hubDiscover'||action==='datasets'||action==='inspect'||action==='plan'||action==='join'||action==='select'||action==='rewardSearch'||action==='rewardInspect'||action==='mixPinDataset')?16500:(action==='eval'||action==='captureSnapshot'||action==='mixProbeDataset')?45000:action==='status'?4500:10000;
   let timer;try{return await Promise.race([Promise.resolve().then(()=>bridge[name](payload)),new Promise((_,reject)=>timer=setTimeout(()=>reject(Error('RPC timeout: '+action)),ms))]);}finally{clearTimeout(timer);}}
 function safe(title,call){return async (...args)=>{try{return await call(...args);}catch(e){notify(title+': '+String(e.message||e),true);return null;}};}
 function create(tag,cls,text){const el=document.createElement(tag);if(cls)el.className=cls;if(text!==undefined)el.textContent=String(text);return el;}
-function setText(id,text){$(id).textContent=String(text);}
+// Status polling must not invalidate the whole DOM every 900ms if nothing
+// actually changed. This matters on the embedded Cocoa WebKit renderer.
+function setText(id,text){const node=$(id),value=String(text);if(node.textContent!==value)node.textContent=value;}
 function taglist(container,arr){container.replaceChildren();if(!arr||!arr.length){container.append(create('span','muted','—'));return;}for(const v of arr.slice(0,12))container.append(create('span','tag',v));}
 function setPageControls(prefix,page,pages,count){setText(prefix+'Page',(page+1)+' / '+pages);$(prefix+'Prev').disabled=page<=0;$(prefix+'Next').disabled=page>=pages-1;if(prefix==='model')setText('modelCount',count+' models');}
 function modelKey(x){return x.room_id;}
-function modelFiltered(){const q=get('modelFilter').toLowerCase();const scope=get('modelScope');return models.filter(x=>(scope==='all'||(scope==='local'?x.local:!x.local))&&[x.model,...(x.datasets||[]),x.room_id].join(' ').toLowerCase().includes(q));}
+// Directory metrics come from the signaling server's persistent counters.
+// Zero is a valid new-room value; missing legacy metrics are treated as zero.
+const roomMetric=(x,key)=>{const v=Number(x?.[key]);return Number.isFinite(v)&&v>=0?v:0;};
+const popularityScore=x=>4*Math.log1p(roomMetric(x,'cumulative_participants'))
+  +2*Math.log1p(roomMetric(x,'training_seconds')/3600)
+  +2*roomMetric(x,'online');
+const compareDesc=(a,b,key)=>roomMetric(b,key)-roomMetric(a,key);
+function modelSorted(items){
+ const mode=get('modelSort')||'popular';
+ return [...items].sort((a,b)=>{
+   let diff=0;
+   if(mode==='participants')diff=compareDesc(a,b,'cumulative_participants');
+   else if(mode==='training')diff=compareDesc(a,b,'training_seconds');
+   else if(mode==='online')diff=compareDesc(a,b,'online');
+   else if(mode==='newest')diff=compareDesc(a,b,'created_at');
+   else if(mode==='oldest'){
+     // Unknown dates last, not before known legitimate creation times.
+     const av=roomMetric(a,'created_at'),bv=roomMetric(b,'created_at');
+     diff=(av===0)-(bv===0)||(av&&bv?av-bv:0);
+   }else if(mode==='name')diff=String(a.model||'').localeCompare(String(b.model||''),'ja');
+   else if(mode==='datasets')diff=(b.datasets?.length||0)-(a.datasets?.length||0);
+   else diff=popularityScore(b)-popularityScore(a);
+   return diff||compareDesc(a,b,'online')||compareDesc(a,b,'created_at')||
+     String(a.room_id).localeCompare(String(b.room_id));
+ });
+}
+function modelFiltered(){
+ const q=get('modelFilter').toLowerCase(),scope=get('modelScope');
+ return modelSorted(models.filter(x=>(scope==='all'||(scope==='local'?(x.local&&!x.on_wan&&!x.wan_registered):
+   (get('networkMode')==='internet'&&(x.on_wan||x.wan_registered))))&&
+   [x.model,...(x.datasets||[]),x.room_id].join(' ').toLowerCase().includes(q)));
+}
+function formatTrainingHours(seconds){const hours=roomMetric({value:seconds},'value')/3600;
+ return hours>=100?Math.floor(hours)+'h':hours>=1?hours.toFixed(1)+'h':Math.floor(hours*60)+'min';}
 function statusClass(x){return x==='unavailable'||x==='unsupported'?'red':x==='candidate'||x==='unknown'?'amber':'gray';}
 function compatName(comp){if(!comp)return t('notChecked');return comp.status==='unavailable'||comp.status==='unsupported'?t('cannotTrain'):comp.status==='candidate'?t('candidate'):t('unknown');}
-function drawModels(){const list=modelFiltered();const pages=Math.max(1,Math.ceil(list.length/4));modelPage=Math.min(modelPage,pages-1);const root=$('modelCards');root.replaceChildren();if(!list.length){root.append(create('div','empty',t('noModels')));}for(const item of list.slice(modelPage*4,(modelPage+1)*4)){
+function drawModels(){const list=modelFiltered();const pages=Math.max(1,Math.ceil(list.length/4));modelPage=Math.min(modelPage,pages-1);const root=$('modelCards');root.replaceChildren();if(!list.length){root.append(create('div','empty',get('modelScope')==='public'?'WANに登録済みのルームがありません。公開ディレクトリを確認するか、NEW MODELから登録してください。':t('noModels')));}for(const item of list.slice(modelPage*4,(modelPage+1)*4)){
     const card=create('button','model-card'+(selected&&selected.room_id===item.room_id?' picked':''));card.type='button';const head=create('div','model-card-head');head.append(create('strong','',short(item.model.split('/').pop(),28)));
     const comp=item.compatibility;head.append(create('span','pill '+statusClass(comp?.status),compatName(comp)));card.append(head);
     card.append(create('div','mono muted truncate',item.model));
     const related=models.filter(x=>x.model===item.model&&x.revision===item.revision).length;
-    const idText='ID '+String(item.room_id).slice(0,12)+' · '+(item.local?t('localScope'):t('remoteScope'))+' · '+m(item.online)+' '+t('networkPeers')+(related>1?' · '+related+' distinct IDs':'');
+    const idText='ID '+String(item.room_id).slice(0,12)+' · '+(item.on_wan?t('remoteScope'):(item.wan_registered?t('registeredWan'):t('localScope')))+' · '+m(item.online)+' '+t('networkPeers')+(related>1?' · '+related+' distinct IDs':'');
     const idNode=create('small','',idText);idNode.title=String(item.room_id);card.append(idNode);
+    if(item.on_wan){
+      const hasStats=Number.isFinite(Number(item.cumulative_participants)) &&
+        item.cumulative_participants!=null && Number.isFinite(Number(item.training_seconds)) &&
+        item.training_seconds!=null;
+      card.append(create('small','muted',hasStats
+        ? '累計参加 '+Math.trunc(roomMetric(item,'cumulative_participants')).toLocaleString()+' ピア · '+
+          '累計学習 '+formatTrainingHours(item.training_seconds)+' · ピア報告値'
+        : '累計統計は未取得（シグナリングサーバーの更新が必要）'));
+    }
     const tags=create('div','tag-list');taglist(tags,item.datasets);card.append(tags);card.addEventListener('click',()=>{selected=item;selectedByUser=true;drawModels();drawSelection();void checkCompatibility(item);});root.append(card);
-  }setPageControls('model',modelPage,pages,list.length);setText('modelsCounter',models.length);
+  }setPageControls('model',modelPage,pages,list.length);setText('modelsCounter',list.length);
   // Probe only the visible page, without blocking rendering or flooding the Hub.
   if(ready())for(const item of list.slice(modelPage*4,(modelPage+1)*4))queueCompatibility(item);}
 function inviteUrl(ws,room){
@@ -209,50 +290,83 @@ function drawSelection(){const x=selected;
   const cap=x?.compatibility;const badge=$('modelCompatibility');badge.textContent=compatName(cap);badge.className='pill '+statusClass(cap?.status);setText('compatibilityReason',cap?.reason||t('unknownModel'));$('selectModel').disabled=!x||cap?.status==='unsupported'||cap?.status==='unavailable';$('modelTrain').disabled=!x||cap?.status==='unsupported'||cap?.status==='unavailable';}
 function formatParams(v){return v>=1e9?(v/1e9).toFixed(1)+'B':v>=1e6?(v/1e6).toFixed(0)+'M':String(v);}
 function queueCompatibility(item){
-  if(!item||item.compatibility||compatibilityPending.has(item.room_id))return;
-  compatibilityPending.add(item.room_id);compatibilityQueue.push(item);drainCompatibility();
+ if(!item||item.compatibility)return;
+ const key=compatibilityKey(item),cached=cachedCompatibility(key);
+ if(cached){item.compatibility=cached;return;}
+ if(compatibilityPending.has(key))return;
+ compatibilityPending.add(key);compatibilityQueue.push({model:item.model,revision:item.revision||'main',key});
+ drainCompatibility();
 }
 function drainCompatibility(){
-  while(compatibilityActive<2&&compatibilityQueue.length){
-    const item=compatibilityQueue.shift();compatibilityActive++;
-    void (async()=>{
-      const result=await api('compat',{model:item.model,revision:item.revision||'main'}).catch(()=>({status:'unknown',reason:'Hub metadata not available',parameters:null}));
-      const found=models.find(x=>x.room_id===item.room_id);
-      if(found){found.compatibility=result;drawModels();if(selected?.room_id===item.room_id){selected=found;drawSelection();}}
-    })().finally(()=>{compatibilityActive--;compatibilityPending.delete(item.room_id);drainCompatibility();});
-  }
+ while(compatibilityActive<2&&compatibilityQueue.length){
+   const job=compatibilityQueue.shift();compatibilityActive++;
+   void (async()=>{
+     const result=await api('compat',{model:job.model,revision:job.revision}).catch(()=>({status:'unknown',reason:'Hub metadata not available',parameters:null}));
+     cacheCompatibility(job.key,result);
+     let changed=false;
+     for(const item of models){
+       if(compatibilityKey(item)===job.key){item.compatibility=result;changed=true;}
+     }
+     if(changed){drawModels();if(selected&&compatibilityKey(selected)===job.key)drawSelection();}
+   })().finally(()=>{compatibilityActive--;compatibilityPending.delete(job.key);drainCompatibility();});
+ }
 }
-function checkCompatibility(item){queueCompatibility(item);}
-let directoryRequestId=0;
+let peerPtSources=[];
+let directoryRequestId=0, directoryWs=null;
 let cachedLocalRooms=[], cachedPublicRooms=[];
 function updateModelDirectory(){
  const map=new Map();
- for(const x of cachedPublicRooms)map.set(x.room_id,{...x,local:false});
- for(const x of cachedLocalRooms){const prev=map.get(x.room_id);map.set(x.room_id,{...prev,...x,online:prev?.online||0,local:true});}
- models=Array.from(map.values()).slice(0,250).sort((a,b)=>Number(b.is_training||false)-Number(a.is_training||false)||Number(b.online)-Number(a.online));
+ for(const x of cachedPublicRooms)map.set(x.room_id,{...x,local:false,on_wan:true,wan_registered:true});
+ for(const x of cachedLocalRooms){const prev=map.get(x.room_id);map.set(x.room_id,{...prev,...x,online:prev?.online||0,on_wan:!!prev?.on_wan,wan_registered:!!prev?.on_wan||!!x.wan_registered,local:true});}
+ // Do not lose online information when an already-joined room exists locally.
+ // Public WAN rooms are the primary directory; local-only rooms are debug.
+ models=modelSorted(Array.from(map.values()).slice(0,250));
+ // Restore previous HF compatibility results before painting a refreshed page.
+ for(const item of models){const hit=cachedCompatibility(compatibilityKey(item));if(hit)item.compatibility=hit;}
  if(selected)selected=models.find(x=>modelKey(x)===modelKey(selected))||null;
- if(!selected&&models.length)selected=models[0];
- drawModels();drawSelection();if(selected)void checkCompatibility(selected);
+ // An old auto-restored local room must not override WAN-first discovery.
+ if(!selectedByUser&&get('modelScope')==='public'){
+   selected=models.find(x=>x.on_wan)||models.find(x=>x.wan_registered)||null;
+ }
+ if(!selected&&models.length&&get('modelScope')!=='public')selected=models[0];
+ drawModels();drawSelection();if(selected)queueCompatibility(selected);
 }
 async function refreshModels(){
  const serial=++directoryRequestId;
- // Render local state as soon as possible; unreachable Cloudflare must not
- // postpone model selection, new-model clicks or first paint.
- const local=await api('localModels');
- if(serial!==directoryRequestId)return;
- cachedLocalRooms=(local.models||[]).slice(0,250);
- updateModelDirectory();
  const url=get('ws');
+ if(directoryWs!==url){
+   directoryWs=url;cachedPublicRooms=[];cachedLocalRooms=[];
+   updateModelDirectory();
+ }
+ // Launch WAN discovery FIRST. Never let local filesystem scans delay the
+ // network request; either result renders independently and updates cards.
  void api('publicModels',{ws:url}).then(remote=>{
    if(serial!==directoryRequestId||get('ws')!==url)return;
    cachedPublicRooms=(remote.rooms||[]).slice(0,250);
    updateModelDirectory();
+   setText('networkConnectionDetail','kcia.tech · '+cachedPublicRooms.length+' public rooms');
  }).catch(e=>{
-   // Offline is normal for a local-first desktop app. Keep existing results.
-   setText('networkConnectionDetail','Directory offline · '+String(e.message||e));
+   if(serial!==directoryRequestId)return;
+   cachedPublicRooms=[];
+   updateModelDirectory();
+   setText('networkConnectionDetail','WAN directory unavailable · '+String(e.message||e)+' · 登録済み履歴のみ表示');
  });
+ try{
+   const local=await api('localModels',{ws:url});
+   if(serial!==directoryRequestId)return;
+   cachedLocalRooms=(local.models||[]).slice(0,250);
+   updateModelDirectory();
+ }catch(e){if(serial===directoryRequestId)notify('Local cache: '+String(e.message||e),true);}
 }
-$('refreshModels').addEventListener('click',safe('MODELS',refreshModels));$('modelFilter').addEventListener('input',()=>{modelPage=0;drawModels();});$('modelScope').addEventListener('change',()=>{modelPage=0;drawModels();});
+$('refreshModels').addEventListener('click',safe('MODELS',refreshModels));$('modelFilter').addEventListener('input',()=>{modelPage=0;drawModels();});$('modelScope').addEventListener('change',()=>{modelPage=0;selectedByUser=false;updateModelDirectory();});
+// Persist only the local UI preference. Public ranking data always comes from WAN.
+try { const saved=window.localStorage?.getItem('kcia.models.sort.v1');
+  if(['popular','participants','training','online','newest','oldest','name','datasets'].includes(saved))$('modelSort').value=saved;
+} catch(_) { /* WebView private mode may disable storage. */ }
+$('modelSort').addEventListener('change',()=>{
+  modelPage=0; models=modelSorted(models);drawModels();
+  try{window.localStorage?.setItem('kcia.models.sort.v1',get('modelSort'));}catch(_){}
+});
 $('modelPrev').addEventListener('click',()=>{modelPage=Math.max(0,modelPage-1);drawModels();});$('modelNext').addEventListener('click',()=>{modelPage++;drawModels();});
 function applyManifest(info,room){const v=info.manifest;if(!v?.model||!Array.isArray(v.datasets?.sources))throw Error('Invalid manifest');$('room').value=room;$('model').value=v.model.id;$('revision').value=v.model.revision;lastModelForRevision=v.model.id;$('task').value=v.model.architecture;if(v.adapter?.kind)$('kind').value=v.adapter.kind;$('adapterScope').value=v.adapter?.target_scope||'auto';$('creationMode').value=v.design?.mode==='code'?'code':v.design?.mode==='architecture'?'architecture':'weights';$('modelInitialization').value=v.design?'config':v.model.description==='kcia:random-tinystories-1m:v1'?'random':'pretrained';$('base').value='';syncCreationMode(false);$('seed').value=v.datasets.seed;$('codeUrl').value=v.code?.source||'';$('tokenizerModel').value=v.design?.tokenizer?.id||v.model.id;$('tokenizerRevision').value=v.design?.tokenizer?.revision||v.model.revision;sources=v.datasets.sources.map(s=>({...s,columns:{...s.columns}}));codePath='';$('codeEditor').value='';setText('codeStatus',v.code?.sha256?'SHA-256 '+v.code.sha256:'—');setText('fingerprint','SHA-256 '+info.sha256);drawSources();void refreshAutoPlan();}
 async function selectModel(){
@@ -261,7 +375,10 @@ async function selectModel(){
   // A later training attempt can independently report device incompatibility.
   activatedRoom=null;
   const result=await api('select',{room:selected.room_id,ws:get('ws')});
-  applyManifest(result,selected.room_id);await reloadMixed(selected.room_id);
+  applyManifest(result,selected.room_id);
+  $('visibility').value=(selected.on_wan||selected.registered_public)?'public':'private';
+  await reloadMixed(selected.room_id);
+  await loadPeerPtSettings(selected.room_id);
   if(result.local===false){
     // Selecting a PUBLIC model is an explicit JOIN of that existing room ID,
     // not authorization to mint a new room. Persist the server-pinned manifest.
@@ -295,7 +412,7 @@ $('joinByInvite').addEventListener('click',safe('Join invitation',async()=>{
   updateWsNotice();applyManifest(loaded,room);
   const saved=await api('save',{...settingsPayload(),prevent_duplicate:false});
   if(saved.sha256!==loaded.sha256)throw Error('Invitation descriptor fingerprint changed');
-  activatedRoom=room;await reloadMixed(room);await refreshModels().catch(()=>{});
+  activatedRoom=room;await reloadMixed(room);await loadPeerPtSettings(room);await refreshModels().catch(()=>{});
   selected=models.find(x=>x.room_id===room)||{room_id:room,model:loaded.manifest.model.id,revision:loaded.manifest.model.revision,datasets:loaded.manifest.datasets.sources.map(x=>x.repo),local:true,online:0};
   drawModels();drawSelection();notify('参加リンクからモデルを読み込みました');
 }));
@@ -318,7 +435,8 @@ function settingsPayload(){return {room:get('room'),model:get('model'),revision:
 async function registerSavedModel(room, ws, roomPublic){
  try{
    const reg=await api('register',{room,ws,room_public:roomPublic});
-   notify(reg.public?'公開ネットワークに登録しました':'プライベートルームを登録しました');
+   notify(reg.public?'WAN公開ディレクトリへ登録しました':'WAN非公開ルームとして登録しました');
+   await refreshModels();
    return reg;
  }catch(e){
    notify('モデルはローカルに保存済みですが、サーバー登録は未完了: '+String(e.message||e),true);
@@ -342,16 +460,19 @@ async function saveModel(){
  $('room').value=saved.room;setText('fingerprint','SHA-256 '+saved.sha256);
  selected={room_id:saved.room,model:data.model,revision:data.revision,datasets:sources.map(s=>s.repo),task:data.task,local:true,online:0};
  activatedRoom=saved.room;$('allowDuplicateModel').checked=false;
- setText('newModelStatus','ローカル保存完了 · ID '+saved.room.slice(0,12));
+ setText('newModelStatus','モデル設定保存済み · WAN登録待ち · ID '+saved.room.slice(0,12));
  notify(t('modelSaved')+' · '+data.model);
  // A disconnected VPS must not prevent local creation or block the UI for ten seconds.
- void registerSavedModel(saved.room,data.ws,get('visibility')==='public');
+ void registerSavedModel(saved.room,data.ws,get('visibility')==='public').then(reg=>{
+   setText('newModelStatus',reg?'WAN登録完了 · ID '+saved.room.slice(0,12):'WAN登録失敗・再試行可 · ID '+saved.room.slice(0,12));
+ });
  try{await refreshModels();}catch(e){notify('保存は成功しましたが一覧更新に失敗: '+String(e.message||e),true);}
  void refreshAutoPlan().catch(()=>{});
  return saved;
 }
 let draftPromise=null;
 async function prepareNewDraft(){
+  peerPtSources=[];$('peerPtMode').value='room';updatePeerPtStatus();
   if(draftPromise)return draftPromise;
   draftPromise=(async()=>{
     const room=(await api('newRoom')).room;
@@ -518,7 +639,7 @@ $('ptHubBrowse').addEventListener('click',safe('PT Hugging Face',()=>openHubPick
 
 // Local paths are per-peer and must never appear in a public room manifest.
 let mixedPinnedPolicy=null;
-const mixedIds={sft_hf_repo:'mixSftHfRepo',sft_hf_revision:'mixSftHfRevision',sft_hf_config:'mixSftHfConfig',sft_hf_split:'mixSftHfSplit',sft_hf_prompt_column:'mixSftHfPrompt',sft_hf_response_column:'mixSftHfOther',ppo_hf_repo:'mixPpoHfRepo',ppo_hf_revision:'mixPpoHfRevision',ppo_hf_config:'mixPpoHfConfig',ppo_hf_split:'mixPpoHfSplit',ppo_hf_prompt_column:'mixPpoHfPrompt',ppo_hf_reference_column:'mixPpoHfOther',sft_jsonl:'mixSftPath',ppo_jsonl:'mixPpoPath',critic_init:'mixCriticInit',critic_hf_repo:'mixCriticHfRepo',critic_hf_revision:'mixCriticHfRevision',critic_hf_loader:'mixCriticHfLoader',critic_hf_device:'mixCriticHfDevice',critic_hf_max_length:'mixCriticHfMaxLength',critic_hf_head_init:'mixCriticHfHeadInit',
+const mixedIds={sft_hf_repo:'mixSftHfRepo',sft_hf_revision:'mixSftHfRevision',sft_hf_config:'mixSftHfConfig',sft_hf_split:'mixSftHfSplit',sft_hf_prompt_column:'mixSftHfPrompt',sft_hf_response_column:'mixSftHfOther',sft_hf_rejected_column:'mixSftHfRejected',ppo_hf_repo:'mixPpoHfRepo',ppo_hf_revision:'mixPpoHfRevision',ppo_hf_config:'mixPpoHfConfig',ppo_hf_split:'mixPpoHfSplit',ppo_hf_prompt_column:'mixPpoHfPrompt',ppo_hf_reference_column:'mixPpoHfOther',sft_jsonl:'mixSftPath',ppo_jsonl:'mixPpoPath',critic_init:'mixCriticInit',critic_hf_repo:'mixCriticHfRepo',critic_hf_revision:'mixCriticHfRevision',critic_hf_loader:'mixCriticHfLoader',critic_hf_device:'mixCriticHfDevice',critic_hf_max_length:'mixCriticHfMaxLength',critic_hf_head_init:'mixCriticHfHeadInit',
   mixed_actor_grad_norm:'mixActorGradNorm',pt_weight:'mixPtWeight',sft_weight:'mixSftWeight',ppo_weight:'mixPpoWeight',
   ppo_clip:'mixPpoClip',ppo_kl_coef:'mixPpoKl',ppo_value_coef:'mixValueCoef',
   ppo_gamma:'mixGamma',ppo_gae_lambda:'mixGaeLambda',ppo_max_tokens:'mixPpoTokens',
@@ -537,8 +658,11 @@ function syncMixed(){for(const x of ['Sft','Ppo']){const hf=get('mix'+x+'Source'
  const summary=[['PT',sources.length?sources.length+' dataset(s)':'not selected'],['SFT',get('mixSftSource')==='hf'?get('mixSftHfRepo')||'not selected':'local JSONL'],['PPO',get('mixPpoSource')==='hf'?get('mixPpoHfRepo')||'not selected':'local JSONL'],['Reward',get('mixPpoReward')==='hf_model'?get('mixRewardModelId')||'not selected':get('mixPpoReward')],['Critic',k==='hf'?get('mixCriticHfRepo')||'not selected':k.toUpperCase()]];
  setText('mixSetupSummary',summary.map(x=>x[0]+' : '+x[1]).join('  ·  '));}
 function mixedPayload(){
- const enabled=get('mixEnabled')==='on';if(!enabled)return {enabled:false};
+ const pt=get('mixPtEnabled')==='on',sft=get('mixSftEnabled')==='on',ppo=get('mixPpoEnabled')==='on',pref=get('mixPrefEnabled')==='on';
+ if(!pt&&!sft&&!ppo)throw Error('Enable PT, SFT or PPO');
+ if(!sft&&!ppo){if(pref)throw Error('Preference-SFT requires SFT');return {enabled:false};}
  const data={enabled:true};
+ if(pref&&!sft)throw Error('Preference-SFT requires SFT to be ON');
  for(const [field,id] of Object.entries(mixedIds)){
    const raw=get(id);data[field]=mixedNumeric.has(field)?Number(raw):raw;
    if(mixedNumeric.has(field)&&(!raw||!Number.isFinite(data[field])||(mixedInt.has(field)&&!Number.isInteger(data[field]))))throw Error('Invalid '+field);
@@ -548,6 +672,14 @@ function mixedPayload(){
  data.critic_rollout_gossip=get('mixDistributedCritic')==='rollout';
  data.reward_model_idle_offload=get('mixRewardIdleOffload')==='on';
  for(const [role,tag] of [['sft','Sft'],['ppo','Ppo']]){if(get('mix'+tag+'Source')==='hf')data[role+'_jsonl']='';else{for(const key of Object.keys(data))if(key.startsWith(role+'_hf_'))data[key]='';}}
+ if(!pt)data.pt_weight=0;
+ if(!sft){data.sft_weight=0;data.sft_jsonl='';for(const key of Object.keys(data))if(key.startsWith('sft_hf_'))data[key]=key.endsWith('_rejected_column')?'rejected':key.endsWith('_split')?'train':key.endsWith('_prompt_column')?'prompt':key.endsWith('_response_column')?'response':'';}
+ if(!ppo){data.ppo_weight=0;data.ppo_jsonl='';for(const key of Object.keys(data))if(key.startsWith('ppo_hf_'))data[key]=key.endsWith('_split')?'train':key.endsWith('_prompt_column')?'prompt':key.endsWith('_reference_column')?'reference':'';}
+ if(pref){if(!(data.sft_pref_coef>0))data.sft_pref_coef=1;
+   if(get('mixSftSource')==='hf'&&!data.sft_hf_rejected_column)throw Error('Preference-SFT requires a pinned rejected column');}
+ else data.sft_pref_coef=0;
+ if(sft&&!data.sft_jsonl&&!data.sft_hf_repo)throw Error('SFT ON requires a dataset (HF or local JSONL)');
+ if(ppo&&!data.ppo_jsonl&&!data.ppo_hf_repo)throw Error('PPO ON requires a dataset (HF or local JSONL)');
  if(!data.sft_jsonl&&!data.ppo_jsonl&&!data.sft_hf_repo&&!data.ppo_hf_repo&&data.pt_weight<=0)throw Error('Select an SFT/PPO dataset or assign a positive PT weight');
  if(!mixedPinnedPolicy){
    if(!data.sft_jsonl&&!data.sft_hf_repo)data.sft_weight=0;
@@ -556,13 +688,17 @@ function mixedPayload(){
  if(get('task')!=='causal-lm')throw Error('Mixed PT/SFT/PPO currently requires causal-lm');
  return data;
 }
-function applyMixed(data){$('mixEnabled').value=data?.enabled?'on':'off';for(const [field,id] of Object.entries(mixedIds)){
+function applyMixed(data){$('mixEnabled').value=data?.enabled?'on':'off';
+ $('mixPtEnabled').value=data?.enabled&&Number(data.pt_weight)===0?'off':'on';
+ $('mixSftEnabled').value=data?.enabled&&(data.sft_hf_repo||data.sft_jsonl)&&Number(data.sft_weight)!==0?'on':'off';
+ $('mixPpoEnabled').value=data?.enabled&&(data.ppo_hf_repo||data.ppo_jsonl)&&Number(data.ppo_weight)!==0?'on':'off';
+ $('mixPrefEnabled').value=data?.enabled&&Number(data.sft_pref_coef)>0?'on':'off';for(const [field,id] of Object.entries(mixedIds)){
   const value=data?.[field];const defaults={pt_weight:1,sft_weight:1,ppo_weight:.2,ppo_clip:.2,
-    mixed_actor_grad_norm:0,ppo_kl_coef:.02,ppo_value_coef:.5,ppo_gamma:.99,ppo_gae_lambda:.95,ppo_adv_norm:'legacy',ppo_target_kl:0,ppo_kl_horizon:128,ppo_entropy_coef:0,ppo_critic_grad_norm:0,ppo_reference_aux_coef:0,sft_label_smoothing:0,sft_pref_coef:0,sft_pref_beta:2,sft_pref_margin:0,
+    mixed_actor_grad_norm:0,ppo_kl_coef:.02,ppo_value_coef:.5,ppo_gamma:.99,ppo_gae_lambda:.95,ppo_adv_norm:'legacy',ppo_target_kl:0,ppo_kl_horizon:128,ppo_entropy_coef:0,ppo_critic_grad_norm:0,ppo_reference_aux_coef:0,sft_label_smoothing:0,sft_hf_rejected_column:'rejected',sft_pref_coef:0,sft_pref_beta:2,sft_pref_margin:0,
     ppo_max_tokens:8,ppo_reuse:2,ppo_reward:'token_match',critic_offpolicy:'auto',
     reward_model_id:'',reward_model_revision:'',reward_model_device:'cpu',reward_model_loader:'sequence_classification',
     reward_model_output:'logits',reward_model_format:'plain',reward_model_index:0,reward_model_scale:1,reward_model_max_length:512,critic_kind:'mlp',critic_hidden:32,critic_lr:.001,critic_hf_repo:'',critic_hf_revision:'',critic_hf_loader:'sequence_classification',critic_hf_device:'cpu',critic_hf_max_length:512,critic_hf_head_init:'new'};
-  const hfDefaults={sft_hf_split:'train',sft_hf_prompt_column:'prompt',sft_hf_response_column:'response',ppo_hf_split:'train',ppo_hf_prompt_column:'prompt',ppo_hf_reference_column:'reference'};
+  const hfDefaults={sft_hf_split:'train',sft_hf_prompt_column:'prompt',sft_hf_response_column:'response',sft_hf_rejected_column:'rejected',ppo_hf_split:'train',ppo_hf_prompt_column:'prompt',ppo_hf_reference_column:'reference'};
   $(id).value=value??defaults[field]??hfDefaults[field]??'';
  }$('mixPpoAdaptiveKl').value=data?.ppo_adaptive_kl?'on':'off';$('mixDistributedCritic').value=data?.critic_rollout_gossip?'rollout':data?.distributed_critic?'on':'off';$('mixRewardIdleOffload').value=data?.reward_model_idle_offload?'on':'off';for(const [role,tag] of [['sft','Sft'],['ppo','Ppo']]){$('mix'+tag+'Source').value=data?.[role+'_hf_repo']?'hf':data?.[role+'_jsonl']?'local':'hf';}syncMixed();}
 async function reloadMixed(room){
@@ -666,19 +802,82 @@ $('mixRewardPin').addEventListener('click',safe('Reward Model revision',async()=
 for(const [button,target,kind] of [['pickMixSft','mixSftPath','sft'],['pickMixPpo','mixPpoPath','ppo'],['pickMixCritic','mixCriticInit','critic']]){
  $(button).addEventListener('click',safe('Browse',async()=>{const r=await api('pickMixFile',{kind});if(r.path)$(target).value=r.path;}));
 }
-function trainingOptions(plan){if(!plan||!plan.can_train)throw Error('This device cannot train the pinned shared rank; relay-only participation is supported when a suitable peer worker is online.');if(!Number.isInteger(plan.max_length)||!Number.isInteger(plan.local_steps))throw Error('Automatic training policy not available');return {room:get('room'),base:get('base'),ws:get('ws'),kind:plan.kind,rank:plan.rank,reinit_every:Number(get('trainReinitEvery')),room_public:get('visibility')==='public',optimizer:get('trainOptimizer'),initialization:(get('creationMode')==='weights'?get('modelInitialization'):'config'),lr:Number(get('trainLr')),local_steps:plan.local_steps,max_length:plan.max_length,streaming_base:get('trainStreamingBase')==='on',disk_cache_fraction:Number(get('trainDiskCacheFraction')),wide_lora_rank:plan.wide_lora_rank,rounds:0,push_fanout:Number(get('trainPushFanout')),journal_sync:get('trainJournalSync'),max_journal_gb:Number(get('trainJournalMaxGb')),compute_device:get('trainComputeDevice'),mixed_training:mixedPayload()};}
+function selectedPublishSteps(plan){
+ const mode=get('trainPublishMode');
+ if(mode==='adaptive')return plan?.legacy_local_steps||4;
+ if(mode==='wan')return plan?.local_steps||32; // worker may increase cadence after observing signed patch bytes
+ const n=Number(get('trainLocalSteps'));
+ if(!Number.isInteger(n)||n<4||n>1024||n%4!==0)throw Error('Publication interval must be a multiple of 4, 4..1024 minibatches');
+ return n;
+}
+function updatePublishControls(){
+ const mode=get('trainPublishMode');if(mode==='wan')$('trainLocalSteps').value=String(autoPlan?.local_steps||32);$('trainLocalSteps').disabled=mode!=='custom';
+ if(!run.running&&autoPlan){try{setText('trainAutoPublish',selectedPublishSteps(autoPlan)+' / publish');}catch(_){setText('trainAutoPublish','—');}}
+}
+$('trainPublishMode').addEventListener('change',updatePublishControls);
+$('trainLocalSteps').addEventListener('change',updatePublishControls);
+function updatePeerPtStatus(){setText('peerPtStatus',get('peerPtMode')==='custom'
+  ?('独自PT: '+peerPtSources.length+' source(s) · この端末専用'):'PT: ルームの既定データセット');}
+$('peerPtMode').addEventListener('change',updatePeerPtStatus);
+$('peerPtUseDraft').addEventListener('click',()=>{
+  const list=sourcePayload();
+  if(!list.length){notify('DATASETSでPTデータセットを追加してください',true);return;}
+  peerPtSources=list;
+  $('peerPtMode').value='custom';updatePeerPtStatus();
+  notify('選択した '+list.length+' 個のデータセットをこのピアのPTに使用します（学習開始時に保存）');
+});
+async function loadPeerPtSettings(room){
+  const response=await api('peerPtSettings',{room});
+  if(get('room')!==room)return;
+  peerPtSources=response.sources||[];
+  $('peerPtMode').value=peerPtSources.length?'custom':'room';
+  updatePeerPtStatus();
+}
+// Per-device preferences only; never modify the signed shared room manifest.
+function trainingPrefsPayload(){return {publish_mode:get('trainPublishMode'),
+ local_steps:Number(get('trainLocalSteps')),snapshot_priority:get('trainSnapshotPriority'),
+ bandit_wire_cost:Number(get('trainBanditWireCost')),
+ turn_transport:get('trainTurnTransport'),relay_only:get('trainRelayOnly')==='on'};}
+async function persistTrainingPrefs(){
+ const payload=trainingPrefsPayload();
+ // The backend also checks this exact schema. Invalid partial input is not saved.
+ if(!Number.isInteger(payload.local_steps)||payload.local_steps<4||payload.local_steps>1024||payload.local_steps%4)return;
+ if(!Number.isFinite(payload.bandit_wire_cost)||payload.bandit_wire_cost<0||payload.bandit_wire_cost>10)return;
+ await api('setTrainingPrefs',payload);
+}
+for(const id of ['trainPublishMode','trainLocalSteps','trainSnapshotPriority',
+                 'trainTurnTransport','trainRelayOnly','trainBanditWireCost']){
+ $(id).addEventListener('change',()=>{void persistTrainingPrefs().catch(e=>notify('Training preferences: '+String(e.message||e),true));});
+}
+function trainingOptions(plan){
+ if(!plan||!plan.can_train)throw Error('This device cannot train the pinned shared rank; relay-only participation is supported when a suitable peer worker is online.');
+ if(!Number.isInteger(plan.max_length)||!Number.isInteger(plan.local_steps))throw Error('Automatic training policy not available');
+ const steps=selectedPublishSteps(plan),manual=get('trainPublishMode')!=='adaptive';
+ const wireCost=Number(get('trainBanditWireCost'));
+ if(!Number.isFinite(wireCost)||wireCost<0||wireCost>10)throw Error('WAN bandit communication cost must be in [0,10]');
+ if(get('peerPtMode')==='custom'&&!peerPtSources.length)throw Error('Select independent PT datasets using DATASETS → Apply to this peer');
+ return {auto_model_cadence:get('trainPublishMode')==='wan',bandit_wire_cost:Number(get('trainBanditWireCost')),peer_pt_sources:get('peerPtMode')==='custom'?peerPtSources:[],room:get('room'),base:get('base'),ws:get('ws'),kind:plan.kind,rank:plan.rank,reinit_every:Number(get('trainReinitEvery')),room_public:get('visibility')==='public',optimizer:get('trainOptimizer'),initialization:(get('creationMode')==='weights'?get('modelInitialization'):'config'),lr:Number(get('trainLr')),local_steps:steps,min_publish_steps:manual?steps:0,snapshot_priority:get('trainSnapshotPriority'),turn_transport:get('trainTurnTransport'),relay_only:get('trainRelayOnly')==='on',shard_mb:1,max_length:plan.max_length,streaming_base:get('trainStreamingBase')==='on',disk_cache_fraction:Number(get('trainDiskCacheFraction')),wide_lora_rank:plan.wide_lora_rank,rounds:0,push_fanout:Number(get('trainPushFanout')),journal_sync:get('trainJournalSync'),max_journal_gb:Number(get('trainJournalMaxGb')),compute_device:get('trainComputeDevice'),mixed_training:mixedPayload()};
+}
 async function refreshAutoPlan(requireFresh=false){
   const sequence=++autoPlanRequest;
   const payload={room:get('room'),model:get('model'),revision:get('revision'),kind:get('kind')};
   const plan=await api('plan',payload);
-  if(sequence!==autoPlanRequest&&!requireFresh)return autoPlan||plan;
+  // A background plan can finish after the user selects a different model.
+  // Never let it override a newer model's parameters or launch settings.
+  if(sequence!==autoPlanRequest||payload.room!==get('room')||
+     payload.model!==get('model')||payload.revision!==get('revision')||
+     payload.kind!==get('kind')){
+    if(requireFresh)throw Error('Model changed during training preparation; retry Start');
+    return autoPlan||plan;
+  }
   autoPlan=plan;
+  updatePublishControls();
   setText('trainAutoRank',String(plan.local_physical_rank_estimate||plan.rank)+' est. physical / '+plan.rank+' max'+(plan.can_train?'':' · relay only'));
   setText('trainAutoContext',plan.max_length+' tokens');
   setText('trainAutoRefresh',Number(get('trainReinitEvery'))===0?'OFF':get('trainReinitEvery')+' publishes');
-  if(!run.running)setText('trainAutoPublish',plan.local_steps+' base');
+  if(!run.running)setText('trainAutoPublish',selectedPublishSteps(plan)+' / publish');
   if(!run.running)setText('trainAutoPeers','Automatic (live)');
-  setText('trainAutoNote',plan.reason||t('autoNote'));
+  setText('trainAutoNote',t('autoNote')+' '+(plan.estimated_parameters?('推定 '+(plan.estimated_parameters/1e9).toFixed(2)+'B parameters · '):'')+(plan.reason||''));
   return plan;
 }
 $('kind').addEventListener('change',()=>{void safe('Auto tuning',refreshAutoPlan)();});
@@ -719,7 +918,11 @@ async function autoResolveRoomObjectives(room){
  })().finally(()=>{if(roomDatasetCheckRoom===room){roomDatasetCheck=null;roomDatasetCheckRoom=null;}});
  return await roomDatasetCheck;
 }
+let trainingLaunchPending=false;
 async function startOrResume(){
+  if(trainingLaunchPending)return;
+  trainingLaunchPending=true;
+  try{
   // The signed objectives are fixed by the room manifest. Verify only offered
   // datasets; unavailable ones fall back to PT without changing its signature.
 
@@ -734,7 +937,11 @@ async function startOrResume(){
   const same=old.model.id===payload.model&&old.model.revision===payload.revision&&old.model.architecture===payload.task&&old.datasets.seed===payload.seed&&JSON.stringify(old.datasets.sources)===JSON.stringify(payload.sources);
   if(!same)throw Error('Model is immutable. Re-select it in MODELS before starting.');
   await autoResolveRoomObjectives(payload.room);
-  const plan=await refreshAutoPlan(true);const out=await api('start',trainingOptions(plan));notify(t('trainStarted')+' · PID '+out.pid);await poll();
+  const plan=await refreshAutoPlan(true);
+  if(get('room')!==payload.room||get('model')!==payload.model||get('revision')!==payload.revision)
+    throw Error('Room changed during training preparation; retry Start');
+  const out=await api('start',trainingOptions(plan));notify(t('trainStarted')+' · PID '+out.pid);await poll();
+  }finally{trainingLaunchPending=false;}
 }
 async function pause(){const r=await api('pause');if(r.running)notify(t('trainPaused'));else notify(t('idle'));await poll();}
 async function disconnect(){await api('disconnect');notify(t('disconnecting'));await poll();}
@@ -827,11 +1034,15 @@ function chartPoints(field){
   if(period&&Number.isFinite(elapsed)&&elapsed<cutoff)continue;
   unique.set(x,{x,y});
  }
- return Array.from(unique.values()).sort((a,b)=>a.x-b.x);
+ const points=Array.from(unique.values()).sort((a,b)=>a.x-b.x);
+ // Rendering >1,600 SVG path segments for each objective can freeze WebKit.
+ // Evenly downsample only the DRAWN points, retaining original telemetry on disk.
+ if(points.length>360){const sampled=[];for(let i=0;i<360;i++)sampled.push(points[Math.round(i*(points.length-1)/359)]);return sampled;}
+ return points;
 }
-function plot(id,field){
+function plot(id,field,precomputedPoints=null){
  const svg=$(id);svg.replaceChildren();
- const pts=chartPoints(field);
+ const pts=precomputedPoints||chartPoints(field);
  if(!pts.length){svg.append(svgEl('text',{x:320,y:82,fill:'#91bfa5','text-anchor':'middle','font-size':13},field==='ppo_reference_match'?'NO LABELED REFERENCE (HF REWARD ≠ ACCURACY)':'NO MEASUREMENTS YET'));return;}
  const x0=pts[0].x,rawX1=pts[pts.length-1].x,x1=rawX1===x0?x0+1:rawX1;
  const {min:y0,max:y1}=chartBounds(pts.map(p=>p.y),field);
@@ -899,28 +1110,49 @@ function renderObjectivePlots(){
    const svg=$(id);
    const rect=svg.getBoundingClientRect(), clip=$('chartsPanel').getBoundingClientRect();
    if(!rect.height||rect.top>clip.bottom+220||rect.bottom<clip.top-220)continue;
-   plot(id,field);
-   const points=chartPoints(field),last=points.at(-1);
+   const points=chartPoints(field);
+   plot(id,field,points);
+   const last=points.at(-1);
    setText(latestId,last?chartAxisNumber(last.y,field):'—');
  }
 }
 // Rebuilding nine full SVG plots on each status tick made macOS WebKit lag
 // behind mouse events. Paint only when visible and at a bounded cadence.
-let lastChartPaint=0, chartPaintTimer=null;
+let lastChartPaint=0,chartPaintTimer=null,lastChartSignature='';
+function chartSignature(){
+ // Cheap scalar signature avoids reconstructing nine SVG plots when network
+ // status and latest training metrics have not changed. Explicit refreshes
+ // (scroll, focus, history load) force a repaint regardless.
+ const metrics=row=>row?[row.steps,row.elapsed_s,...objectivePlots.map(([,field])=>row[field])]:null;
+ return JSON.stringify([historyVersion,get('chartWindow'),get('chartFocus'),
+  metrics(latestTelemetry.at(-1)),chartTelemetry.length,metrics(chartTelemetry.at(-1))]);
+}
 function scheduleChartPaint(force=false){
  if(currentTab!=='training'||document.hidden)return;
- if(!force&&Date.now()-lastChartPaint<4000)return;
+ if(!force&&chartSignature()===lastChartSignature)return;
  if(chartPaintTimer!==null)return;
+ const delay=force?0:Math.max(0,800-(Date.now()-lastChartPaint));
  chartPaintTimer=setTimeout(()=>{
    chartPaintTimer=null;
    if(currentTab!=='training'||document.hidden)return;
-   lastChartPaint=Date.now();
-   renderObjectivePlots();
- },0);
+   requestAnimationFrame(()=>{
+     if(currentTab!=='training'||document.hidden)return;
+     const signature=chartSignature();
+     if(!force&&signature===lastChartSignature)return;
+     lastChartPaint=Date.now();lastChartSignature=signature;
+     renderObjectivePlots();
+   });
+ },delay);
 }
-$('chartsPanel').addEventListener('scroll',()=>scheduleChartPaint(true),{passive:true});
+let scrollPaintTimer=null;
+$('chartsPanel').addEventListener('scroll',()=>{
+  // Scroll events can arrive dozens of times per second. Render newly visible
+  // charts on a short, coalesced trailing edge instead of each wheel event.
+  if(scrollPaintTimer!==null)return;
+  scrollPaintTimer=setTimeout(()=>{scrollPaintTimer=null;scheduleChartPaint(true);},120);
+},{passive:true});
 async function refreshChartHistory(force=false){
-  if(historyPending||(!force&&Date.now()-lastHistoryFetch<4200))return;
+  if(historyPending||(!force&&Date.now()-lastHistoryFetch<12000))return;
   if(!run.model_id){chartTelemetry=[];return;}
   historyPending=true;const version=historyVersion;const modelId=run.model_id;
   try{
@@ -943,14 +1175,25 @@ function drawRun(){const latest=latestTelemetry.at(-1);const active=run.running;
  setText('runStatus',label+(active&&run.pid?' · PID '+run.pid:''));const loss=latest?.loss;const acc=latest?.accuracy;setText('monitorLoss',loss!=null?Number(loss).toFixed(3):'—');setText('monitorAccuracy',acc!=null?(100*Number(acc)).toFixed(1)+'%':'—');setText('monitorSpeed',latest?.steps_per_s!=null?Number(latest.steps_per_s).toFixed(2):'—');setText('monitorSteps',latest?.steps??0);if(latest?.publish_steps!=null)setText('trainAutoPublish',latest.publish_steps+' / publish');if(latest?.membership_count!=null)setText('trainAutoPeers',String(latest.membership_count)+' online');else if(latest?.channels!=null)setText('trainAutoPeers',String((latest.channels||0)+1)+'+ observed');setText('monitorUpdates',(latest?.emitted??0)+' / '+(latest?.inbound_applied??0)+' updates');setText('monitorQueue',latest?.inbox??'0');setText('monitorChannels',latest?.channels??'0');setText('lossLatest',loss!=null?Number(loss).toFixed(4):'—');setText('accuracyLatest',acc!=null?(Number(acc)*100).toFixed(2)+'%':'—');
  setText('dockModel',active?(selected?.model||get('model')||'KCIA'):'NO ACTIVE TRAINING');setText('dockState',label+(latest?.steps!=null?' · '+latest.steps+' steps':''));setText('dockLoss',loss!=null?'LOSS '+Number(loss).toFixed(4):'LOSS —');$('dockProgress').className='progress-fill'+(relay?' relay':active?' running':'');$('dockToggle').textContent=active&&!relay?t('pause'):t('start');
  setText('networkBadge',active?label.toUpperCase():'OFFLINE');setText('networkChannels',latest?.channels??0);setText('networkPush',latest?.push_mib!=null?latest.push_mib+' MiB':'—');setText('networkRepair',latest?.repair_mib!=null?latest.repair_mib+' MiB':'—');setText('networkDuplicates',latest?.inbound_duplicates??'—');setText('networkApplied',latest?.inbound_applied??'—');setText('networkInbox',latest?.inbox??'—');setText('networkLocalName',latest?.peer_id?short(latest.peer_id,25):'—');
+ if(latest?.bandit_trials!==undefined){
+   const n=Number(latest.bandit_trials)||0,g=latest.bandit_gain_per_1000;
+   const cost=latest.bandit_signed_mib_per_step;
+   setText('trainBanditStats','Bandit · '+n+' samples · loss trend/1000='+
+     (g==null?'—':Number(g).toFixed(3))+' · estimated signed MiB/step='+
+     (cost==null?'—':Number(cost).toFixed(2))+' · local-only proxy');
+ }
  if(currentTab==='training')scheduleChartPaint();if(currentTab==='models')drawSelection();}
-function drawGraph(){const svg=$('networkGraph');svg.replaceChildren();const last=latestTelemetry.at(-1);const peers=(run.running&&Array.isArray(last?.connected_peers))?last.connected_peers.slice(0,24):[];const actualPeerCount=run.running&&Array.isArray(last?.connected_peers)?last.connected_peers.length:0;const cx=380,cy=210;
+let lastNetworkSignature='';
+function drawGraph(){const svg=$('networkGraph');const last=latestTelemetry.at(-1);const peers=(run.running&&Array.isArray(last?.connected_peers))?last.connected_peers.slice(0,24):[];const actualPeerCount=run.running&&Array.isArray(last?.connected_peers)?last.connected_peers.length:0;const cx=380,cy=210;
+ const signature=JSON.stringify([run.running,peers,actualPeerCount,lang]);
+ if(signature===lastNetworkSignature&&svg.childNodes.length)return;
+ lastNetworkSignature=signature;svg.replaceChildren();
  for(let i=0;i<peers.length;i++){const a=(i/peers.length)*2*Math.PI-Math.PI/2;const x=cx+Math.cos(a)*245,y=cy+Math.sin(a)*143;svg.append(svgEl('line',{x1:cx,y1:cy,x2:x,y2:y,stroke:'#376c50','stroke-width':2}));svg.append(svgEl('circle',{cx:x,cy:y,r:26,fill:'#193d2b',stroke:'#379966','stroke-width':2}));svg.append(svgEl('text',{x,y:y+5,'text-anchor':'middle',fill:'#b4f2ce','font-size':14},String(i+1).padStart(2,'0')));svg.append(svgEl('text',{x,y:y+43,'text-anchor':'middle',fill:'#749f85','font-size':10},short(peers[i],12)));}
- svg.append(svgEl('circle',{cx,cy,r:37,fill:'#10b981',stroke:'#b5ffdb','stroke-width':2}));svg.append(svgEl('text',{x:cx,y:cy+5,'text-anchor':'middle',fill:'#082014','font-size':14,'font-weight':'bold'},'LOCAL'));
+ svg.append(svgEl('circle',{cx,cy,r:37,fill:'#10b981',stroke:'#b5ffdb','stroke-width':2}));svg.append(svgEl('text',{x:cx,y:cy+5,'text-anchor':'middle',fill:'#082014','font-size':14,'font-weight':'bold'},'SELF'));
  if(actualPeerCount>peers.length)svg.append(svgEl('text',{x:cx,y:280,'text-anchor':'middle',fill:'#8cbea0','font-size':11},'+'+(actualPeerCount-peers.length)+' more directly connected peers'));
  if(!peers.length)svg.append(svgEl('text',{x:cx,y:325,'text-anchor':'middle',fill:'#739784','font-size':14},t('noNetwork')));}
 let pollPending=false,evalPending=false,historyModel=null;
-async function poll(){if(pollPending)return;pollPending=true;try{const result=await api('status');run=result;latestTelemetry=result.telemetry||[];if(result.model_id!==historyModel){historyModel=result.model_id;historyVersion++;chartTelemetry=[];lastHistoryFetch=0;}if(currentTab==='training'&&result.model_id)void refreshChartHistory().catch(()=>{});if(result.checkpoint_ready)setText('storageStatus',result.checkpoint_file);if(!$('bridgeState').classList.contains('online')){$('bridgeState').textContent='● LOCAL BRIDGE';$('bridgeState').classList.add('online');}drawRun();if(currentTab==='network')drawGraph();const value=result.logs||'—';if(value!==lastLog){const log=$('logs');log.textContent=value.split('\n').slice(-9).join('\n');lastLog=value;}
+async function poll(){if(pollPending)return;pollPending=true;try{const result=await api('status');run=result;latestTelemetry=result.telemetry||[];if(result.model_id!==historyModel){historyModel=result.model_id;historyVersion++;chartTelemetry=[];lastHistoryFetch=0;}if(currentTab==='training'&&result.model_id)void refreshChartHistory().catch(()=>{});if(result.checkpoint_ready)setText('storageStatus',result.checkpoint_file);if(!$('bridgeState').classList.contains('online')){$('bridgeState').textContent='● KCIA WAN · GUI READY';$('bridgeState').classList.add('online');}drawRun();if(currentTab==='network')drawGraph();const value=result.logs||'—';if(value!==lastLog){const log=$('logs');log.textContent=value.split('\n').slice(-9).join('\n');lastLog=value;}
  }catch(e){setText('bridgeState','Bridge offline · '+e.message);$('bridgeState').classList.remove('online');}finally{pollPending=false;}}
 async function loopEval(){if(evalPending)return;evalPending=true;try{await pollEval();}catch(e){setText('evalStatus','ERROR');setText('evalResult','Inference status error: '+String(e?.message||e));}finally{evalPending=false;}}
 // Objective configuration is a ROOM-CREATION concern; place its existing
@@ -962,13 +1205,20 @@ if(newModelPane&&$('mixedPanel')){
   // Keep the editor out of the fixed-height NEW MODEL screen. Only display
   // it in a scrollable dialog invoked explicitly by the user.
   $('objectiveDialogBody').append(panel);
+  for(const id of ['mixPtEnabled','mixSftEnabled','mixPpoEnabled','mixPrefEnabled']){
+    $(id).addEventListener('change',()=>{
+      const useMixed=get('mixSftEnabled')==='on'||get('mixPpoEnabled')==='on'||get('mixPrefEnabled')==='on';
+      $('mixEnabled').value=useMixed?'on':'off';
+      syncMixed();updateObjectiveSummary();
+    });
+  }
   const dialog=$('objectiveDialog');
   let priorObjectiveFocus=null;
   function updateObjectiveSummary(){
-    const mode=get('mixEnabled')==='on'?'PT + SFT / PPO':'PTのみ';
+    const mode=[['PT','mixPtEnabled'],['SFT','mixSftEnabled'],['PPO','mixPpoEnabled'],['Preference-SFT','mixPrefEnabled']].filter(x=>get(x[1])==='on').map(x=>x[0]).join(' + ');
     const sft=get('mixSftHfRepo')||'未設定';
     const ppo=get('mixPpoHfRepo')||'未設定';
-    setText('objectiveSummary',mode+(mode==='PTのみ'?'':(' · SFT: '+sft+' · PPO: '+ppo)));
+    setText('objectiveSummary',mode+(get('mixSftEnabled')==='off'&&get('mixPpoEnabled')==='off'?'':(' · SFT: '+sft+' · PPO: '+ppo)));
   }
   function openObjectiveDialog(){
     priorObjectiveFocus=document.activeElement;
@@ -1029,31 +1279,40 @@ let bootTimersInstalled=false;
 async function boot(){
  if(startup)return;
  startup=true;
- setText('bridgeState','CONNECTING · LOCAL');
+ setText('bridgeState','CONNECTING · KCIA WAN');
  try{
    const settings=await api('defaults');
    for(const id of ['room','model','revision','task','ws','seed','kind'])$(id).value=settings[id];
    $('modelInitialization').value=settings.initialization;
    lastModelForRevision=settings.model;
    $('networkMode').value=settings.ws.startsWith('wss://')?'internet':'local';
+   $('modelScope').value=settings.ws.startsWith('wss://')?'public':'local';
    if(settings.ws.startsWith('wss://'))previousRemoteWs=settings.ws;
    updateWsNotice();
    for(const [key,id] of Object.entries({reinit_every:'trainReinitEvery',lr:'trainLr',disk_cache_fraction:'trainDiskCacheFraction',wide_lora_rank:'trainWideRank',push_fanout:'trainPushFanout',max_journal_gb:'trainJournalMaxGb'}))$(id).value=settings[key];
+   $('trainPublishMode').value=settings.publish_mode||'wan';
+   $('trainLocalSteps').value=String(settings.local_steps||32);
+   $('trainSnapshotPriority').value=settings.snapshot_priority||'training';
+   $('trainTurnTransport').value=settings.turn_transport||'auto';
+   $('trainRelayOnly').value=settings.relay_only?'on':'off';
+   $('trainBanditWireCost').value=String(settings.bandit_wire_cost??0.08);
+   updatePublishControls();
    $('trainStreamingBase').value=settings.streaming_base?'on':'off';
    sources=settings.sources||[];
    syncCreationMode(false);drawSources();
-   $('bridgeState').textContent='● LOCAL BRIDGE';
+   $('bridgeState').textContent='● KCIA WAN · GUI READY';
    $('bridgeState').classList.add('online');
    // These are deliberately detached; every UI event handler is already live.
    void poll();
    void refreshModels().then(async()=>{
      if(!settings.last_room)return;
-     const entry=models.find(x=>x.room_id===settings.last_room&&x.local);
+     const entry=models.find(x=>x.room_id===settings.last_room&&x.local&&
+       (get('networkMode')==='local'||x.on_wan||x.wan_registered));
      if(!entry)return;
      try{
        const restored=await api('select',{room:entry.room_id,ws:get('ws')});
        applyManifest(restored,entry.room_id);
-       await reloadMixed(entry.room_id);
+       await reloadMixed(entry.room_id);await loadPeerPtSettings(entry.room_id);
        activatedRoom=entry.room_id;
        selected=models.find(x=>x.room_id===entry.room_id)||entry;
        drawModels();drawSelection();
@@ -1063,9 +1322,13 @@ async function boot(){
    // only request when user actually opens model creation or training.
    if(!bootTimersInstalled){
      bootTimersInstalled=true;
-     setInterval(()=>{if(!document.hidden)void poll();},2500);
+     setInterval(()=>{if(!document.hidden)void poll();},900);
      setInterval(()=>{if(!document.hidden&&(currentTab==='eval'||queuedEval))void loopEval();},3500);
      setInterval(()=>{if(!document.hidden&&currentTab==='eval')void updateCheckpoints().catch(()=>{});},8000);
+     // The public directory is a read-only summary; refresh at most once a
+     // minute while MODELS is visible, never on every graph/telemetry poll.
+     setInterval(()=>{if(!document.hidden&&currentTab==='models'&&get('networkMode')==='internet')
+       void refreshModels().catch(()=>{});},60000);
    }
  }catch(e){
    notify('GUI initialization: '+String(e.message||e),true);

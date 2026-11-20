@@ -167,8 +167,6 @@ def validate_args(args):
     if options['ppo_reference_aux_coef'] > 0 and (not source_selected(args,'ppo') or
                                                  float(getattr(args,'ppo_weight',.2)) <= 0):
         raise MixedLearningError('PPO reference auxiliary requires an enabled PPO source and positive weight')
-    if options['sft_pref_coef'] > 0 and getattr(args,'sft_hf_repo',''):
-        raise MixedLearningError('SFT preference optimization currently requires local JSONL with rejected')
     if options['sft_pref_coef'] > 0 and (not source_selected(args,'sft') or
                                          float(getattr(args,'sft_weight',1.)) <= 0):
         raise MixedLearningError('SFT preference objective needs an enabled SFT source and nonzero weight')

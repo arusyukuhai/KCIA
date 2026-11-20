@@ -67,6 +67,9 @@ class MixedObjectiveTrainer:
             if source is not None and getattr(args, role+'_hf_repo', '') and hasattr(source,'peek'):
                 try:
                     example=source.peek()
+                    if (role=='sft' and float(getattr(args,'sft_pref_coef',0.))>0 and
+                            not isinstance(example.get('rejected'),str)):
+                        raise ValueError('Preference SFT requires a rejected answer column in the pinned HF dataset')
                     if (role=='ppo' and getattr(args,'ppo_reward','token_match')!='hf_model'
                             and not isinstance(example.get('reference'),str)):
                         raise ValueError('PPO dataset must provide a reference for token_match/exact reward; '

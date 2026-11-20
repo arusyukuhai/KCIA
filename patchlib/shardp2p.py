@@ -11,16 +11,14 @@ import hashlib
 import json
 import logging
 import os
-import secrets
 import tempfile
-import time
 from pathlib import Path
 
 from .core import PatchError
-from .p2p import CHUNK, WINDOW, PatchNode
+from .p2p import CHUNK, PatchNode
 from .shards import (MAX_SHARD_MANIFEST, _blob_path, _check_hash, _check_object,
-                     _atomic_write, has_object, manifest_bytes, parse_manifest,
-                     read_manifest, shard_map, verify_shards)
+                     _atomic_write, has_object, parse_manifest,
+                     shard_map, verify_shards)
 
 log = logging.getLogger('kcia.shards')
 V = 2

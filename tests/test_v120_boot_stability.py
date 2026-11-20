@@ -12,11 +12,11 @@ from patchlib.webview_controller import WebviewController
 from patchlib.webview_gui import compose_html, run_webview
 
 
-def test_startup_defaults_restore_publish4_reinit20(tmp_path):
+def test_startup_defaults_restore_wan_publish32_reinit20(tmp_path):
     controller = WebviewController(tmp_path)
     defaults = controller.settings()
     assert defaults['reinit_every'] == 20
-    assert defaults['local_steps'] == 4
+    assert defaults['local_steps'] == 32
     html = compose_html()
     assert 'id="trainReinitEvery" min="0" max="100000" value="20"' in html
     assert 'Default 20 for new rooms' in html

@@ -37,6 +37,21 @@ def training_batches(args, *, batch_file_loader=load_file):
     from .room_manifest import load_manifest
     manifest = (load_manifest(args.room_manifest) if getattr(args, 'room_manifest', None)
                 and not (args.batches_dir or args.text_file or args.jsonl) else None)
+    # Peer-private PT source override: changes training *examples*, never the
+    # authenticated room manifest, protocol, optimizer settings or genesis.
+    source_file=getattr(args,'peer_pt_sources_file',None)
+    if source_file is not None:
+        if manifest is None or manifest['version']!=2:
+            raise ValueError('per-peer PT sources require a v2 HF room manifest')
+        from .room_manifest import validate_hf_sources
+        import json
+        file=Path(source_file)
+        if file.is_symlink() or not file.is_file() or file.stat().st_size>16*1024:
+            raise ValueError('local PT source JSON is missing, symlinked, or too large')
+        custom=validate_hf_sources(json.loads(file.read_text(encoding='utf8')))
+        manifest={**manifest,'datasets':{**manifest['datasets'],'sources':custom}}
+        print(f'KCIA LOCAL PT SOURCES peer={getattr(args,"peer_id","")} count={len(custom)} '
+              'room_manifest_unchanged=1',flush=True)
     # Same room seed, but independent deterministic stream per persistent peer.
     root_seed = manifest['datasets']['seed'] if manifest is not None else 42
     data_seed = peer_sampling_seed(getattr(args, 'peer_id', None), root_seed)

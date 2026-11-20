@@ -11,6 +11,7 @@ import base64
 import hashlib
 import json
 import logging
+import math
 import os
 import re
 import secrets
@@ -131,12 +132,28 @@ class RoomDiscovery:
         self.online=False
         self.fatal_error: Exception | None = None
         self.updated=asyncio.Event()
+        # Locally observed, active training-block elapsed time only. WAN
+        # signaling/idle/snapshot waits outside the training block are omitted.
+        self._training_run=secrets.token_hex(16)
+        self._training_ms=0
+        self._usage_supported=False  # older signaling servers stay compatible
+
+    def note_training(self, elapsed_seconds: float) -> None:
+        """Accumulate measured work time, never claim mere online uptime."""
+        if (isinstance(elapsed_seconds,(float,int)) and not isinstance(elapsed_seconds,bool)
+                and math.isfinite(elapsed_seconds) and 0 < elapsed_seconds <= 3600):
+            self._training_ms+=max(1,round(elapsed_seconds*1000))
+
+    def training_report(self) -> dict:
+        return {'type':'training-report','run':self._training_run,
+                'compute_ms':self._training_ms}
 
     def accept(self, message: dict):
         """Parse server-authored membership events, ignore unrelated WS messages."""
         if not isinstance(message,dict): raise PatchError('invalid lobby message')
         kind=message.get('type')
         if kind=='group-members':
+            self._usage_supported=message.get('usage_v1') is True
             from .room_manifest import validate_manifest, manifest_digest
             supplied=message.get('manifest')
             if supplied is not None:
@@ -255,13 +272,23 @@ class RoomDiscovery:
                     self.online=True;self.emergency=False
                     connected_at=time.monotonic()
                     last_ping=connected_at
+                    last_training_report=connected_at-15.0
+                    sent_training_ms=-1  # resend current high-water mark after reconnect
                     while not stop.is_set():
+                        if (self._usage_supported and self._training_ms>0 and self._training_ms!=sent_training_ms and
+                                time.monotonic()-last_training_report>=15.0):
+                            await ws.send(json.dumps(self.training_report(),separators=(',',':')))
+                            sent_training_ms=self._training_ms
+                            last_training_report=time.monotonic()
                         if time.monotonic()-last_ping>=30.0:
                             await ws.send('{"type":"ping"}')
                             last_ping=time.monotonic()
                         try: data=await asyncio.wait_for(ws.recv(),2)
                         except asyncio.TimeoutError:continue
                         self.accept(json.loads(data))
+                    # Best-effort final report. Retries are idempotent at server.
+                    if self._usage_supported and self._training_ms>0 and sent_training_ms!=self._training_ms:
+                        await ws.send(json.dumps(self.training_report(),separators=(',',':')))
               except PatchError as exc:
                 # A pinned manifest mismatch or invalid server roster is
                 # permanent; repeated joins cannot fix it. Fail visibly.
@@ -352,11 +379,20 @@ def list_public_rooms(ws_url: str, *, timeout=5.0) -> list[dict]:
             raise ValueError('invalid room listing entry')
         validate_room(entry['room_id'])
         if (not isinstance(entry.get('model'),str) or len(entry['model'])>200 or
-            not isinstance(entry.get('online'),int) or not 0<=entry['online']<=96 or
+            type(entry.get('online')) is not int or not 0<=entry['online']<=4096 or
             not isinstance(entry.get('datasets'),list) or len(entry['datasets'])>12):
             raise ValueError('invalid room listing data')
         if any(not isinstance(x,str) or len(x)>200 for x in entry['datasets']):
             raise ValueError('invalid room dataset summary')
+        # Legacy Mummy servers omit metrics. Distinguish an absent metric
+        # from a trusted value; never coerce strings or NaN to popularity.
+        for key in ('cumulative_participants','training_seconds'):
+            if key in entry:
+                val=entry[key]
+                if (not isinstance(val,(int,float)) or isinstance(val,bool) or
+                        not math.isfinite(val) or val<0 or val>1e12 or
+                        (key=='cumulative_participants' and type(val) is not int)):
+                    raise ValueError('invalid directory metric '+key)
         result.append(entry)
     return sorted(result,key=lambda r:(-r['online'],r['room_id']))
 

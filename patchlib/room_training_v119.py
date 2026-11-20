@@ -50,9 +50,10 @@ def shared_policy(manifest):
     return objective_policy(source)
 
 def for_local_peer(manifest, chosen):
-    """Retain room-wide scoring; allow only the same HF datasets or PT-only.
+    """Retain signed room-wide scoring while permitting peer-private input data.
 
-    A peer cannot silently replace a pinned dataset with another repository.
+    Each role must already exist in the room policy. Data repository IDs do
+    not enter the signed optimizer/objective genesis; no examples are shared.
     """
     shared=shared_options(manifest)
     if shared is None:
@@ -78,7 +79,21 @@ def for_local_peer(manifest, chosen):
                 if k.startswith(role+'_hf_'):result[k]=DEFAULT[k]
             result[role+'_jsonl']=choice[role+'_jsonl']
         else:
-            if choice.get(role+'_hf_repo',shared[role+'_hf_repo'])!=shared[role+'_hf_repo']:
-                raise ValueError('dataset repository cannot differ from room policy')
+            if choice.get(role+'_hf_repo') and not shared.get(role+'_hf_repo'):
+                raise ValueError('dataset objective not offered by this room')
+            # Heterogeneous data is the point of federated learning. Keep the
+            # exact signed objective weights/scoring policy, while each peer
+            # can select its own revision-pinned HF source for permitted role.
+            # This changes ONLY input examples, not shared genesis or scores.
+            if choice.get(role+'_hf_repo'):
+                if (choice[role+'_hf_repo'] != shared[role+'_hf_repo'] and
+                        not choice.get(role+'_hf_revision')):
+                    raise ValueError('changing dataset repository requires its own pinned 40-character revision')
+                for key in result:
+                    if key.startswith(role+'_hf_') and key in choice:
+                        result[key]=choice[key]
+                from types import SimpleNamespace
+                from .hf_mixed_datasets_v68 import source_spec
+                source_spec(SimpleNamespace(**result),role)
     result['enabled']=True  # signed policy exists even for a PT-only participant
     return result

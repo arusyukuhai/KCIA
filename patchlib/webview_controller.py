@@ -14,6 +14,7 @@ import shutil
 import subprocess
 import sys
 import datetime
+import time
 from pathlib import Path
 
 from .gui import DesktopController
@@ -22,6 +23,7 @@ from .room_manifest import (make_hf_manifest, manifest_digest, validate_manifest
 from .roomid import create_room_id, validate_room, fetch_room_manifest, list_public_rooms, register_room_manifest
 from .profiles import allocate_profile
 from .webview_validation_v110 import check_signaling_url, _exclusive_manifest_lock
+from .network_defaults import WAN_SIGNALING_URL, LOCAL_DEBUG_SIGNALING_URL
 
 
 class WebviewController:
@@ -86,18 +88,27 @@ class WebviewController:
         return self.workdir / '.kcia-gui' / 'network.json'
 
     def _signaling_url(self) -> str:
-        default = 'ws://127.0.0.1:8080/ws'
+        default = WAN_SIGNALING_URL
         path = self._network_path()
         if path.is_file():
             try:
                 saved = json.loads(path.read_text(encoding='utf8'))
-                return check_signaling_url(saved['ws'])
+                ws = check_signaling_url(saved['ws'])
+                # WAN is the GUI launch default across *all* prior versions.
+                # Loopback remains available when selected in a running debug
+                # session, but old network.json files must never silently
+                # switch the next launch back into localhost.
+                if ws == LOCAL_DEBUG_SIGNALING_URL:
+                    return default
+                return ws
             except (OSError, UnicodeError, ValueError, KeyError, TypeError):
-                # A corrupt setting must not prevent a room or GUI from opening.
                 return default
         value = os.environ.get('KCIA_SIGNALING_URL', default)
         try:
-            return check_signaling_url(value)
+            chosen=check_signaling_url(value)
+            if chosen==LOCAL_DEBUG_SIGNALING_URL and os.environ.get('KCIA_GUI_LOCAL_DEBUG_DEFAULT')!='1':
+                return default
+            return chosen
         except ValueError:
             return default
 
@@ -117,7 +128,7 @@ class WebviewController:
                          getattr(os, 'O_NOFOLLOW', 0), 0o600)
             try:
                 with os.fdopen(fd, 'w', encoding='utf8') as out:
-                    json.dump({'version': 1, 'ws': ws}, out)
+                    json.dump({'version': 2, 'ws': (WAN_SIGNALING_URL if ws==LOCAL_DEBUG_SIGNALING_URL else ws)}, out)
                     out.write('\n'); out.flush(); os.fsync(out.fileno())
                 os.replace(temporary, path)
             finally:
@@ -134,20 +145,93 @@ class WebviewController:
                 reply = json.loads(await asyncio.wait_for(conn.recv(), timeout=6))
                 if reply.get('type') != 'pong':
                     raise ConnectionError('Signaling WebSocket ping rejected')
-        asyncio.run(handshake())
-        rooms = list_public_rooms(ws, timeout=6)
+        async def probe_both():
+            # The WebSocket ping and HTTP directory probe are independent.
+            # Sequential calls can take 12 seconds on poor WAN links, longer
+            # than the GUI's RPC timeout, and leave work running behind it.
+            _, rooms = await asyncio.gather(
+                handshake(), asyncio.to_thread(list_public_rooms, ws, timeout=6))
+            return rooms
+        rooms = asyncio.run(probe_both())
         return {'connected': True, 'ws': ws, 'public_rooms': len(rooms),
                 'mode': 'internet' if ws.startswith('wss://') else 'local'}
+
+    def _training_preferences_path(self):
+        return self.workdir / '.kcia-gui' / 'training-preferences.json'
+
+    @staticmethod
+    def _validate_training_preferences(payload):
+        if not isinstance(payload,dict):
+            raise ValueError('training preferences must be an object')
+        valid_keys={'publish_mode','local_steps','snapshot_priority',
+                    'turn_transport','relay_only','bandit_wire_cost'}
+        required=valid_keys-{'bandit_wire_cost'}
+        if not required.issubset(payload) or set(payload)-valid_keys:
+            raise ValueError('training preference keys are invalid or incomplete')
+        mode=payload['publish_mode']
+        if mode not in ('wan','custom','adaptive'):
+            raise ValueError('invalid publish mode')
+        steps=payload['local_steps']
+        if type(steps) is not int or steps<4 or steps>1024 or steps%4:
+            raise ValueError('local_steps must be a multiple of 4 in [4,1024]')
+        if payload['snapshot_priority'] not in ('training','snapshot'):
+            raise ValueError('invalid snapshot priority')
+        if payload['turn_transport'] not in ('auto','tcp','udp'):
+            raise ValueError('invalid TURN transport')
+        if type(payload['relay_only']) is not bool:
+            raise ValueError('relay_only must be boolean')
+        cost=payload.get('bandit_wire_cost',.08)
+        if not isinstance(cost,(int,float)) or isinstance(cost,bool):
+            raise ValueError('bandit_wire_cost must be numeric')
+        import math
+        if not math.isfinite(cost) or not 0 <= cost <= 10:
+            raise ValueError('bandit_wire_cost must be finite in [0,10]')
+        return dict(payload)
+
+    def training_preferences(self):
+        path=self._training_preferences_path()
+        defaults={'publish_mode':'wan','local_steps':32,
+                  'snapshot_priority':'training','turn_transport':'auto',
+                  'relay_only':False}
+        if not path.is_file():
+            return defaults
+        try:
+            value=json.loads(path.read_text(encoding='utf8'))
+            if value.get('version')!=1:
+                return defaults
+            return self._validate_training_preferences(value.get('preferences'))
+        except (OSError,UnicodeError,ValueError,TypeError,AttributeError):
+            return defaults
+
+    def configure_training_preferences(self,payload):
+        prefs=self._validate_training_preferences(payload)
+        path=self._training_preferences_path()
+        with self.lock:
+            path.parent.mkdir(parents=True,exist_ok=True,mode=0o700)
+            os.chmod(path.parent,0o700)
+            tmp=path.with_name('.training-'+secrets.token_hex(8))
+            fd=os.open(tmp,os.O_WRONLY|os.O_CREAT|os.O_EXCL|
+                       getattr(os,'O_NOFOLLOW',0),0o600)
+            try:
+                with os.fdopen(fd,'w',encoding='utf8') as out:
+                    json.dump({'version':1,'preferences':prefs},out)
+                    out.write('\n');out.flush();os.fsync(out.fileno())
+                os.replace(tmp,path)
+            finally:
+                tmp.unlink(missing_ok=True)
+        return prefs
 
     def settings(self):
         return {'last_room':self._last_room(), 'room':create_room_id(), 'model':'roneneldan/TinyStories-1M',
                 'revision':'77f1b168e219585646439073245fe87e56b3023e', 'task':'causal-lm', 'ws':self._signaling_url(),
                 'seed':42,'kind':'loha','rank':16,'initialization':'random',
-                'reinit_every':20,'lr':0.0001,'local_steps':4,'max_length':64,
+                'reinit_every':20,'lr':0.0001,'local_steps':32,'max_length':64,
+                'publish_mode':'wan','snapshot_priority':'training','turn_transport':'auto','relay_only':False,
                 'wide_lora_rank':4,'rounds':0,'push_fanout':2,
                 'max_journal_gb':4,'streaming_base':False,'disk_cache_fraction':.6,
                 'sources':[{'repo':'roneneldan/TinyStories','revision':'f54c09fd23315a6f9c86f9dc80f725de7d8f9c64','config':None,
-                            'split':'train','columns':{'text':'text'},'weight':1.0}]}
+                            'split':'train','columns':{'text':'text'},'weight':1.0}],
+                **self.training_preferences()}
 
     def save(self, payload: dict):
         """Delegated room configuration; see webview_lifecycle_v110."""
@@ -277,6 +361,43 @@ class WebviewController:
         return {'status':'candidate','reason':('Metadata-based estimate; architecture/remote code and kernels require testing'),
             'parameters':parameters,'min_disk_bytes':required_disk}
 
+    def _wan_registration_path(self, room):
+        return self._room_path(room).parent / 'wan-registration.json'
+
+    def _read_wan_registration(self, room, ws):
+        path=self._wan_registration_path(room)
+        try:
+            if not ws.startswith('wss://') or path.is_symlink():
+                return None
+            receipt=json.loads(path.read_text(encoding='utf8'))
+            if (type(receipt) is dict and receipt.get('version')==1
+                    and receipt.get('room')==room and receipt.get('ws')==ws
+                    and type(receipt.get('public')) is bool):
+                return receipt
+        except (OSError,UnicodeError,ValueError,TypeError):
+            pass
+        return None
+
+    def _record_wan_registration(self, room, ws, public):
+        if not ws.startswith('wss://'):
+            return
+        path=self._wan_registration_path(room)
+        # The room folder is allocated from the validated room-id namespace.
+        # Never store tokens or secrets in this receipt.
+        with self.lock:
+            path.parent.mkdir(parents=True,exist_ok=True,mode=0o700)
+            temp=path.with_name('.wan-registration-'+secrets.token_hex(8))
+            fd=os.open(temp,os.O_WRONLY|os.O_CREAT|os.O_EXCL|
+                       getattr(os,'O_NOFOLLOW',0),0o600)
+            try:
+                with os.fdopen(fd,'w',encoding='utf8') as out:
+                    json.dump({'version':1,'room':room,'ws':ws,'public':public,
+                               'registered_at':int(time.time())},out)
+                    out.write('\n');out.flush();os.fsync(out.fileno())
+                os.replace(temp,path)
+            finally:
+                temp.unlink(missing_ok=True)
+
     def register_room(self, payload: dict):
         # Explicit network action. Saving a manifest locally remains possible
         # without Mummy online; published metadata is immutable thereafter.
@@ -286,10 +407,11 @@ class WebviewController:
             raise FileNotFoundError('Save the room settings locally first')
         manifest=load_manifest(path)
         ws=check_signaling_url(payload.get('ws',''))
+        is_public=payload.get('room_public',False) is True
         asyncio.run(register_room_manifest(ws,room,manifest,
-            publish=payload.get('room_public',False) is True,
-            token='',timeout=8))
-        return {'registered':True,'room':room,'public':payload.get('room_public',False) is True}
+            publish=is_public,token='',timeout=8))
+        self._record_wan_registration(room,ws,is_public)
+        return {'registered':True,'room':room,'public':is_public}
 
     def list_rooms(self, payload: dict):
         # Read-only, bound to the user's chosen signaling host. Run on the
@@ -300,6 +422,25 @@ class WebviewController:
     def upload_code(self, payload: dict):
         from .code_registry import register_base64
         return register_base64(self.workdir/'.kcia-gui'/'codes',payload.get('name'),payload.get('contents'))
+
+    def peer_pt_settings(self, payload: dict):
+        """Return this peer's private HF PT references, not public room data."""
+        from .room_manifest import validate_hf_sources
+        room=validate_room(payload['room'])
+        path=self._room_path(room)
+        if not path.is_file():
+            raise FileNotFoundError('model must be saved before selecting peer datasets')
+        with self.lock:
+            if room not in self.profiles:
+                self.profiles[room]=allocate_profile(path.parent)
+            name=self.profiles[room].name
+        file=path.parent/('peer-pt-sources-'+name+'.json')
+        if not file.is_file():
+            return {'sources':[],'mode':'room'}
+        if file.is_symlink() or file.stat().st_size>16*1024:
+            raise ValueError('unsafe peer dataset settings')
+        raw=json.loads(file.read_text(encoding='utf8'))
+        return {'sources':validate_hf_sources(raw),'mode':'custom'}
 
     def mixed_settings(self, payload: dict):
         """Return this machine's private datasets/critic selections for a room.
@@ -529,15 +670,20 @@ class WebviewController:
             return {'stopping':True}
 
     def local_models(self, payload=None):
-        """Local manifests, including unpublished models, never remote code."""
+        """Local manifests; a WAN badge requires a real previous WSS registration."""
         base=self.workdir/'.kcia-gui'/'rooms'
+        try: ws=check_signaling_url((payload or {}).get('ws') or self._signaling_url())
+        except (ValueError,TypeError,AttributeError):ws=self._signaling_url()
         items=[]
         if base.exists():
             for candidate in __import__('itertools').islice(base.glob('*/manifest.json'), 200):
                 try:
                     obj=load_manifest(candidate)
                     if obj['version'] != 2: continue
+                    registered=self._read_wan_registration(candidate.parent.name,ws)
                     items.append({'room_id':candidate.parent.name,
+                        'wan_registered':registered is not None,
+                        'registered_public':bool(registered and registered['public']),
                         'model':obj['model']['id'],
                         'revision':obj['model']['revision'],
                         'task':obj['model']['architecture'],
@@ -632,6 +778,19 @@ class WebviewController:
                 available_ram_bytes=dev.get('ram_bytes') or 0,
                 available_vram_bytes=dev.get('vram_bytes') or 0,
                 rank=rank,kind=kind)
+        # GUI WAN mode uses model-size-aware publication cadence; 'adaptive'
+        # remains the old per-device heuristic for compatibility/debugging.
+        from .auto_policy import estimate_wan_publish_cadence
+        legacy_steps=policy['local_steps']
+        cadence=estimate_wan_publish_cadence(
+            config=config,
+            adapter_wire_mib=policy['estimated_adapter_wire_mib'])
+        policy.update({'local_steps':cadence['local_steps'],
+                       'legacy_local_steps':legacy_steps,
+                       'estimated_parameters':cadence['estimated_parameters'],
+                       'estimated_transfer_seconds':cadence['estimated_transfer_seconds'],
+                       'assumed_uplink_mib_s':cadence['assumed_uplink_mib_s'],
+                       'reason':cadence['reason']+' '+policy['reason']})
         capacity=rank_plan['rank_capacity']
         policy.update({'rank':rank,'local_physical_rank_estimate':min(rank,rank_plan['rank']),
                        'local_rank_memory_saving':True,'rank_pinned':bool(pinned),

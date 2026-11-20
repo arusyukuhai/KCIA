@@ -176,9 +176,12 @@ def test_gui_mapping_and_cli_flags(tmp_path):
     assert flags[flags.index('--ppo-adv-norm')+1]=='rms'
     assert flags[flags.index('--ppo-entropy-coef')+1]=='0.005'
     assert flags[flags.index('--ppo-critic-grad-norm')+1]=='1.0'
-    # SFT preference requires per-example rejected column; not supported by HFRowCycle.
-    with pytest.raises(ValueError,match='local JSONL'):
-        normalize({**settings,'sft_jsonl':'','sft_hf_repo':'org/data','sft_hf_revision':'e'*40},task='causal-lm')
+    # v138: immutable HF preference pair source is now supported, but still
+    # requires the rejected field to be present when the trainer validates row 1.
+    hub=normalize({**settings,'sft_jsonl':'','sft_hf_repo':'org/data',
+                   'sft_hf_revision':'e'*40,'sft_hf_rejected_column':'rejected'},task='causal-lm')
+    assert hub['sft_pref_coef']==.4 and hub['sft_hf_rejected_column']=='rejected'
+    assert '--sft-hf-rejected-column' in command_options(hub,state_dir=tmp_path/'critic')
 
 
 def test_cli_flags_registered():

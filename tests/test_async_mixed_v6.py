@@ -140,7 +140,7 @@ def test_gui_live_real_command_async_defaults(tmp_path,monkeypatch):
     cfg=controller.settings()
     assert cfg['kind']=='loha' and cfg['rank']==16
     assert cfg['wide_lora_rank']==4
-    assert cfg['local_steps']==4 and cfg['rounds']==0 and 'peers' not in cfg
+    assert cfg['local_steps']==32 and cfg['rounds']==0 and 'peers' not in cfg  # WAN-first GUI since v134
     assert cfg['reinit_every']==20 and cfg['lr']==.0001
     controller.save(cfg)
     calls=[]

@@ -12,6 +12,15 @@ import time
 from pathlib import Path
 
 
+def _safe_diagnostic(value, *, default: float = 0.0) -> float:
+    """Make auxiliary gauges JSON-safe; do not alter signed training data."""
+    try:
+        number = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return default
+    return number if math.isfinite(number) else default
+
+
 class LocalTelemetry:
     MAX_LOG_BYTES = 16 * 1024 * 1024
     KEEP_LOG_BYTES = 8 * 1024 * 1024
@@ -104,7 +113,10 @@ class LocalTelemetry:
                ppo_reward: float | None = None, ppo_kl: float | None = None,
                ppo_critic_loss: float | None = None,
                peer_id: str | None = None, connected_peers: list[str] | None = None,
-               membership_count: int | None = None):
+               membership_count: int | None = None,
+               bandit_trials: int = 0, bandit_gain_per_1000: float | None = None,
+               bandit_signed_mib_per_step: float | None = None,
+               bandit_net_utility: float | None = None):
         if self.file is None:
             return False
         now = time.monotonic()
@@ -114,7 +126,7 @@ class LocalTelemetry:
         speed = max(0., (steps - self.last_step) / dt) if dt > 0 else 0.
         self.last_step_time, self.last_step = now, steps
         self.last_written = now
-        value = float(loss)
+        value = _safe_diagnostic(loss, default=float('nan'))
         from .objective_metrics_v107 import finite_metric
         item = dict(accuracy=finite_metric(accuracy,minimum=0.,maximum=1.),
                     pt_accuracy=finite_metric(pt_accuracy,minimum=0.,maximum=1.),
@@ -133,25 +145,29 @@ class LocalTelemetry:
                     steps_per_s=round(speed, 4), emitted=int(emitted),
                     inbound_applied=int(inbound_applied), inbox=int(inbox),
                     channels=int(channels), state=state,
-                    verify_ms=round(float(verify_ms), 2),
-                    apply_ms=round(float(apply_ms), 2),
+                    verify_ms=round(_safe_diagnostic(verify_ms), 2),
+                    apply_ms=round(_safe_diagnostic(apply_ms), 2),
                     inbound_duplicates=int(inbound_duplicates),
-                    push_mib=round(float(push_mib), 2),
-                    repair_mib=round(float(repair_mib), 2),
-                    lock_wait_ms=round(float(lock_wait_ms), 2),
-                    journal_ms=round(float(journal_ms), 2),
-                    weight_apply_ms=round(float(weight_apply_ms), 2),
-                    local_seal_ms=round(float(local_seal_ms), 2),
-                    local_lock_ms=round(float(local_lock_ms), 2),
-                    local_export_ms=round(float(local_export_ms), 2),
-                    local_verify_ms=round(float(local_verify_ms), 2),
-                    local_journal_ms=round(float(local_journal_ms), 2),
-                    local_apply_ms=round(float(local_apply_ms), 2),
-                    working_save_ms=round(float(working_save_ms), 2),
+                    push_mib=round(_safe_diagnostic(push_mib), 2),
+                    repair_mib=round(_safe_diagnostic(repair_mib), 2),
+                    lock_wait_ms=round(_safe_diagnostic(lock_wait_ms), 2),
+                    journal_ms=round(_safe_diagnostic(journal_ms), 2),
+                    weight_apply_ms=round(_safe_diagnostic(weight_apply_ms), 2),
+                    local_seal_ms=round(_safe_diagnostic(local_seal_ms), 2),
+                    local_lock_ms=round(_safe_diagnostic(local_lock_ms), 2),
+                    local_export_ms=round(_safe_diagnostic(local_export_ms), 2),
+                    local_verify_ms=round(_safe_diagnostic(local_verify_ms), 2),
+                    local_journal_ms=round(_safe_diagnostic(local_journal_ms), 2),
+                    local_apply_ms=round(_safe_diagnostic(local_apply_ms), 2),
+                    working_save_ms=round(_safe_diagnostic(working_save_ms), 2),
                     publish_steps=int(publish_steps),
+                    bandit_trials=max(0,int(bandit_trials)),
+                    bandit_gain_per_1000=finite_metric(bandit_gain_per_1000),
+                    bandit_signed_mib_per_step=finite_metric(bandit_signed_mib_per_step,minimum=0.),
+                    bandit_net_utility=finite_metric(bandit_net_utility),
                     aggregation_events=int(aggregation_events),
                     aggregation_batches=int(aggregation_batches),
-                    aggregation_saved_mib=round(float(aggregation_saved_mib),2))
+                    aggregation_saved_mib=round(_safe_diagnostic(aggregation_saved_mib),2))
         try:
             self.file.write(json.dumps(item, separators=(',', ':'), allow_nan=False) + '\n')
             self._trim()
@@ -177,30 +193,42 @@ def recent_samples(path: Path | None, *, max_samples: int = 320,
     if path is None or not Path(path).is_file():
         return []
     # Tail a bounded amount. Skip first/last partial lines. No unbounded read.
-    with Path(path).open('rb') as source:
-        source.seek(0, os.SEEK_END)
-        length = source.tell()
-        source.seek(max(0, length - max_bytes))
-        content = source.read(max_bytes)
+    # The writer can atomically rotate this disposable file while the GUI
+    # polls it. A vanished/renamed file is not a fatal RPC error.
+    try:
+        with Path(path).open('rb') as source:
+            source.seek(0, os.SEEK_END)
+            length = source.tell()
+            source.seek(max(0, length - max_bytes))
+            content = source.read(max_bytes)
+    except OSError:
+        return []
     lines = content.split(b'\n')
     if length > max_bytes:
         lines = lines[1:]
-    # split() produces a final empty item for every properly newline-terminated
-    # JSONL file. With max_samples=1 this previously returned [] and disabled
-    # all long-range graph fetching, leaving only the 320 recent status rows.
-    lines = lines[:-1]  # drop trailing empty item OR unfinished final line
+    # The last split item is either a trailing empty entry (complete JSONL)
+    # or an unfinished record. Any complete but malformed entries immediately
+    # before it must not hide the last *valid* graph sample. In particular,
+    # history_samples(max_samples=1) needs to survive torn writes and crashes.
+    if type(max_samples) is not int or max_samples <= 0:
+        return []
+    lines = lines[:-1]
     output = []
-    for raw in lines[-max_samples:]:
+    for raw in reversed(lines):
         if not raw:
             continue
         try:
             item = json.loads(raw)
             if (type(item) is dict and type(item.get('steps')) is int and
                     type(item.get('elapsed_s')) in (float, int) and
+                    math.isfinite(item['elapsed_s']) and
                     item.get('state') in ('training','waiting','paused','done')):
                 output.append(item)
-        except (ValueError, UnicodeError):
+                if len(output) >= max_samples:
+                    break
+        except (ValueError, UnicodeError, TypeError, OverflowError):
             continue
+    output.reverse()
     return output
 
 
@@ -242,7 +270,7 @@ def history_samples(path: Path | None, *, window_seconds: int = 1800,
                 math.isfinite(float(item['elapsed_s'])) and
                 item.get('state') in ('training','waiting','paused','done')):
                 return item,start
-        except (ValueError, UnicodeError, TypeError):
+        except (ValueError, UnicodeError, TypeError, OverflowError):
             pass
         return None,start
     try:
@@ -277,9 +305,10 @@ def history_samples(path: Path | None, *, window_seconds: int = 1800,
                     if not raw.endswith(b'\n'):break
                     try:
                         obj=json.loads(raw)
-                        if float(obj.get('elapsed_s',-1))>=target:
+                        if (type(obj) is dict and
+                                float(obj.get('elapsed_s',-1))>=target):
                             begin=at;break
-                    except (ValueError,TypeError):pass
+                    except (ValueError,TypeError,OverflowError):pass
             # Equal-byte-position stratified sampling: caps disk I/O even
             # after months of telemetry and preserves the final exact value.
             samples=[];seen=set()

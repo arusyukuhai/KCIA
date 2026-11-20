@@ -54,7 +54,7 @@ def test_colab_notebook_sends_real_max_rank_and_distinct_colab_state():
     assert "private/colab.pem" in body
     launcher=(ROOT/'scripts/start_wan_pt.py').read_text()
     assert "'--rank','32','--local-loha-rank','auto'" in launcher
-    assert "'--reinit-every','20','--local-steps','4'" in launcher
+    assert "'--reinit-every','20','--local-steps',str(getattr(a,'local_steps',32))" in launcher
     assert "'--signing-key'" not in launcher
 
 

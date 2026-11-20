@@ -105,6 +105,7 @@ def add_train_args(p):
     p.add_argument('--sft-hf-split',default='train',help='Pinned Hub SFT split')
     p.add_argument('--sft-hf-prompt-column',default='prompt',help='Pinned Hub SFT prompt_column')
     p.add_argument('--sft-hf-response-column',default='response',help='Pinned Hub SFT response_column')
+    p.add_argument('--sft-hf-rejected-column',default='rejected',help='Pinned Hub SFT rejected column for preference optimization')
     p.add_argument('--ppo-hf-repo',default='',help='Pinned Hub PPO repo')
     p.add_argument('--ppo-hf-revision',default='',help='Pinned Hub PPO revision')
     p.add_argument('--ppo-hf-config',default='',help='Pinned Hub PPO config')

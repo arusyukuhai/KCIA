@@ -500,7 +500,23 @@ def main():
     livefed.add_argument('--expected-peers',type=int,default=2,help='Deprecated cosmetic CLI field; live membership is discovered automatically')
     livefed.add_argument('--token',default='' )
     livefed.add_argument('--local-steps',type=int,default=4,help='Maximum local minibatches before publishing; receive no longer forces early seal')
+    livefed.add_argument('--auto-model-cadence',action='store_true',help='WAN: increase event spacing as model and signed patch size grow')
+    livefed.add_argument('--cost-bandit',action=argparse.BooleanOptionalAction,default=True,
+        help='Online quadratic-UCB cadence: observe relative training-loss trend vs expected signed wire MiB (WAN auto cadence only)')
+    livefed.add_argument('--bandit-wire-cost',type=float,default=.08,
+        help='Utility weight for predicted signed MiB per minibatch; local-only advisory')
+    livefed.add_argument('--bandit-exploration',type=float,default=.04,
+        help='Bounded UCB exploration bonus in [0,1] (default 0.04)')
+    livefed.add_argument('--peer-pt-sources-file',type=Path,default=None,help='Local-only JSON array of per-peer HF PT datasets (no signaling upload)')
     livefed.add_argument('--max-sync-steps',type=int,default=64,help='Maximum local steps per published event as room grows')
+    livefed.add_argument('--min-publish-steps',type=int,default=0,
+        help='Local-only floor for signed publication cadence (0=adaptive legacy; WAN GUI default 32)')
+    livefed.add_argument('--snapshot-priority',choices=('training','snapshot'),default=None,
+        help='During a full-model snapshot, keep training or pause new optimizer steps')
+    livefed.add_argument('--turn-transport',choices=('auto','tcp','udp'),default=None,
+        help='Preferred TURN transport for this worker; auto preserves successful ICE selection')
+    livefed.add_argument('--relay-only',action=argparse.BooleanOptionalAction,default=None,
+        help='Force TURN-only SDP candidates (experimental; WAN default permits all ICE candidates)')
     livefed.add_argument('--fixed-sync',dest='adaptive_sync',action='store_false',help='Disable room-size-based publication spacing')
     livefed.set_defaults(adaptive_sync=True)
     livefed.add_argument('--rounds',type=int,default=0,help='Elastic: 0 runs continuously; synchronous requires > 0 rounds')

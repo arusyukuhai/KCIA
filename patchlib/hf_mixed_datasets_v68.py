@@ -43,8 +43,17 @@ def source_spec(args, role):
         if not _COMPONENT.fullmatch(value):raise HFMixedDatasetError(f'{role}: columns must be simple names or dotted fields')
     if role=='sft' and prompt==other:
         raise HFMixedDatasetError('SFT prompt and response columns must differ')
-    return {'repo':repo,'revision':sha.lower(),'config':config or None,'split':split,
+    result={'repo':repo,'revision':sha.lower(),'config':config or None,'split':split,
             'prompt_column':prompt,other_name+'_column':other}
+    if role=='sft':
+        rejected=str(getattr(args,'sft_hf_rejected_column','rejected') or '').strip()
+        if not _COMPONENT.fullmatch(rejected) or rejected in (prompt,other):
+            raise HFMixedDatasetError('SFT rejected column must be a distinct simple or dotted field')
+        result['rejected_column']=rejected
+        # Ordinary SFT must ignore unrelated/unparseable 'rejected' metadata.
+        # Only explicit preference training interprets the extra column.
+        result['require_rejected']=float(getattr(args,'sft_pref_coef',0) or 0)>0
+    return result
 
 
 def source_selected(args, role):
@@ -217,6 +226,8 @@ class HFRowCycle:
             print(f'KCIA HF DATASET MAP role={self.role} repo={self.spec["repo"]} {display}',flush=True)
         mode,fields=self._resolved_mapping
         if mode=='messages':
+            if self.role=='sft' and self.spec.get('require_rejected',False):
+                raise HFMixedDatasetError('Preference SFT needs explicit prompt/response/rejected columns, not messages-only rows')
             return _chat_sft(row)
         prompt=_text(_field(row,fields[0]),'prompt')
         result={'prompt':prompt}
@@ -227,6 +238,10 @@ class HFRowCycle:
             if self.role=='ppo':return result  # Valid only for an external RM.
             raise
         result[other]=_text(value,other)
+        if self.role=='sft' and self.spec.get('require_rejected',False):
+            # Fail at Hub preflight before loading expensive actor/critic weights.
+            rejected=self.spec.get('rejected_column','rejected')
+            result['rejected']=_text(_field(row,rejected),'rejected')
         return result
 
     def next(self):

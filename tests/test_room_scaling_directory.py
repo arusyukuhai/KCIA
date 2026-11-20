@@ -94,7 +94,7 @@ def test_public_directory_bounded_and_no_private_disclosure(monkeypatch,tmp_path
     controller=WebviewController(tmp_path)
     got=controller.list_rooms({'ws':'ws://127.0.0.1:8080/ws'})
     assert got['rooms']==[entry]
-    assert received[0][0]=='http://127.0.0.1:8080/api/rooms'
+    assert getattr(received[0][0], 'full_url', received[0][0])=='http://127.0.0.1:8080/api/rooms'
     assert KCIABridge(controller).list_rooms({'ws':'ws://127.0.0.1:8080/ws'})['rooms']==[entry]
     with pytest.raises(PermissionError):public_room_endpoint('ws://external.example/ws')
     assert public_room_endpoint('wss://kcia.example/ws')=='https://kcia.example/api/rooms'

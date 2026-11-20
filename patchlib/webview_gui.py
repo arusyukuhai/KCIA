@@ -142,6 +142,9 @@ class KCIABridge:
     def configure_network(self, payload):
         return self._controller.configure_network(payload)
 
+    def configure_training(self, payload):
+        return self._controller.configure_training_preferences(payload)
+
     def probe_network(self, payload):
         return self._controller.probe_network(payload)
 
@@ -187,6 +190,9 @@ class KCIABridge:
             dialog_type=webview.FileDialog.OPEN
         result=window.create_file_dialog(dialog_type,allow_multiple=False,file_types=mask)
         return {'path':str(Path(result[0]).expanduser().resolve()) if result else ''}
+
+    def peer_pt_settings(self, payload: dict):
+        return self._controller.peer_pt_settings(payload)
 
     def mixed_settings(self, payload: dict):
         return self._controller.mixed_settings(payload)

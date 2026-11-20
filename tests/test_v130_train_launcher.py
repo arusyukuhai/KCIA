@@ -19,7 +19,7 @@ def test_role_training_args_are_distinct_and_signed(role,expected_device):
     assert argv[argv.index('--device')+1]==expected_device
     assert argv[argv.index('--rank')+1]=='32'
     assert argv[argv.index('--local-loha-rank')+1]=='auto'
-    assert argv[argv.index('--local-steps')+1]=='4'
+    assert argv[argv.index('--local-steps')+1]=='32'
     assert argv[argv.index('--reinit-every')+1]=='20'
     assert argv[argv.index('--room-id')+1]==a.room_id
     assert argv[argv.index('--state-base')+1].endswith('/'+role+'/genesis.fstate')

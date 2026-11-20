@@ -237,6 +237,11 @@ def save_room(self, payload: dict):
 def start_training(self, payload: dict, *, profile_allocator):
     room=validate_room(payload['room'])
     with self.lock:
+        # Refuse a second start before allocating a profile or mutating ANY
+        # local sidecar (mixed-objective pins, peer PT references, launch pins,
+        # checkpoint locations). The old late guard ran after those writes.
+        if self.train.status():
+            raise RuntimeError('This model is already online; resume instead')
         path=self._room_path(room)
         if not path.is_file():
             raise FileNotFoundError('Save room settings before starting training')
@@ -366,6 +371,27 @@ def start_training(self, payload: dict, *, profile_allocator):
             # Peers joining later must receive the policy over an explicit,
             # pinned channel; never synthesize it from different local files.
             atomic_json(mixed_policy_file,mixed_spec)
+        # Private PT dataset override: safe HF descriptors only, never added to
+        # the signed room manifest, public directory or P2P transport frames.
+        private_pt_file=None
+        private_sources=payload.get('peer_pt_sources',[])
+        if private_sources:
+            normalized=validate_hf_sources(private_sources)
+            if manifest['version']!=2:
+                raise ValueError('Independent PT datasets require a v2 HF room')
+            # A local participant may use different samples under the SAME
+            # loss function, but the schema still must match the model task.
+            task_columns={'causal-lm':{'text'},'masked-lm':{'text'},
+                          'seq2seq-lm':{'input','target'},
+                          'sequence-classification':{'text','label'}}
+            expected=task_columns.get(manifest['model']['architecture'])
+            if expected is None or any(set(src['columns'])!=expected for src in normalized):
+                raise ValueError('peer PT dataset column mapping does not match this room model task')
+            private_pt_file=path.parent/('peer-pt-sources-'+profile.name+'.json')
+            from .mix_gui_v66 import atomic_json
+            atomic_json(private_pt_file,normalized)
+        elif private_sources is not None and (not isinstance(private_sources,list)):
+            raise ValueError('peer PT sources must be a list')
         critic_dir=path.parent/'critics'/profile.name
         pause_file = path.parent / ('pause-'+profile.name+'.flag')
         journal = profile.journal.resolve()
@@ -411,7 +437,15 @@ def start_training(self, payload: dict, *, profile_allocator):
             snapshot_request_file=snapshot_request_file,
             mixed_options=mixed,mixed_policy=mixed_policy_file if mixed_spec else None,
             critic_state_dir=critic_dir,
-            device=payload.get('compute_device','auto'))
+            device=payload.get('compute_device','auto'),
+            min_publish_steps=payload.get('min_publish_steps',0),
+            snapshot_priority=payload.get('snapshot_priority',None),
+            turn_transport=payload.get('turn_transport',None),
+            relay_only=payload.get('relay_only',None),
+            shard_mb=payload.get('shard_mb',None),
+            auto_model_cadence=payload.get('auto_model_cadence',False) is True,
+            bandit_wire_cost=payload.get('bandit_wire_cost',.08),
+            peer_pt_sources_file=private_pt_file)
         # A bad new setting must never poison a healthy old journal.
         # Record the immutable launch policy before dispatching, so a GUI
         # crash between process creation and first metric cannot forget it.

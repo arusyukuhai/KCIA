@@ -33,11 +33,11 @@ def test_anonymous_signaling_maintains_bounded_admission():
 def test_signaling_persistence_without_client_credentials(tmp_path):
     ctrl=WebviewController(tmp_path)
     bridge=KCIABridge(ctrl)
-    assert bridge.defaults()['ws'].startswith('ws://127.0.0.1')
+    assert bridge.defaults()['ws']=='wss://signal.kcia.tech/ws'
     result=bridge.configure_network({'ws':'wss://signal.example.com/ws'})
     assert result['mode']=='internet'
     saved=tmp_path/'.kcia-gui'/'network.json'
-    assert json.loads(saved.read_text())=={'version':1,'ws':'wss://signal.example.com/ws'}
+    assert json.loads(saved.read_text())=={'version':2,'ws':'wss://signal.example.com/ws'}
     assert saved.stat().st_mode & 0o077 == 0
     second=WebviewController(tmp_path)
     assert second.settings()['ws']=='wss://signal.example.com/ws'

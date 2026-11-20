@@ -7,15 +7,12 @@ verified resharding outside this class. No central model/activation relay.
 from __future__ import annotations
 import asyncio
 import hashlib
-import json
 import logging
 from pathlib import Path
-import torch
 from torch import nn
 from .roomid import validate_room, auto_identity, pair_room
 from .expert_plan import plan_digest
-from .expert_parallel import (discover_moe, ExpertOwner, RemoteExpert,
-                              ExpertRPCError, install_remote_experts)
+from .expert_parallel import (discover_moe, ExpertOwner, install_remote_experts)
 from .expert_channel import ExpertDataChannelBridge
 from .elasticnet import ElasticNode
 
